@@ -1,0 +1,243 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-app: #F4F6F9;
+    --text-app: #1E293B;
+    --card-bg: #FFFFFF;
+    --border-color: #E2E8F0;
+  }
+
+  .dark {
+    --bg-app: #0B0F17;
+    --text-app: #F8FAFC;
+    --card-bg: #111827;
+    --border-color: #1F2937;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--bg-app);
+    color: var(--text-app);
+    transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+/* Custom scrollbars matching Stitch */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Global Dark Mode Surface & Text Overrides with High Contrast */
+.dark .bg-white {
+  background-color: #0F172A !important;
+}
+
+.dark .bg-white\/60,
+.dark .bg-white\/70,
+.dark .bg-white\/80,
+.dark .bg-white\/90 {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+}
+
+.dark .bg-\[\#F8FAFC\] {
+  background-color: #131E33 !important;
+}
+
+.dark .bg-\[\#F4F6F9\] {
+  background-color: #080D1A !important;
+}
+
+.dark .border-slate-100 {
+  border-color: #1E293B !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-200\/60,
+.dark .border-slate-200\/80 {
+  border-color: #27364D !important;
+}
+
+/* Text luminance corrections for dark mode */
+.dark .text-slate-900,
+.dark .text-slate-800 {
+  color: #F8FAFC !important;
+}
+
+.dark .text-slate-700 {
+  color: #E2E8F0 !important;
+}
+
+.dark .text-slate-600 {
+  color: #CBD5E1 !important;
+}
+
+.dark .text-slate-500 {
+  color: #94A3B8 !important;
+}
+
+.dark .text-slate-400 {
+  color: #94A3B8 !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-50\/60,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/80 {
+  background-color: #131E33 !important;
+}
+
+.dark .bg-slate-100,
+.dark .bg-slate-100\/60,
+.dark .bg-slate-100\/80 {
+  background-color: #1E293B !important;
+}
+
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-50\/60:hover,
+.dark .hover\:bg-slate-50\/70:hover,
+.dark .hover\:bg-slate-50\/80:hover,
+.dark .hover\:bg-slate-50\/90:hover {
+  background-color: #19263E !important;
+}
+
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-100\/60:hover,
+.dark .hover\:bg-slate-100\/80:hover {
+  background-color: #243550 !important;
+}
+
+.dark .hover\:bg-slate-200:hover,
+.dark .hover\:bg-slate-200\/60:hover {
+  background-color: #334155 !important;
+}
+
+/* Emerald & Pastel surface corrections for dark mode (no washed-out gray) */
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/60,
+.dark .bg-emerald-50\/70,
+.dark .bg-emerald-50\/80 {
+  background-color: rgba(6, 78, 59, 0.35) !important;
+  color: #6EE7B7 !important;
+}
+
+.dark .border-emerald-100,
+.dark .border-emerald-200,
+.dark .border-emerald-200\/50,
+.dark .border-emerald-200\/60,
+.dark .border-emerald-200\/80 {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.dark .bg-rose-50,
+.dark .bg-rose-50\/40 {
+  background-color: rgba(136, 19, 55, 0.35) !important;
+}
+
+.dark .bg-amber-50,
+.dark .bg-amber-50\/40 {
+  background-color: rgba(120, 53, 15, 0.35) !important;
+}
+
+.dark .bg-sky-50,
+.dark .bg-sky-50\/40 {
+  background-color: rgba(12, 74, 110, 0.35) !important;
+}
+
+/* Gradient corrections in dark mode */
+.dark .from-slate-50 {
+  --tw-gradient-from: #131E33 var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(19, 30, 51, 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.dark .from-emerald-50 {
+  --tw-gradient-from: rgba(6, 78, 59, 0.45) var(--tw-gradient-from-position) !important;
+}
+
+.dark .via-teal-50\/50 {
+  --tw-gradient-stops: var(--tw-gradient-from), rgba(15, 23, 42, 0.85) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+.dark .to-white {
+  --tw-gradient-to: #0F172A var(--tw-gradient-to-position) !important;
+}
+
+/* Modals & Dialog backdrop in dark mode */
+.dark .shadow-soft {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+.dark .shadow-float,
+.dark .shadow-floating-sidebar {
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.55);
+}
+
+/* Form input elements in dark mode */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="date"],
+.dark input[type="number"],
+.dark select,
+.dark textarea {
+  color-scheme: dark;
+}
+
+/* Striped pattern for charts used in Stitch design */
+.striped-pattern {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.25) 0,
+    rgba(255, 255, 255, 0.25) 6px,
+    transparent 0,
+    transparent 12px
+  );
+}
+
+.glass-surface {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.dark .glass-surface {
+  background: rgba(17, 24, 39, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Hide scrollbar for clean horizontal pill navigation */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
