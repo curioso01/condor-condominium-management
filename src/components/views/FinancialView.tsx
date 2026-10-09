@@ -9,7 +9,12 @@ import { Badge } from '../ui/Badge';
 import { EmptyState } from '../ui/EmptyState';
 import { Skeleton } from '../ui/Skeleton';
 import { DynamicTelemetryChart } from '../common/DynamicTelemetryChart';
-import { CheckCircle2, AlertCircle, Database, RefreshCw, FileText } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Database, RefreshCw, FileText, Sliders, Edit, Plus, Download } from 'lucide-react';
+import { financialDataService, type ReserveFundData, type OperationalExpense, type AiDiagnosisData } from '../../services/financialDataService';
+import { ReserveFundModal } from './ReserveFundModal';
+import { BankConciliationModal } from './BankConciliationModal';
+import { AiSmartRuleModal } from './AiSmartRuleModal';
+import { OperationalExpensesModal } from './OperationalExpensesModal';
 
 export const FinancialView: React.FC = () => {
   const { currentCondominium } = useAuth();
@@ -22,12 +27,22 @@ export const FinancialView: React.FC = () => {
   const [blockFilter, setBlockFilter] = useState<'Todos' | 'Bloco A' | 'Bloco B' | 'Atrasados'>('Todos');
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
-  const [smartRuleActive, setSmartRuleActive] = useState(false);
   const [busyInvoiceId, setBusyInvoiceId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [modalInitialSelection, setModalInitialSelection] = useState<'all' | 'none'>('all');
+
+  // Interactive Financial Datasets & Modals
+  const [reserveFund, setReserveFund] = useState<ReserveFundData>(() => financialDataService.getReserveFund());
+  const [expenses, setExpenses] = useState<OperationalExpense[]>(() => financialDataService.getExpenses());
+  const [monthlyBudget, setMonthlyBudget] = useState(145000);
+  const [aiDiagnosis, setAiDiagnosis] = useState<AiDiagnosisData>(() => financialDataService.getAiDiagnosis());
+
+  const [isReserveModalOpen, setIsReserveModalOpen] = useState(false);
+  const [isConciliationModalOpen, setIsConciliationModalOpen] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isExpensesModalOpen, setIsExpensesModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!currentCondominium?.id) return;
@@ -204,11 +219,110 @@ export const FinancialView: React.FC = () => {
   };
 
   const handleBulkRemittance = () => {
-    alert(`Remessa Bancária CNAB gerada para ${selectedInvoices.length} boletos selecionados.`);
+    const cnabContent = `01REMESSA01COBRANCA       0341BANCO ITAU S.A.   ${new Date().toISOString().slice(0, 10)}\n` +
+      selectedInvoices.map((id, idx) => `1${String(idx + 1).padStart(6, '0')}${id.slice(0, 10)}`).join('\n');
+    const blob = new Blob([cnabContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CB${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.REM`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setNotification({
+      type: 'success',
+      message: `Arquivo de Remessa CNAB 240 baixado para ${selectedInvoices.length} boletos!`,
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleExportBalancete = () => {
+    financialDataService.downloadBalanceteCsv(reserveFund, expenses);
+    setNotification({
+      type: 'success',
+      message: 'Download do Balancete Mensal (CSV) concluído com sucesso!',
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleAddAporte = (amount: number, description: string, fromAccount: string) => {
+    const updated = financialDataService.addReserveAporte({
+      amount,
+      description,
+      date: new Date().toLocaleDateString('pt-BR'),
+      fromAccount,
+    });
+    setReserveFund(updated);
+    setNotification({
+      type: 'success',
+      message: `Aporte de R$ ${amount.toLocaleString('pt-BR')} adicionado ao Fundo de Reserva!`,
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleUpdateReserveParams = (updated: ReserveFundData) => {
+    financialDataService.updateReserveFund(updated);
+    setReserveFund(updated);
+    setNotification({
+      type: 'success',
+      message: 'Parâmetros e metas do Fundo de Reserva atualizados!',
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleUpdateAiDiagnosis = (updated: AiDiagnosisData) => {
+    financialDataService.updateAiDiagnosis(updated);
+    setAiDiagnosis(updated);
+    setNotification({
+      type: 'success',
+      message: 'Diagnóstico CONDOR AI e Régua Inteligente atualizados!',
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleAddExpense = (exp: Omit<OperationalExpense, 'id'>) => {
+    const updated = financialDataService.addExpense(exp);
+    setExpenses(updated);
+    setNotification({
+      type: 'success',
+      message: `Despesa com ${exp.supplier} adicionada com sucesso!`,
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleDeleteExpense = (id: string) => {
+    const updated = financialDataService.deleteExpense(id);
+    setExpenses(updated);
+    setNotification({
+      type: 'info',
+      message: 'Despesa removida do orçamento operacional.',
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleUpdateBudget = (newBudget: number) => {
+    setMonthlyBudget(newBudget);
+    setNotification({
+      type: 'success',
+      message: `Teto orçamentário mensal atualizado para R$ ${newBudget.toLocaleString('pt-BR')}!`,
+    });
+    setTimeout(() => setNotification(null), 4000);
   };
 
   const currentMonthName = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   const formattedCompetence = `Competência ${currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)}`;
+
+  // Derived dynamic calculations
+  const totalExpenses = useMemo(() => expenses.reduce((acc, e) => acc + e.amount, 0), [expenses]);
+  const budgetPct = monthlyBudget > 0 ? Math.round((totalExpenses / monthlyBudget) * 100) : 0;
+  const folhaTotal = useMemo(() => expenses.filter((e) => e.category === 'Folha & Portaria').reduce((acc, e) => acc + e.amount, 0), [expenses]);
+  const folhaPct = totalExpenses > 0 ? Math.round((folhaTotal / totalExpenses) * 100) : 0;
+  const manutencaoTotal = useMemo(() => expenses.filter((e) => e.category === 'Manutenção & Elevadores').reduce((acc, e) => acc + e.amount, 0), [expenses]);
+  const manutencaoPct = totalExpenses > 0 ? Math.round((manutencaoTotal / totalExpenses) * 100) : 0;
+  const concessionariasTotal = useMemo(() => expenses.filter((e) => e.category === 'Concessionárias').reduce((acc, e) => acc + e.amount, 0), [expenses]);
+  const concessionariasPct = totalExpenses > 0 ? Math.round((concessionariasTotal / totalExpenses) * 100) : 0;
+  const reserveGoalPct = Math.min(100, Math.round((reserveFund.balance / (reserveFund.targetAmount || 1)) * 100));
 
   return (
     <div className="flex flex-col gap-5 pb-6 min-w-0" data-purpose="financial-view">
@@ -225,12 +339,10 @@ export const FinancialView: React.FC = () => {
         <div className="flex items-center gap-2">
           <button 
             type="button"
-            onClick={() => alert('Download do Balancete Mensal iniciado em PDF e Planilha.')}
+            onClick={handleExportBalancete}
             className="px-4 py-2 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            </svg>
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
             Exportar Balancete
           </button>
           <button 
@@ -377,8 +489,8 @@ export const FinancialView: React.FC = () => {
             <span className="text-xs text-slate-400">Meta condominial: 95%</span>
             <button 
               type="button"
-              onClick={() => alert('Conciliação bancária gerada com sucesso via Open Finance!')}
-              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg px-1.5 py-0.5"
+              onClick={() => setIsConciliationModalOpen(true)}
+              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1 group/btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg px-1.5 py-0.5 cursor-pointer"
             >
               Emitir Conciliação
               <svg className="w-3.5 h-3.5 transform group-hover/btn:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -411,49 +523,66 @@ export const FinancialView: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 dark:bg-slate-800 border border-white/25 dark:border-slate-700 text-white dark:text-emerald-400 text-[11px] font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 dark:bg-emerald-400 animate-pulse" aria-hidden="true"></span>
-                Conta Aplicação Automática
+                {reserveFund.accountType}
               </span>
-              <span className="text-xs text-emerald-100 dark:text-slate-400 font-medium">Banco Itaú PJ</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-emerald-100 dark:text-slate-400 font-medium">{reserveFund.bankName}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsReserveModalOpen(true)}
+                  className="p-1 text-emerald-200 hover:text-white hover:bg-white/20 rounded-lg transition cursor-pointer"
+                  title="Editar Parâmetros do Fundo"
+                >
+                  <Edit className="w-3 h-3" />
+                </button>
+              </div>
             </div>
             <h3 className="text-xs font-semibold text-emerald-100 dark:text-slate-400 uppercase tracking-wider">
               Fundo de Reserva & Obras
             </h3>
             <div className="text-3xl font-extrabold tracking-tight mt-1 text-white tabular-nums">
-              R$ 412.300<span className="text-lg text-emerald-200 dark:text-slate-400 font-medium">,84</span>
+              {reserveFund.balance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </div>
             <div className="mt-4 p-3.5 bg-white/15 dark:bg-slate-800/80 rounded-2xl border border-white/20 dark:border-slate-700/60 backdrop-blur-md dark:backdrop-blur-sm">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-emerald-100 dark:text-slate-400">Rendimento Mensal Líquido</span>
-                <span className="font-bold text-white dark:text-emerald-400 tabular-nums">+ R$ 3.840,20</span>
+                <span className="font-bold text-white dark:text-emerald-400 tabular-nums">
+                  + {reserveFund.monthlyYield.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
               </div>
               <div className="flex items-center justify-between text-xs mt-1.5">
                 <span className="text-emerald-100 dark:text-slate-400">Rentabilidade Atual</span>
-                <span className="font-semibold text-white dark:text-slate-200">104.5% do CDI (11.85% a.a.)</span>
+                <span className="font-semibold text-white dark:text-slate-200">{reserveFund.cdiRate}</span>
               </div>
             </div>
           </div>
 
           <div className="my-5 relative z-10">
             <div className="flex justify-between items-center text-xs mb-2">
-              <span className="text-white dark:text-slate-300 font-medium">Meta para Reforma de Fachada</span>
-              <span className="font-extrabold text-white dark:text-emerald-400">88% <span className="text-emerald-200 dark:text-slate-400 font-normal">/ R$ 470k</span></span>
+              <span className="text-white dark:text-slate-300 font-medium">{reserveFund.targetTitle}</span>
+              <span className="font-extrabold text-white dark:text-emerald-400">
+                {reserveGoalPct}% <span className="text-emerald-200 dark:text-slate-400 font-normal">/ {reserveFund.targetAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </span>
             </div>
             <div className="w-full h-2.5 bg-black/15 dark:bg-slate-800 rounded-full overflow-hidden p-0.5">
-              <div className="h-full bg-emerald-300 dark:bg-gradient-to-r dark:from-emerald-500 dark:to-emerald-400 rounded-full shadow-[0_0_8px_rgba(110,231,183,0.7)] dark:shadow-none" style={{ width: '88%' }}></div>
+              <div className="h-full bg-emerald-300 dark:bg-gradient-to-r dark:from-emerald-500 dark:to-emerald-400 rounded-full shadow-[0_0_8px_rgba(110,231,183,0.7)] dark:shadow-none transition-all" style={{ width: `${reserveGoalPct}%` }}></div>
             </div>
           </div>
 
           <div className="flex items-center gap-3 pt-2 relative z-10">
             <button 
               type="button"
-              onClick={() => alert('Aporte Adicional: R$ 50.000 transferidos para Conta Reserva.')}
+              onClick={() => setIsReserveModalOpen(true)}
               className="flex-1 py-2.5 px-4 rounded-full bg-white hover:bg-emerald-50 text-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:text-white font-bold text-xs transition-all shadow-md dark:shadow-pill flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
             >
               <span>+</span> Aporte Adicional
             </button>
             <button 
               type="button"
-              onClick={() => alert('Download do arquivo OFX concluído.')}
+              onClick={() => {
+                financialDataService.downloadOfxFile(reserveFund);
+                setNotification({ type: 'success', message: 'Download do extrato bancário OFX concluído!' });
+              }}
               className="py-2.5 px-3.5 rounded-full bg-white/20 hover:bg-white/30 dark:bg-slate-800 dark:hover:bg-slate-700 text-white dark:text-slate-300 dark:hover:text-white border border-white/25 dark:border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
             >
               Extrato OFX
@@ -469,21 +598,35 @@ export const FinancialView: React.FC = () => {
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 dark:bg-emerald-500/20 border border-white/25 dark:border-emerald-400/30 text-white dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-widest">
                 CONDOR AI • Diagnóstico
               </div>
-              <span className="text-[11px] text-teal-100 dark:text-teal-200/60 font-semibold">Previsão 60 dias</span>
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-teal-100 dark:text-teal-200/60 font-semibold">Previsão 60 dias</span>
+                <button
+                  type="button"
+                  onClick={() => setIsAiModalOpen(true)}
+                  className="p-1 text-teal-200 hover:text-white hover:bg-white/20 rounded-lg transition cursor-pointer"
+                  title="Configurar Diagnóstico & Régua"
+                >
+                  <Sliders className="w-3 h-3" />
+                </button>
+              </div>
             </div>
             <h3 className="text-base font-bold text-white tracking-tight mt-2">Redução Preditiva de Inadimplência</h3>
             <p className="text-xs text-teal-100 dark:text-teal-100/75 mt-1.5 leading-relaxed">
-              Identificamos tendência de atraso em 4 cotas para o dia 15. Recomendamos disparo preventivo automático de Pix com desconto de pontualidade.
+              {aiDiagnosis.trendDescription}
             </p>
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div className="bg-white/15 dark:bg-black/30 rounded-2xl p-3 border border-white/20 dark:border-white/5 backdrop-blur-md dark:backdrop-blur-none">
                 <span className="text-[10px] font-medium text-teal-100 dark:text-teal-200/70 uppercase">Recuperação Estimada</span>
-                <p className="text-lg font-extrabold text-white mt-0.5 tabular-nums">R$ 14.280</p>
+                <p className="text-lg font-extrabold text-white mt-0.5 tabular-nums">
+                  {aiDiagnosis.predictedRecoveryAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
                 <span className="text-[10px] text-emerald-200 dark:text-emerald-400 font-semibold">+18% vs mês ant.</span>
               </div>
               <div className="bg-white/15 dark:bg-black/30 rounded-2xl p-3 border border-white/20 dark:border-white/5 backdrop-blur-md dark:backdrop-blur-none">
                 <span className="text-[10px] font-medium text-teal-100 dark:text-teal-200/70 uppercase">Economia Prevista</span>
-                <p className="text-lg font-extrabold text-white mt-0.5 tabular-nums">- 6.2%</p>
+                <p className="text-lg font-extrabold text-white mt-0.5 tabular-nums">
+                  {aiDiagnosis.energySavingsRate > 0 ? `+${aiDiagnosis.energySavingsRate}%` : `${aiDiagnosis.energySavingsRate}%`}
+                </p>
                 <span className="text-[10px] text-teal-200 dark:text-teal-300 font-semibold">Conta de Energia</span>
               </div>
             </div>
@@ -493,10 +636,10 @@ export const FinancialView: React.FC = () => {
             <span className="text-[11px] text-teal-100 dark:text-teal-200/70">Ação automatizada</span>
             <button 
               type="button"
-              onClick={() => setSmartRuleActive(!smartRuleActive)}
+              onClick={() => setIsAiModalOpen(true)}
               className="px-4 py-2 bg-white hover:bg-emerald-50 text-teal-900 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-slate-950 font-bold rounded-full text-xs shadow-md transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 cursor-pointer"
             >
-              {smartRuleActive ? '✓ Régua Ativada' : 'Ativar régua inteligente →'}
+              {aiDiagnosis.smartRuleActive ? '✓ Régua Ativada' : 'Ativar régua inteligente →'}
             </button>
           </div>
         </section>
@@ -507,10 +650,25 @@ export const FinancialView: React.FC = () => {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Despesas Operacionais</h3>
-                <p className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums">R$ 132.840 <span className="text-xs font-normal text-slate-400">/ R$ 145k orçado</span></p>
+                <p className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums">
+                  {totalExpenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}{' '}
+                  <span className="text-xs font-normal text-slate-400">
+                    / {monthlyBudget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} orçado
+                  </span>
+                </p>
               </div>
-              <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xs">
-                91%
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsExpensesModalOpen(true)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                  title="Gerenciar Despesas"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xs">
+                  {budgetPct}%
+                </div>
               </div>
             </div>
 
@@ -521,10 +679,13 @@ export const FinancialView: React.FC = () => {
                     <span className="w-2 h-2 rounded-full bg-slate-800" aria-hidden="true"></span>
                     Folha & Portaria Remota
                   </span>
-                  <span className="text-slate-900 font-bold tabular-nums">R$ 78.400 <span className="text-slate-400 font-normal">(59%)</span></span>
+                  <span className="text-slate-900 font-bold tabular-nums">
+                    {folhaTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}{' '}
+                    <span className="text-slate-400 font-normal">({folhaPct}%)</span>
+                  </span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-slate-800 rounded-full" style={{ width: '59%' }}></div>
+                  <div className="h-full bg-slate-800 rounded-full transition-all" style={{ width: `${folhaPct}%` }}></div>
                 </div>
               </div>
 
@@ -534,10 +695,13 @@ export const FinancialView: React.FC = () => {
                     <span className="w-2 h-2 rounded-full bg-emerald-600" aria-hidden="true"></span>
                     Manutenção & Elevadores
                   </span>
-                  <span className="text-slate-900 font-bold tabular-nums">R$ 31.250 <span className="text-slate-400 font-normal">(23%)</span></span>
+                  <span className="text-slate-900 font-bold tabular-nums">
+                    {manutencaoTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}{' '}
+                    <span className="text-slate-400 font-normal">({manutencaoPct}%)</span>
+                  </span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-600 rounded-full" style={{ width: '23%' }}></div>
+                  <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${manutencaoPct}%` }}></div>
                 </div>
               </div>
 
@@ -547,10 +711,13 @@ export const FinancialView: React.FC = () => {
                     <span className="w-2 h-2 rounded-full bg-teal-400" aria-hidden="true"></span>
                     Concessionárias (Água & Luz)
                   </span>
-                  <span className="text-slate-900 font-bold tabular-nums">R$ 23.190 <span className="text-slate-400 font-normal">(18%)</span></span>
+                  <span className="text-slate-900 font-bold tabular-nums">
+                    {concessionariasTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}{' '}
+                    <span className="text-slate-400 font-normal">({concessionariasPct}%)</span>
+                  </span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-teal-400 rounded-full" style={{ width: '18%' }}></div>
+                  <div className="h-full bg-teal-400 rounded-full transition-all" style={{ width: `${concessionariasPct}%` }}></div>
                 </div>
               </div>
             </div>
@@ -565,10 +732,10 @@ export const FinancialView: React.FC = () => {
             </div>
             <button 
               type="button"
-              onClick={() => alert('Lista completa de 18 fornecedores credenciados.')} 
-              className="text-xs font-bold text-emerald-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded px-1"
+              onClick={() => setIsExpensesModalOpen(true)} 
+              className="text-xs font-bold text-emerald-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded px-1 cursor-pointer"
             >
-              Ver todas (18)
+              Ver todas ({expenses.length})
             </button>
           </div>
         </section>
@@ -819,6 +986,40 @@ export const FinancialView: React.FC = () => {
         units={units}
         initialSelection={modalInitialSelection}
         onSubmit={handleCreateInvoices}
+      />
+
+      {/* Fundo de Reserva Modal */}
+      <ReserveFundModal
+        isOpen={isReserveModalOpen}
+        onClose={() => setIsReserveModalOpen(false)}
+        data={reserveFund}
+        onAddAporte={handleAddAporte}
+        onUpdateParams={handleUpdateReserveParams}
+      />
+
+      {/* Conciliação Bancária Modal */}
+      <BankConciliationModal
+        isOpen={isConciliationModalOpen}
+        onClose={() => setIsConciliationModalOpen(false)}
+      />
+
+      {/* CONDOR AI Diagnóstico & Régua Inteligente Modal */}
+      <AiSmartRuleModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        data={aiDiagnosis}
+        onSave={handleUpdateAiDiagnosis}
+      />
+
+      {/* Despesas Operacionais Modal */}
+      <OperationalExpensesModal
+        isOpen={isExpensesModalOpen}
+        onClose={() => setIsExpensesModalOpen(false)}
+        expenses={expenses}
+        monthlyBudget={monthlyBudget}
+        onAddExpense={handleAddExpense}
+        onDeleteExpense={handleDeleteExpense}
+        onUpdateBudget={handleUpdateBudget}
       />
     </div>
   );

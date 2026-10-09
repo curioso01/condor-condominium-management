@@ -14,8 +14,21 @@ import {
   Check,
   ArrowRight,
   Clock,
+  Sliders,
+  Zap,
+  Edit,
 } from 'lucide-react';
 import { AnnouncementsModal } from './AnnouncementsModal';
+import { ChannelMetricsModal } from './ChannelMetricsModal';
+import { AiEnergyModal } from './AiEnergyModal';
+import {
+  financialDataService,
+  type ChannelMetricsData,
+  type AiEnergyData,
+  type ReserveFundData,
+  type CondominiumHealthData,
+  type OperationalExpense,
+} from '../../services/financialDataService';
 
 interface OverviewViewProps {
   onNavigateTab: (tab: NavigationTab) => void;
@@ -25,9 +38,37 @@ interface OverviewViewProps {
 export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpenSettings }) => {
   const { profile, user, currentCondominium, currentRole } = useAuth();
   const [realUnitsCount, setRealUnitsCount] = useState<number | null>(null);
-  const [aiApplied, setAiApplied] = useState(false);
   const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
   const [copiedPin, setCopiedPin] = useState(false);
+
+  // Financial & Operational Metrics
+  const [channels, setChannels] = useState<ChannelMetricsData>(() => financialDataService.getChannels());
+  const [aiEnergy, setAiEnergy] = useState<AiEnergyData>(() => financialDataService.getAiEnergy());
+  const [reserveFund] = useState<ReserveFundData>(() => financialDataService.getReserveFund());
+  const [health] = useState<CondominiumHealthData>(() => financialDataService.getHealth());
+  const [expenses] = useState<OperationalExpense[]>(() => financialDataService.getExpenses());
+
+  const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
+  const [isAiEnergyModalOpen, setIsAiEnergyModalOpen] = useState(false);
+
+  const totalChannelsCount = channels.appCount + channels.totemCount + channels.whatsappCount + channels.interfoneCount;
+  const appPercent = totalChannelsCount > 0 ? Math.round((channels.appCount / totalChannelsCount) * 100) : 0;
+  const totemPercent = totalChannelsCount > 0 ? Math.round((channels.totemCount / totalChannelsCount) * 100) : 0;
+  const whatsPercent = totalChannelsCount > 0 ? Math.round((channels.whatsappCount / totalChannelsCount) * 100) : 0;
+  const interfPercent = totalChannelsCount > 0 ? Math.max(0, 100 - (appPercent + totemPercent + whatsPercent)) : 0;
+
+  const totalExpensesAmount = expenses.reduce((acc, e) => acc + e.amount, 0);
+  const reserveGoalPercent = Math.min(100, Math.round((reserveFund.balance / (reserveFund.targetAmount || 1)) * 100));
+
+  const handleSaveChannels = (updated: ChannelMetricsData) => {
+    financialDataService.updateChannels(updated);
+    setChannels(updated);
+  };
+
+  const handleSaveAiEnergy = (updated: AiEnergyData) => {
+    financialDataService.updateAiEnergy(updated);
+    setAiEnergy(updated);
+  };
 
   const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin';
   const isPorteiro = currentRole === 'porteiro';
@@ -513,12 +554,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
             <div className="bg-white/15 dark:bg-white/10 p-3.5 rounded-2xl backdrop-blur-md dark:backdrop-blur-sm border border-white/20 dark:border-white/5 relative z-10">
               <div className="flex justify-between items-center text-xs mb-1.5">
                 <span className="text-emerald-100 dark:text-slate-300 font-medium">Fundo Reserva</span>
-                <span className="font-bold text-white dark:text-emerald-400">R$ 284.500</span>
+                <span className="font-bold text-white dark:text-emerald-400">
+                  {reserveFund.balance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
               </div>
               <div className="w-full bg-black/15 dark:bg-white/10 h-2 rounded-full overflow-hidden p-0.5">
-                <div className="bg-emerald-300 dark:bg-emerald-400 h-full rounded-full shadow-[0_0_8px_rgba(110,231,183,0.7)] dark:shadow-none" style={{ width: '82%' }}></div>
+                <div className="bg-emerald-300 dark:bg-emerald-400 h-full rounded-full shadow-[0_0_8px_rgba(110,231,183,0.7)] dark:shadow-none transition-all" style={{ width: `${reserveGoalPercent}%` }}></div>
               </div>
-              <span className="text-[10px] text-emerald-100/90 dark:text-slate-400 block mt-1.5">Meta anual: 82% atingida</span>
+              <span className="text-[10px] text-emerald-100/90 dark:text-slate-400 block mt-1.5">
+                {reserveFund.targetTitle}: {reserveGoalPercent}% atingida
+              </span>
             </div>
           </article>
         ) : (
@@ -661,47 +706,73 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
                   Canais de Abertura
                 </h3>
               </div>
-              <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-full border border-slate-200/50 dark:border-slate-700">
-                Total 1.562
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-full border border-slate-200/50 dark:border-slate-700 tabular-nums">
+                  Total {totalChannelsCount.toLocaleString('pt-BR')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsChannelModalOpen(true)}
+                  className="p-1 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  title="Configurar Canais de Abertura"
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Striped Columns Chart */}
             <div className="flex items-end justify-between gap-3 h-36 pt-4 pb-2 px-3 bg-slate-50/60 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60">
               <div className="flex-1 flex flex-col items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">54%</span>
-                <div className="w-full bg-emerald-500 striped-pattern rounded-xl h-24 shadow-sm hover:scale-105 transition-transform"></div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">{appPercent}%</span>
+                <div 
+                  className="w-full bg-emerald-500 striped-pattern rounded-xl shadow-sm hover:scale-105 transition-all"
+                  style={{ height: `${Math.max(16, (appPercent / 100) * 104)}px` }}
+                  title={`App: ${channels.appCount} ocorrências`}
+                />
                 <span className="text-[10px] font-bold text-slate-600 dark:text-slate-200">App</span>
               </div>
               <div className="flex-1 flex flex-col items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">28%</span>
-                <div className="w-full bg-teal-400 striped-pattern rounded-xl h-16 shadow-sm hover:scale-105 transition-transform"></div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">{totemPercent}%</span>
+                <div 
+                  className="w-full bg-teal-400 striped-pattern rounded-xl shadow-sm hover:scale-105 transition-all"
+                  style={{ height: `${Math.max(16, (totemPercent / 100) * 104)}px` }}
+                  title={`Totem: ${channels.totemCount} ocorrências`}
+                />
                 <span className="text-[10px] font-bold text-slate-600 dark:text-slate-200">Totem</span>
               </div>
               <div className="flex-1 flex flex-col items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">12%</span>
-                <div className="w-full bg-amber-400 striped-pattern rounded-xl h-10 shadow-sm hover:scale-105 transition-transform"></div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">{whatsPercent}%</span>
+                <div 
+                  className="w-full bg-amber-400 striped-pattern rounded-xl shadow-sm hover:scale-105 transition-all"
+                  style={{ height: `${Math.max(16, (whatsPercent / 100) * 104)}px` }}
+                  title={`WhatsApp: ${channels.whatsappCount} ocorrências`}
+                />
                 <span className="text-[10px] font-bold text-slate-600 dark:text-slate-200">Whats</span>
               </div>
               <div className="flex-1 flex flex-col items-center gap-2">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">6%</span>
-                <div className="w-full bg-rose-400 striped-pattern rounded-xl h-6 shadow-sm hover:scale-105 transition-transform"></div>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">{interfPercent}%</span>
+                <div 
+                  className="w-full bg-rose-400 striped-pattern rounded-xl shadow-sm hover:scale-105 transition-all"
+                  style={{ height: `${Math.max(16, (interfPercent / 100) * 104)}px` }}
+                  title={`Interfone: ${channels.interfoneCount} ocorrências`}
+                />
                 <span className="text-[10px] font-bold text-slate-600 dark:text-slate-200">Interf.</span>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-100">
+          <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span className="text-xs text-slate-500 font-medium">
-                Resolução <strong className="text-slate-800">92% 24h</strong>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Resolução <strong className="text-slate-800 dark:text-slate-200">{channels.resolutionRate24h}% 24h</strong>
               </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-              <span className="text-xs text-slate-500 font-medium">
-                Satisfação <strong className="text-slate-800">4.9 / 5.0</strong>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Satisfação <strong className="text-slate-800 dark:text-slate-200">{channels.satisfactionScore.toFixed(1)} / 5.0</strong>
               </span>
             </div>
           </div>
@@ -713,25 +784,33 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="p-2 rounded-xl bg-white/20 backdrop-blur-md">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-                  </svg>
+                  <Zap className="w-4 h-4 text-white" />
                 </span>
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-100">
                   Inteligência Artificial
                 </span>
               </div>
-              <span className="text-[10px] font-extrabold bg-white text-emerald-800 px-2 py-0.5 rounded-full">
-                NOVO
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-extrabold bg-white text-emerald-800 px-2 py-0.5 rounded-full">
+                  NOVO
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsAiEnergyModalOpen(true)}
+                  className="p-1 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition cursor-pointer"
+                  title="Configurar IA de Energia"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
             <div className="mt-5">
-              <span className="text-4xl font-black">27%</span>
+              <span className="text-4xl font-black">{aiEnergy.percentage}%</span>
               <p className="text-sm font-semibold text-emerald-50 mt-1 leading-snug">
                 Economia de Energia Projetada
               </p>
-              <p className="text-xs text-emerald-100/80 mt-2 font-normal">
-                Com base no sensor de presença nos pavimentos 4 ao 8, a iluminação dimerizada reduziu o consumo em 18 kWh/dia.
+              <p className="text-xs text-emerald-100/90 mt-2 font-normal leading-relaxed">
+                Com base no sensor de presença em {aiEnergy.targetLocations}, a iluminação dimerizada reduziu o consumo em {aiEnergy.kwhPerDay} kWh/dia (economia de R$ {aiEnergy.monthlySavings.toLocaleString('pt-BR')}/mês).
               </p>
             </div>
           </div>
@@ -739,71 +818,82 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
           <div className="relative z-10 pt-4 mt-4 border-t border-white/20 flex items-center justify-between">
             <span className="text-[11px] text-emerald-100 font-medium">Recomendação Automática</span>
             <button 
-              onClick={() => setAiApplied(!aiApplied)}
-              className="px-3.5 py-1.5 rounded-full bg-white text-emerald-800 text-xs font-bold hover:bg-emerald-50 transition-colors shadow-sm"
+              onClick={() => {
+                const updated = { ...aiEnergy, appliedToAllBlocks: !aiEnergy.appliedToAllBlocks };
+                handleSaveAiEnergy(updated);
+              }}
+              className="px-3.5 py-1.5 rounded-full bg-white text-emerald-800 text-xs font-bold hover:bg-emerald-50 transition-colors shadow-sm cursor-pointer"
             >
-              {aiApplied ? '✓ Aplicado em todos' : 'Aplicar em todos blocos'}
+              {aiEnergy.appliedToAllBlocks ? '✓ Aplicado em todos' : 'Aplicar em todos blocos'}
             </button>
           </div>
           <div className="absolute -right-12 -bottom-12 w-48 h-48 rounded-full bg-white/10 blur-2xl pointer-events-none"></div>
         </article>
 
         {/* CARD 7: Status Financeiro & Score de Qualidade */}
-        <article className="md:col-span-12 lg:col-span-8 bg-white rounded-3xl p-6 shadow-soft border border-slate-100 flex flex-col justify-between">
+        <article className="md:col-span-12 lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
                 Auditoria e Compliance
               </span>
-              <h3 className="text-xl font-extrabold text-slate-900 mt-0.5">
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">
                 Saúde Financeira do Condomínio
               </h3>
             </div>
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/60 px-4 py-2 rounded-full self-start sm:self-auto">
+            <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800 px-4 py-2 rounded-full self-start sm:self-auto">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-xs font-extrabold text-emerald-800">Score de Gestão: Excelente (96%)</span>
+              <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300">
+                Score de Gestão: Excelente ({health.managementScore}%)
+              </span>
             </div>
           </div>
 
           {/* Metrics in 3 Columns */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-4">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/60">
               <span className="text-xs text-slate-400 font-medium block">Arrecadação Mensal</span>
-              <span className="text-xl font-extrabold text-slate-900 block mt-1">R$ 142.800</span>
-              <span className="text-[11px] text-emerald-600 font-bold mt-1 inline-block">↑ +4.2% este mês</span>
+              <span className="text-xl font-extrabold text-slate-900 dark:text-slate-100 block mt-1 tabular-nums">
+                {health.monthlyRevenueTarget.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 inline-block">↑ +4.2% este mês</span>
             </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/60">
               <span className="text-xs text-slate-400 font-medium block">Despesas Operacionais</span>
-              <span className="text-xl font-extrabold text-slate-900 block mt-1">R$ 98.420</span>
-              <span className="text-[11px] text-slate-500 font-medium mt-1 inline-block">Dentro da projeção</span>
+              <span className="text-xl font-extrabold text-slate-900 dark:text-slate-100 block mt-1 tabular-nums">
+                {totalExpensesAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1 inline-block">Dentro da projeção</span>
             </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/60">
               <span className="text-xs text-slate-400 font-medium block">Inadimplência Real</span>
-              <span className="text-xl font-extrabold text-slate-900 block mt-1">1.8%</span>
-              <span className="text-[11px] text-emerald-600 font-bold mt-1 inline-block">↓ Menor taxa anual</span>
+              <span className="text-xl font-extrabold text-slate-900 dark:text-slate-100 block mt-1 tabular-nums">1.8%</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 inline-block">↓ Menor taxa anual</span>
             </div>
           </div>
 
           {/* Budget progress bar */}
           <div>
-            <div className="flex justify-between items-center text-xs font-semibold text-slate-600 mb-2">
-              <span>Orçamento Anual Consumido (2024)</span>
-              <span className="text-slate-900 font-bold">R$ 1.180.000 / R$ 1.700.000 (69%)</span>
+            <div className="flex justify-between items-center text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
+              <span>Orçamento Anual Consumido (2026)</span>
+              <span className="text-slate-900 dark:text-slate-100 font-bold">
+                {health.annualBudgetConsumed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} / {health.annualBudgetTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ({Math.round((health.annualBudgetConsumed / health.annualBudgetTotal) * 100)}%)
+              </span>
             </div>
-            <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden flex">
-              <div className="bg-emerald-500 h-full rounded-l-full" style={{ width: '55%' }}></div>
-              <div className="bg-teal-400 h-full" style={{ width: '14%' }}></div>
-              <div className="bg-slate-200 h-full flex-1"></div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden flex">
+              <div className="bg-emerald-500 h-full rounded-l-full transition-all" style={{ width: `${health.fixedExpensesPercent}%` }}></div>
+              <div className="bg-teal-400 h-full transition-all" style={{ width: `${health.worksPercent}%` }}></div>
+              <div className="bg-slate-200 dark:bg-slate-700 h-full flex-1"></div>
             </div>
             <div className="flex items-center gap-5 text-[11px] text-slate-400 mt-2 font-medium flex-wrap">
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Despesas Fixas (55%)
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Despesas Fixas ({health.fixedExpensesPercent}%)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-teal-400"></span> Obras e Melhorias (14%)
+                <span className="w-2 h-2 rounded-full bg-teal-400"></span> Obras e Melhorias ({health.worksPercent}%)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-slate-300"></span> Saldo Disponível (31%)
+                <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600"></span> Saldo Disponível ({health.availablePercent}%)
               </span>
             </div>
           </div>
@@ -820,6 +910,22 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
           <span>Condor SaaS Real Estate Platform • Condomínio Residencial Reserva Imperial</span>
         </div>
       </footer>
+
+      {/* Channel Metrics Modal */}
+      <ChannelMetricsModal
+        isOpen={isChannelModalOpen}
+        onClose={() => setIsChannelModalOpen(false)}
+        data={channels}
+        onSave={handleSaveChannels}
+      />
+
+      {/* AI Energy Configuration Modal */}
+      <AiEnergyModal
+        isOpen={isAiEnergyModalOpen}
+        onClose={() => setIsAiEnergyModalOpen(false)}
+        data={aiEnergy}
+        onSave={handleSaveAiEnergy}
+      />
     </div>
   );
 };
