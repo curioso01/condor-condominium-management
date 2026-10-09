@@ -16,6 +16,7 @@ import {
   Plus,
   Key,
 } from 'lucide-react';
+import { BoletoModal, type BoletoInvoiceData } from './BoletoModal';
 
 export interface UnitDetailsModalProps {
   unit: Unit | null;
@@ -39,6 +40,10 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
   const [isAddingResident, setIsAddingResident] = useState(false);
   const [newResidentName, setNewResidentName] = useState('');
   const [newResidentRole, setNewResidentRole] = useState('Residente');
+
+  // Boleto modal state
+  const [selectedInvoiceForBoleto, setSelectedInvoiceForBoleto] = useState<BoletoInvoiceData | null>(null);
+  const [isBoletoModalOpen, setIsBoletoModalOpen] = useState(false);
 
   // Handle ESC key
   useEffect(() => {
@@ -448,6 +453,26 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
                     <Badge variant={isOverdue ? 'amber' : 'emerald'}>
                       {isOverdue ? 'Pendente' : 'Liquidado'}
                     </Badge>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedInvoiceForBoleto({
+                          id: `BOL-2026-${unit.number}-10`,
+                          unitNumber: unit.number,
+                          block: unit.block,
+                          residentName: unit.ownerName || unit.contactName || 'Morador Responsável',
+                          description: 'Taxa Condominial Ordinária (Ref. 10/2026)',
+                          dueDate: '10/10/2026',
+                          amount: 840.00,
+                        });
+                        setIsBoletoModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] flex items-center gap-1 transition cursor-pointer border border-emerald-200 dark:border-emerald-800"
+                      title="Visualizar boleto bancário"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Ver Boleto</span>
+                    </button>
                   </div>
                 </div>
 
@@ -459,6 +484,26 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-800 dark:text-slate-200">R$ 840,00</span>
                     <Badge variant="emerald">Pago</Badge>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedInvoiceForBoleto({
+                          id: `BOL-2026-${unit.number}-09`,
+                          unitNumber: unit.number,
+                          block: unit.block,
+                          residentName: unit.ownerName || unit.contactName || 'Morador Responsável',
+                          description: 'Taxa Condominial Ordinária (Ref. 09/2026)',
+                          dueDate: '10/09/2026',
+                          amount: 840.00,
+                        });
+                        setIsBoletoModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
+                      title="Visualizar via original do boleto"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>2ª Via</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -519,6 +564,16 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Visualizador de Boleto Bancário */}
+      <BoletoModal
+        isOpen={isBoletoModalOpen}
+        onClose={() => {
+          setIsBoletoModalOpen(false);
+          setSelectedInvoiceForBoleto(null);
+        }}
+        invoice={selectedInvoiceForBoleto}
+      />
     </div>
   );
 };

@@ -48,7 +48,7 @@ const CondorAppShell: React.FC = () => {
       case 'overview':
         return <OverviewView onNavigateTab={setActiveTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
       case 'finance':
-        return <FinancialView />;
+        return <FinancialView onOpenSettings={(tab) => handleOpenSettings(tab)} />;
       case 'units':
         return <UnitsView />;
       case 'concierge':

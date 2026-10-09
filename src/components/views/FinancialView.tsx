@@ -9,15 +9,22 @@ import { Badge } from '../ui/Badge';
 import { EmptyState } from '../ui/EmptyState';
 import { Skeleton } from '../ui/Skeleton';
 import { DynamicTelemetryChart } from '../common/DynamicTelemetryChart';
-import { CheckCircle2, AlertCircle, Database, RefreshCw, FileText, Sliders, Edit, Plus, Download } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Database, RefreshCw, FileText, Sliders, Edit, Plus, Download, Landmark } from 'lucide-react';
 import { financialDataService, type ReserveFundData, type OperationalExpense, type AiDiagnosisData } from '../../services/financialDataService';
+import { bankAccountService, type CondominiumBankSettings } from '../../services/bankAccountService';
+import { BoletoModal, type BoletoInvoiceData } from './BoletoModal';
 import { ReserveFundModal } from './ReserveFundModal';
 import { BankConciliationModal } from './BankConciliationModal';
 import { AiSmartRuleModal } from './AiSmartRuleModal';
 import { OperationalExpensesModal } from './OperationalExpensesModal';
 
-export const FinancialView: React.FC = () => {
-  const { currentCondominium } = useAuth();
+export interface FinancialViewProps {
+  onOpenSettings?: (tab?: 'perfil' | 'condominio' | 'usuarios' | 'database' | 'preferencias' | 'banco') => void;
+}
+
+export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) => {
+  const { currentCondominium, isSuperAdmin, isSindico } = useAuth();
+  const canManageFinancial = isSuperAdmin || isSindico;
 
   const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -29,6 +36,11 @@ export const FinancialView: React.FC = () => {
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
   const [busyInvoiceId, setBusyInvoiceId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Boleto viewing & bank state
+  const [selectedBoletoInvoice, setSelectedBoletoInvoice] = useState<BoletoInvoiceData | null>(null);
+  const [isBoletoModalOpen, setIsBoletoModalOpen] = useState(false);
+  const [bankSettings, setBankSettings] = useState<CondominiumBankSettings>(() => bankAccountService.getSettings());
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [modalInitialSelection, setModalInitialSelection] = useState<'all' | 'none'>('all');
@@ -337,10 +349,24 @@ export const FinancialView: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canManageFinancial && (
+            <button
+              type="button"
+              onClick={() => {
+                setBankSettings(bankAccountService.getSettings());
+                onOpenSettings?.('banco');
+              }}
+              className="px-3.5 py-2 rounded-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-600 dark:hover:border-emerald-500 shadow-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+              title="Configurar banco de recebimento dos boletos e chave Pix"
+            >
+              <Landmark className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Banco de Recebimento</span>
+            </button>
+          )}
           <button 
             type="button"
             onClick={handleExportBalancete}
-            className="px-4 py-2 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+            className="px-4 py-2 rounded-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-emerald-600" />
             Exportar Balancete
@@ -929,35 +955,60 @@ export const FinancialView: React.FC = () => {
                           </button>
                         </td>
                         <td className="py-3 px-4 text-right rounded-r-2xl">
-                          {!isLiquidated ? (
-                            <div className="flex items-center justify-end gap-2">
-                              {!isMockMode && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleMarkPaid(inv)}
-                                  disabled={busyInvoiceId === inv.id}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold text-[11px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 cursor-pointer"
-                                  title="Registrar pagamento recebido"
-                                >
-                                  Dar baixa
-                                </button>
-                              )}
-                              {(isOverdue || isDueToday) && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleWhatsAppReminder(inv)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
-                                >
-                                  <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
-                                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.149.929 3.182 0 5.767-2.587 5.768-5.766 0-3.18-2.586-5.771-5.768-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.299.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.087-.177.181-.076.355.101.174.449.741.964 1.2.662.591 1.221.774 1.394.861.173.087.275.072.376-.044.101-.116.433-.506.549-.679.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.824z" />
-                                  </svg>
-                                  <span>{inv.whatsappReminderSent ? 'Cobrar de novo' : 'Cobrar no WhatsApp'}</span>
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Pago ✓</span>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBankSettings(bankAccountService.getSettings());
+                                setSelectedBoletoInvoice({
+                                  id: inv.id,
+                                  unitNumber: inv.unitNumber,
+                                  block: inv.block,
+                                  residentName: inv.residentName,
+                                  description: inv.description,
+                                  dueDate: inv.dueDate,
+                                  amount: inv.amount,
+                                  documentNumber: inv.id,
+                                });
+                                setIsBoletoModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold text-[11px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer shadow-2xs"
+                              title="Visualizar boleto bancário com código de barras e QR Code Pix"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>Ver Boleto</span>
+                            </button>
+
+                            {!isLiquidated ? (
+                              <>
+                                {!isMockMode && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkPaid(inv)}
+                                    disabled={busyInvoiceId === inv.id}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold text-[11px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 cursor-pointer"
+                                    title="Registrar pagamento recebido"
+                                  >
+                                    Dar baixa
+                                  </button>
+                                )}
+                                {(isOverdue || isDueToday) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWhatsAppReminder(inv)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24">
+                                      <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.149.929 3.182 0 5.767-2.587 5.768-5.766 0-3.18-2.586-5.771-5.768-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.299.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.087-.177.181-.076.355.101.174.449.741.964 1.2.662.591 1.221.774 1.394.861.173.087.275.072.376-.044.101-.116.433-.506.549-.679.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.043.073.043.419-.101.824z" />
+                                    </svg>
+                                    <span>{inv.whatsappReminderSent ? 'Cobrar de novo' : 'Cobrar no WhatsApp'}</span>
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Pago ✓</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1020,6 +1071,17 @@ export const FinancialView: React.FC = () => {
         onAddExpense={handleAddExpense}
         onDeleteExpense={handleDeleteExpense}
         onUpdateBudget={handleUpdateBudget}
+      />
+
+      {/* Visualizador de Boleto Bancário Híbrido com Pix */}
+      <BoletoModal
+        isOpen={isBoletoModalOpen}
+        onClose={() => {
+          setIsBoletoModalOpen(false);
+          setSelectedBoletoInvoice(null);
+        }}
+        invoice={selectedBoletoInvoice}
+        customBankSettings={bankSettings}
       />
     </div>
   );
