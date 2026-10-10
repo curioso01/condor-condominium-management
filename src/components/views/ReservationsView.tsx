@@ -20,7 +20,6 @@ import {
   Check,
   Layers,
   Award,
-  Database,
 } from 'lucide-react';
 
 export interface ExtendedCommonArea extends CommonArea {
@@ -37,9 +36,6 @@ export const ReservationsView: React.FC = () => {
   const [reservations, setReservations] = useState<AmenityReservation[]>([]);
   const [isLoadingAreas, setIsLoadingAreas] = useState(true);
   const [isSeedingAreas, setIsSeedingAreas] = useState(false);
-  const [isSeedingReservations, setIsSeedingReservations] = useState(false);
-  const [tableMissing, setTableMissing] = useState(false);
-  const [isMockMode, setIsMockMode] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDateForModal, setSelectedDateForModal] = useState<string | undefined>(undefined);
   const [viewTab, setViewTab] = useState<'calendar' | 'spaces' | 'list'>('calendar');
@@ -57,13 +53,6 @@ export const ReservationsView: React.FC = () => {
     ]);
 
     setIsLoadingAreas(false);
-
-    if (reservationsRes.error?.tableMissing) {
-      setTableMissing(true);
-    } else {
-      setTableMissing(false);
-    }
-    setIsMockMode(reservationsRes.isMock);
 
     if (areasRes.data) {
       setCommonAreas(areasRes.data);
@@ -97,24 +86,6 @@ export const ReservationsView: React.FC = () => {
     }
   };
 
-  const handleSeedReservations = async () => {
-    if (!currentCondominium?.id) return;
-    setIsSeedingReservations(true);
-    const { count, error } = await amenityService.seedInitialReservations(currentCondominium.id);
-    setIsSeedingReservations(false);
-
-    if (error) {
-      setNotification({ type: 'error', message: `Erro ao popular reservas no banco: ${error.message}` });
-      setTimeout(() => setNotification(null), 5000);
-    } else {
-      await loadAreasAndReservations();
-      setNotification({
-        type: 'success',
-        message: `${count} reservas iniciais gravadas ${isSuperAdmin ? 'no banco Supabase' : 'no sistema'} com sucesso!`,
-      });
-      setTimeout(() => setNotification(null), 5000);
-    }
-  };
 
   const handleReservationCreated = async (input: CreateReservationInput): Promise<{ success: boolean; error?: string }> => {
     const { data, error } = await amenityService.createReservation(input);
@@ -183,27 +154,15 @@ export const ReservationsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {commonAreas.length === 0 && !isLoadingAreas && (
+          {commonAreas.length === 0 && !isLoadingAreas && isSuperAdmin && (
             <button
               onClick={handleSeedCommonAreas}
               disabled={isSeedingAreas}
               className="px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition duration-150 flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700"
-              title={isSuperAdmin ? "Popular áreas comuns iniciais no Supabase" : "Popular áreas comuns no sistema"}
+              title="Popular áreas comuns iniciais no Supabase"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>{isSeedingAreas ? 'Cadastrando...' : 'Popular Áreas no Banco'}</span>
-            </button>
-          )}
-
-          {!tableMissing && isMockMode && reservations.length > 0 && (
-            <button
-              onClick={handleSeedReservations}
-              disabled={isSeedingReservations}
-              className="px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-xs transition duration-150 flex items-center gap-1.5 cursor-pointer border border-emerald-200 dark:border-emerald-800"
-              title={isSuperAdmin ? "Gravar reservas padrão no banco Supabase" : "Sincronizar reservas padrão"}
-            >
-              <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>{isSeedingReservations ? 'Gravando...' : (isSuperAdmin ? 'Salvar no Supabase' : 'Sincronizar Dados')}</span>
             </button>
           )}
 
@@ -216,7 +175,7 @@ export const ReservationsView: React.FC = () => {
             className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-pill transition duration-150 flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Nova Reserva</span>
+            <span>Nova Reserva</span>
           </button>
         </div>
       </div>

@@ -109,6 +109,24 @@ export const amenityService = {
         return { data: [], error: toError(error.message, error.code) };
       }
 
+      if (data && data.length > 0) {
+        return { data, error: null };
+      }
+
+      // Se a tabela de áreas comuns estiver vazia, auto-popula com as 4 áreas padrão para uso imediato
+      if (data && data.length === 0) {
+        await this.seedInitialCommonAreas(condominiumId);
+        const refetch = await supabase
+          .from('common_areas')
+          .select('*')
+          .eq('condominium_id', condominiumId)
+          .order('name', { ascending: true });
+
+        if (refetch.data && refetch.data.length > 0) {
+          return { data: refetch.data, error: null };
+        }
+      }
+
       return { data: data || [], error: null };
     } catch (err: any) {
       return { data: [], error: err instanceof Error ? err : toError('Falha ao carregar áreas comuns') };

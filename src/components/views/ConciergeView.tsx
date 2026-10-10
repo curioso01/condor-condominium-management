@@ -12,18 +12,17 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Radio, 
-  Eye,
-  Package,
-  Database,
-  QrCode,
-  Plus
+  Eye, 
+  Package, 
+  QrCode, 
+  Plus 
 } from 'lucide-react';
 import { PackageDeliveryModal } from './PackageDeliveryModal';
 import { CreateVisitorPassModal, type VisitorPassData } from './CreateVisitorPassModal';
 import { userService } from '../../services/userService';
 
 export const ConciergeView: React.FC = () => {
-  const { currentCondominium, currentRole, user, isSuperAdmin } = useAuth();
+  const { currentCondominium, currentRole, user } = useAuth();
   const canViewAccessLogs = userService.canAccessRealtimeLogs(
     user?.id,
     currentRole,
@@ -34,9 +33,7 @@ export const ConciergeView: React.FC = () => {
   const [accessFilter, setAccessFilter] = useState<'Todos' | 'Moradores' | 'Visitantes QR' | 'Entregadores'>('Todos');
   const [gateUnlocked, setGateUnlocked] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [isSeedingLogs, setIsSeedingLogs] = useState(false);
   const [tableMissing, setTableMissing] = useState(false);
-  const [isMockMode, setIsMockMode] = useState(false);
 
   // Modals state
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
@@ -50,14 +47,13 @@ export const ConciergeView: React.FC = () => {
   // Load access logs from Supabase
   const loadAccessLogs = useCallback(async () => {
     if (!currentCondominium?.id) return;
-    const { data, isMock, error } = await conciergeService.getAccessLogs(currentCondominium.id);
+    const { data, error } = await conciergeService.getAccessLogs(currentCondominium.id);
 
     if (error?.tableMissing) {
       setTableMissing(true);
     } else {
       setTableMissing(false);
     }
-    setIsMockMode(isMock);
     setAccessLog(data);
   }, [currentCondominium?.id]);
 
@@ -132,24 +128,6 @@ export const ConciergeView: React.FC = () => {
     }, 4000);
   };
 
-  const handleSeedLogs = async () => {
-    if (!currentCondominium?.id) return;
-    setIsSeedingLogs(true);
-    const { count, error } = await conciergeService.seedInitialAccessLogs(currentCondominium.id);
-    setIsSeedingLogs(false);
-
-    if (error) {
-      setNotification({ type: 'error', message: `Erro ao popular logs: ${error.message}` });
-      setTimeout(() => setNotification(null), 5000);
-    } else {
-      await loadAccessLogs();
-      setNotification({
-        type: 'success',
-        message: `${count} logs de portaria ${isSuperAdmin ? 'gravados no Supabase' : 'sincronizados no sistema'} com sucesso!`,
-      });
-      setTimeout(() => setNotification(null), 5000);
-    }
-  };
 
   const handleWhatsAppReminder = () => {
     setNotification({
@@ -291,17 +269,7 @@ export const ConciergeView: React.FC = () => {
             <QrCode className="w-3.5 h-3.5" />
             <span>+ Pré-Autorizar Visitante</span>
           </button>
-          {!tableMissing && isMockMode && (
-            <button
-              onClick={handleSeedLogs}
-              disabled={isSeedingLogs}
-              className="px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-xs transition duration-150 flex items-center gap-1.5 cursor-pointer border border-emerald-200 dark:border-emerald-800"
-              title={isSuperAdmin ? "Gravar logs padrão no banco Supabase" : "Sincronizar registros padrão"}
-            >
-              <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>{isSeedingLogs ? 'Gravando...' : (isSuperAdmin ? 'Salvar no Supabase' : 'Sincronizar Dados')}</span>
-            </button>
-          )}
+
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-xs font-bold border border-emerald-200/50 dark:border-emerald-800/60">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             Catracas & Câmeras Conectadas (Online)

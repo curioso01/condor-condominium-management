@@ -203,7 +203,7 @@ export const UnitsView: React.FC = () => {
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold shadow-pill transition-all flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Cadastrar Morador / Unidade</span>
+              <span>Cadastrar Novo Morador ou Unidade</span>
             </button>
           </div>
         )}
@@ -737,6 +737,11 @@ export const UnitsView: React.FC = () => {
         condominiumId={currentCondominium?.id || ''}
         condominiumName={currentCondominium?.name || 'Condomínio'}
         onUnitCreated={handleUnitCreated}
+        onSuccess={(msg) => {
+          setNotification({ type: 'success', message: msg });
+          setTimeout(() => setNotification(null), 5000);
+          loadUnits();
+        }}
       />
 
       {/* Modal de Detalhes Completos da Unidade */}

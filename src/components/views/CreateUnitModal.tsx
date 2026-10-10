@@ -1,44 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { z } from 'zod';
-import { X, Building, User, Hash, Layers, Car, AlertCircle, CheckCircle2 } from 'lucide-react';
-import type { CreateUnitInput } from '../../services/unitService';
-
-const unitSchema = z.object({
-  identifier: z
-    .string()
-    .trim()
-    .min(1, 'Informe o número da unidade (ex: 101, 402)')
-    .max(10, 'O número da unidade deve ter no máximo 10 caracteres'),
-  block: z
-    .string()
-    .trim()
-    .min(1, 'Selecione ou informe o bloco/torre'),
-  floor: z
-    .number()
-    .int('O andar deve ser um número inteiro')
-    .min(0, 'O andar deve ser 0 (térreo) ou superior')
-    .max(50, 'Andar máximo permitido: 50')
-    .nullable()
-    .optional(),
-  contactName: z
-    .string()
-    .trim()
-    .min(2, 'Informe o nome do morador responsável (mínimo 2 caracteres)'),
-  residentType: z.enum(['Proprietário', 'Inquilino']),
-  parkingSpot: z
-    .string()
-    .trim()
-    .optional(),
-  hasPet: z.boolean().default(false),
-});
+import { userService } from '../../services/userService';
+import { unitService, type CreateUnitInput } from '../../services/unitService';
+import type { CondominiumRole } from '../../types/database.types';
+import { 
+  X, 
+  ShieldCheck, 
+  UserPlus, 
+  AlertCircle, 
+  CheckCircle2, 
+  Lock 
+} from 'lucide-react';
 
 export interface CreateUnitModalProps {
   isOpen: boolean;
   onClose: () => void;
   condominiumId: string;
   condominiumName: string;
-  onUnitCreated: (unitData: CreateUnitInput) => Promise<{ success: boolean; error?: string }>;
+  onUnitCreated?: (unitData: CreateUnitInput) => Promise<{ success: boolean; error?: string }>;
+  onSuccess?: (message: string) => void;
 }
 
 export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
@@ -47,24 +27,27 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
   condominiumId,
   condominiumName,
   onUnitCreated,
+  onSuccess,
 }) => {
-  const { canManageUsers } = useAuth();
-  const [identifier, setIdentifier] = useState('');
-  const [block, setBlock] = useState('Bloco A');
-  const [floor, setFloor] = useState<number | ''>('');
-  const [contactName, setContactName] = useState('');
-  const [residentType, setResidentType] = useState<'Proprietário' | 'Inquilino'>('Proprietário');
-  const [parkingSpot, setParkingSpot] = useState('');
-  const [hasPet, setHasPet] = useState(false);
+  const { canManageUsers, isSuperAdmin, currentRole } = useAuth();
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [fullName, setFullName] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [apartment, setApartment] = useState('');
+  const [block, setBlock] = useState('Bloco A');
+  const [residentType, setResidentType] = useState<'Proprietário' | 'Inquilino'>('Proprietário');
+  const [hasPet, setHasPet] = useState(false);
+  const [role, setRole] = useState<CondominiumRole>('morador');
+
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const initialFocusRef = useRef<HTMLInputElement>(null);
 
-  // Focus trap and ESC key dismiss per accessible-components & modals-and-dialogs
+  // Esc key dismiss
   useEffect(() => {
     if (!isOpen) return;
 
@@ -75,7 +58,6 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    // Focus initial input
     setTimeout(() => {
       initialFocusRef.current?.focus();
     }, 50);
@@ -86,37 +68,48 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setIdentifier('');
+      setFullName('');
+      setCpf('');
+      setEmail('');
+      setPhone('');
+      setApartment('');
       setBlock('Bloco A');
-      setFloor('');
-      setContactName('');
       setResidentType('Proprietário');
-      setParkingSpot('');
       setHasPet(false);
-      setFieldErrors({});
+      setRole('morador');
       setFormError(null);
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  // Apenas o Síndico e o Superadmin podem fazer cadastro
   if (!canManageUsers) {
     return (
-      <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center mx-auto">
-            <AlertCircle className="w-6 h-6" />
+      <div 
+        role="dialog" 
+        aria-modal="true" 
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn"
+      >
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 max-w-md w-full text-center space-y-4 shadow-2xl">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-200 dark:border-amber-800">
+            <Lock className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Cadastro Restrito</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Apenas o Síndico Geral e o Super Administrador possuem autorização para cadastrar novas unidades e moradores.
-          </p>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              Acesso Restrito
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+              Apenas o <strong>Síndico Geral</strong> e o <strong>Super Administrador</strong> possuem permissão para cadastrar novos moradores, colaboradores ou unidades no sistema.
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold cursor-pointer"
+            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 text-xs font-bold transition cursor-pointer"
           >
-            Fechar
+            Entendido, fechar
           </button>
         </div>
       </div>
@@ -126,62 +119,100 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageUsers) {
-      setFormError('Acesso negado: apenas o Síndico e o Super Administrador podem cadastrar novas unidades e moradores.');
+      setFormError('Acesso negado: apenas o Síndico e o Super Administrador podem cadastrar novos usuários e unidades.');
       return;
     }
-    setFormError(null);
-    setFieldErrors({});
 
-    const parsedFloor = floor === '' ? null : Number(floor);
+    if (!fullName.trim() || !email.trim()) {
+      setFormError('Por favor, informe ao menos o Nome Completo e o E-mail de acesso.');
+      return;
+    }
 
-    const validation = unitSchema.safeParse({
-      identifier,
-      block,
-      floor: parsedFloor,
-      contactName,
-      residentType,
-      parkingSpot: parkingSpot.trim() || undefined,
-      hasPet,
-    });
-
-    if (!validation.success) {
-      const errors: Record<string, string> = {};
-      validation.error.issues.forEach((issue) => {
-        if (issue.path[0]) {
-          errors[issue.path[0] as string] = issue.message;
-        }
-      });
-      setFieldErrors(errors);
+    if (!apartment.trim()) {
+      setFormError('Por favor, informe o número do Apartamento / Unidade.');
       return;
     }
 
     setIsSubmitting(true);
-    const result = await onUnitCreated({
-      condominium_id: condominiumId,
-      identifier: identifier.trim(),
+    setFormError(null);
+
+    const condoId = condominiumId || 'condo-imperial-001';
+    const formattedUnit = `${apartment.trim()} (${block})`;
+
+    // 1. Cadastrar usuário no controle RBAC de usuários
+    const resUser = await userService.createUser(
+      {
+        condominium_id: condoId,
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        cpf: cpf.trim() || undefined,
+        unit_number: formattedUnit,
+        block: block.trim(),
+        resident_type: residentType,
+        has_pet: hasPet,
+        role: role,
+      },
+      currentRole
+    );
+
+    if (resUser.error) {
+      setIsSubmitting(false);
+      setFormError(resUser.error.message);
+      return;
+    }
+
+    // 2. Registrar ou atualizar a unidade no Censo e no diretório de unidades
+    const resUnit = await unitService.registerOrUpdateResidentUnit({
+      condominium_id: condoId,
+      identifier: apartment.trim(),
       block: block.trim(),
-      floor: parsedFloor,
-      contactName: contactName.trim(),
-      ownerName: contactName.trim(),
-      residentType,
-      parkingSpot: parkingSpot.trim() || `G-${identifier.trim()}`,
-      hasPet,
+      residentName: fullName.trim(),
+      residentType: residentType,
+      hasPet: hasPet,
+      phone: phone.trim() || undefined,
+      cpf: cpf.trim() || undefined,
+      email: email.trim(),
     });
+
+    // Se houver callback legado para compatibilidade
+    if (onUnitCreated) {
+      await onUnitCreated({
+        condominium_id: condoId,
+        identifier: apartment.trim(),
+        block: block.trim(),
+        ownerName: fullName.trim(),
+        contactName: fullName.trim(),
+        residentType: residentType,
+        hasPet: hasPet,
+      });
+    }
+
     setIsSubmitting(false);
 
-    if (result.success) {
-      onClose(); // Close only on success (as per modals-and-dialogs skill)
-    } else {
-      setFormError(result.error || 'Erro ao cadastrar unidade no banco.');
+    if (resUnit.error) {
+      setFormError(`Usuário cadastrado, mas ocorreu um alerta ao atualizar a unidade: ${resUnit.error.message}`);
+      return;
     }
+
+    // Dispara evento para atualização imediata do Censo e da lista de unidades
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+    }
+
+    const successMsg = `Morador ${fullName.trim()} cadastrado com sucesso na unidade ${apartment.trim()} (${block}) e sincronizado com o Censo!`;
+    if (onSuccess) {
+      onSuccess(successMsg);
+    }
+    onClose();
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="create-unit-modal-title"
+      aria-labelledby="create-resident-modal-title"
     >
       {/* Click outside backdrop */}
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
@@ -189,20 +220,26 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
       {/* Modal Dialog Card */}
       <div
         ref={modalRef}
-        className="relative w-full max-w-lg bg-white rounded-3xl shadow-floating-sidebar border border-slate-200 p-6 sm:p-7 z-10 overflow-hidden"
+        className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 sm:p-7 z-10 max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-              <Building className="w-5 h-5 text-emerald-600" />
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold border border-emerald-200 dark:border-emerald-800 shrink-0">
+              <UserPlus className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <h2 id="create-unit-modal-title" className="text-base font-bold text-slate-900">
-                Cadastrar Nova Unidade
-              </h2>
-              <p className="text-xs text-slate-400 font-medium">
-                {condominiumName}
+              <div className="flex items-center gap-2">
+                <h2 id="create-resident-modal-title" className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+                  Cadastrar Novo Morador ou Unidade
+                </h2>
+                <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 uppercase flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  RBAC
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                {condominiumName} • Cadastro unificado de usuários, unidades e permissões
               </p>
             </div>
           </div>
@@ -210,7 +247,7 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fechar modal"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -220,212 +257,295 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
         {formError && (
           <div
             role="alert"
-            className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2.5"
+            className="mb-4 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-medium flex items-start gap-2.5"
           >
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <span>{formError}</span>
           </div>
         )}
 
-        {/* Form */}
+        {/* Form - Exactly matching Usuarios e Privilégios */}
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            {/* Identifier / Number */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {/* Nome Completo */}
             <div>
-              <label
-                htmlFor="unit-number-input"
-                className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
-              >
-                Número / Apto *
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Nome Completo *
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Hash className="w-3.5 h-3.5" />
-                </div>
-                <input
-                  id="unit-number-input"
-                  ref={initialFocusRef}
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => {
-                    setIdentifier(e.target.value);
-                    if (fieldErrors.identifier) setFieldErrors({ ...fieldErrors, identifier: '' });
-                  }}
-                  placeholder="Ex: 402"
-                  className={`w-full pl-8 pr-3 py-2 bg-slate-50 border text-slate-900 text-xs rounded-xl focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold ${
-                    fieldErrors.identifier ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200'
-                  }`}
-                />
-              </div>
-              {fieldErrors.identifier && (
-                <p className="mt-1 text-[11px] text-rose-600 font-medium">{fieldErrors.identifier}</p>
-              )}
+              <input
+                ref={initialFocusRef}
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Ex: Beatriz Lima Duarte"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                required
+              />
             </div>
 
-            {/* Block Selection */}
+            {/* CPF */}
             <div>
-              <label
-                htmlFor="unit-block-input"
-                className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
-              >
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                CPF
+              </label>
+              <input
+                type="text"
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                placeholder="000.000.000-00"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            {/* E-mail */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                E-mail de Acesso *
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Ex: beatriz@condor.com.br"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                required
+              />
+            </div>
+
+            {/* Telefone */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Telefone / WhatsApp
+              </label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(11) 98765-4321"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            {/* Apartamento / Unidade */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Apartamento / Unidade *
+              </label>
+              <input
+                type="text"
+                value={apartment}
+                onChange={(e) => setApartment(e.target.value)}
+                placeholder="Ex: 402 ou 104"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                required
+              />
+            </div>
+
+            {/* Bloco / Torre */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
                 Bloco / Torre *
               </label>
               <select
-                id="unit-block-input"
                 value={block}
                 onChange={(e) => setBlock(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
               >
-                <option value="Bloco A">Bloco A (Cerejeiras)</option>
-                <option value="Bloco B">Bloco B (Ipês)</option>
-                <option value="Torre Única">Torre Única</option>
+                <option value="Bloco A">Bloco A (Torre A)</option>
+                <option value="Bloco B">Bloco B (Torre B)</option>
                 <option value="Bloco C">Bloco C</option>
+                <option value="Torre Sul">Torre Sul</option>
+                <option value="Torre Norte">Torre Norte</option>
               </select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Floor */}
+            {/* Vínculo do Morador */}
             <div>
-              <label
-                htmlFor="unit-floor-input"
-                className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
-              >
-                Andar
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Vínculo do Morador *
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Layers className="w-3.5 h-3.5" />
-                </div>
-                <input
-                  id="unit-floor-input"
-                  type="number"
-                  min="0"
-                  max="50"
-                  value={floor}
-                  onChange={(e) => setFloor(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-                  placeholder="Ex: 4"
-                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResidentType('Proprietário')}
+                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                    residentType === 'Proprietário'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Proprietário
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResidentType('Inquilino')}
+                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                    residentType === 'Inquilino'
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Inquilino
+                </button>
               </div>
             </div>
 
-            {/* Parking Spot */}
+            {/* Possui Pet */}
             <div>
-              <label
-                htmlFor="unit-parking-input"
-                className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
-              >
-                Vaga de Garagem
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                Possui Pet / Animal de Estimação? *
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Car className="w-3.5 h-3.5" />
-                </div>
-                <input
-                  id="unit-parking-input"
-                  type="text"
-                  value={parkingSpot}
-                  onChange={(e) => setParkingSpot(e.target.value)}
-                  placeholder="Ex: G-14 (Subsolo 1)"
-                  className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHasPet(true)}
+                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                    hasPet
+                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  🐾 Sim (Tem Pet)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHasPet(false)}
+                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                    !hasPet
+                      ? 'border-slate-800 dark:border-slate-300 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-bold'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Não possui
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Contact Name */}
-          <div>
-            <label
-              htmlFor="unit-contact-input"
-              className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
-            >
-              Morador Titular / Responsável *
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <User className="w-3.5 h-3.5" />
-              </div>
-              <input
-                id="unit-contact-input"
-                type="text"
-                value={contactName}
-                onChange={(e) => {
-                  setContactName(e.target.value);
-                  if (fieldErrors.contactName) setFieldErrors({ ...fieldErrors, contactName: '' });
-                }}
-                placeholder="Nome completo do morador principal"
-                className={`w-full pl-8 pr-3 py-2 bg-slate-50 border text-slate-900 text-xs rounded-xl focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
-                  fieldErrors.contactName ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200'
+          {/* Privilégio / Papel Concedido (RBAC) */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2 mt-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
+                Privilégio / Papel Concedido *
+              </label>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Avaliação de permissões pelo Síndico
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label
+                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                  role === 'morador'
+                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
+                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
                 }`}
-              />
-            </div>
-            {fieldErrors.contactName && (
-              <p className="mt-1 text-[11px] text-rose-600 font-medium">{fieldErrors.contactName}</p>
-            )}
-          </div>
-
-          {/* Resident Type & Pet Checkbox */}
-          <div className="flex items-center justify-between pt-1">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-700">Tipo:</span>
-              <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="residentType"
-                  checked={residentType === 'Proprietário'}
-                  onChange={() => setResidentType('Proprietário')}
-                  className="text-emerald-600 focus:ring-emerald-500"
-                />
-                Proprietário
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="create-unit-user-role"
+                    value="morador"
+                    checked={role === 'morador'}
+                    onChange={() => setRole('morador')}
+                    className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-xs">Morador</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 pl-5">Reservas, avisos e boletos</span>
               </label>
-              <label className="inline-flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="residentType"
-                  checked={residentType === 'Inquilino'}
-                  onChange={() => setResidentType('Inquilino')}
-                  className="text-emerald-600 focus:ring-emerald-500"
-                />
-                Inquilino
-              </label>
-            </div>
 
-            <label className="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={hasPet}
-                onChange={(e) => setHasPet(e.target.checked)}
-                className="w-4 h-4 text-emerald-600 rounded-sm border-slate-300 focus:ring-emerald-500"
-              />
-              Possui Animal (Pet)
-            </label>
+              <label
+                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                  role === 'porteiro'
+                    ? 'border-sky-600 bg-sky-50/60 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-bold'
+                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="create-unit-user-role"
+                    value="porteiro"
+                    checked={role === 'porteiro'}
+                    onChange={() => setRole('porteiro')}
+                    className="text-sky-600 focus:ring-sky-500 cursor-pointer"
+                  />
+                  <span className="text-xs">Portaria & Acessos</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 pl-5">Guarita, encomendas e lockers</span>
+              </label>
+
+              <label
+                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                  role === 'sindico'
+                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
+                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="create-unit-user-role"
+                    value="sindico"
+                    checked={role === 'sindico'}
+                    onChange={() => setRole('sindico')}
+                    className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-xs">Síndico Geral</span>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 pl-5">Gestão total e novos cadastros</span>
+              </label>
+
+              {isSuperAdmin && (
+                <label
+                  className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition sm:col-span-3 ${
+                    role === 'superadmin'
+                      ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-950 dark:text-purple-200 font-bold'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="create-unit-user-role"
+                      value="superadmin"
+                      checked={role === 'superadmin'}
+                      onChange={() => setRole('superadmin')}
+                      className="text-purple-600 focus:ring-purple-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
+                      Super Administrador (Acesso Geral Multi-Condomínios)
+                    </span>
+                  </div>
+                </label>
+              )}
+            </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              className="px-4 py-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 rounded-xl shadow-pill transition-all flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 rounded-xl shadow-pill transition-all flex items-center gap-2 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Salvando no banco...</span>
+                  <span>Cadastrando no sistema...</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Cadastrar Unidade</span>
+                  <span>Confirmar e Cadastrar</span>
                 </>
               )}
             </button>
