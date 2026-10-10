@@ -7,8 +7,12 @@ export interface CondominiumUser {
   full_name: string;
   email: string;
   phone?: string | null;
+  cpf?: string | null;
   role: CondominiumRole;
   unit_number?: string | null;
+  block?: string | null;
+  resident_type?: 'Proprietário' | 'Inquilino';
+  has_pet?: boolean;
   avatar_url?: string | null;
   status: MembershipStatus;
   log_access_granted?: boolean;
@@ -21,8 +25,12 @@ export interface CreateUserInput {
   full_name: string;
   email: string;
   phone?: string;
+  cpf?: string;
   role: CondominiumRole;
   unit_number?: string;
+  block?: string;
+  resident_type?: 'Proprietário' | 'Inquilino';
+  has_pet?: boolean;
   avatar_url?: string;
   log_access_granted?: boolean;
 }
@@ -205,8 +213,12 @@ class UserService {
       full_name: input.full_name.trim(),
       email: input.email.trim().toLowerCase(),
       phone: input.phone?.trim() || null,
+      cpf: input.cpf?.trim() || null,
       role: input.role,
       unit_number: input.unit_number?.trim() || null,
+      block: input.block?.trim() || null,
+      resident_type: input.resident_type,
+      has_pet: input.has_pet,
       avatar_url: input.avatar_url || null,
       status: 'active',
       created_at: new Date().toISOString(),

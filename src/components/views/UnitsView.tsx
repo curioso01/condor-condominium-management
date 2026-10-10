@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export const UnitsView: React.FC = () => {
-  const { currentCondominium, canManageUsers } = useAuth();
+  const { currentCondominium, canManageUsers, isSuperAdmin } = useAuth();
 
   const [units, setUnits] = useState<Unit[]>([]);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -59,6 +59,11 @@ export const UnitsView: React.FC = () => {
 
   useEffect(() => {
     loadUnits();
+    const handleUnitsUpdated = () => {
+      loadUnits();
+    };
+    window.addEventListener('condor:units-updated', handleUnitsUpdated);
+    return () => window.removeEventListener('condor:units-updated', handleUnitsUpdated);
   }, [loadUnits]);
 
   // Handle unit creation
@@ -168,7 +173,7 @@ export const UnitsView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Unidades & Diretório de Moradores
+              Unidades e Moradores
             </h2>
             <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
               {currentCondominium?.name || 'Condomínio'}
@@ -290,7 +295,7 @@ export const UnitsView: React.FC = () => {
           <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">
             <span className="text-[11px] text-slate-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Sincronizado com Supabase
+              {isSuperAdmin ? 'Sincronizado com Supabase' : 'Sincronizado em tempo real'}
             </span>
             <button
               onClick={loadUnits}
@@ -483,7 +488,9 @@ export const UnitsView: React.FC = () => {
           {!isLoading && errorMessage && (
             <div className="p-8 text-center border border-dashed border-rose-200 rounded-2.5xl my-4 bg-rose-50/40">
               <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
-              <p className="text-xs font-bold text-rose-800">Falha ao carregar unidades do Supabase</p>
+              <p className="text-xs font-bold text-rose-800">
+                {isSuperAdmin ? 'Falha ao carregar unidades do Supabase' : 'Falha ao carregar unidades do sistema'}
+              </p>
               <p className="text-[11px] text-rose-600 mt-1 mb-4">{errorMessage}</p>
               <button
                 onClick={loadUnits}
@@ -498,7 +505,11 @@ export const UnitsView: React.FC = () => {
           {!isLoading && !errorMessage && units.length === 0 && (
             <EmptyState
               title={`Nenhuma unidade cadastrada no ${currentCondominium?.name || 'Condomínio'}`}
-              description="Você ainda não possui unidades registradas neste condomínio no Supabase. Cadastre a primeira unidade ou use o preenchimento automático inicial."
+              description={
+                isSuperAdmin
+                  ? 'Você ainda não possui unidades registradas neste condomínio no Supabase. Cadastre a primeira unidade ou use o preenchimento automático inicial.'
+                  : 'Você ainda não possui unidades registradas neste condomínio. Cadastre a primeira unidade ou use o preenchimento automático inicial.'
+              }
               actionLabel="+ Cadastrar Primeira Unidade"
               onAction={() => setIsModalOpen(true)}
               className="my-4 py-8"
@@ -612,7 +623,7 @@ export const UnitsView: React.FC = () => {
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-                Supabase PostgreSQL
+                {isSuperAdmin ? 'Supabase PostgreSQL' : 'Banco em Tempo Real'}
               </span>
             </div>
           </div>

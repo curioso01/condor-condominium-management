@@ -370,7 +370,7 @@ export const LoginView: React.FC = () => {
                     <strong className="text-slate-800 font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">condor@2026</strong>
                   </span>
                   <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                    Supabase Pronto
+                    Servidor Conectado
                   </span>
                 </div>
               </div>
@@ -550,7 +550,7 @@ export const LoginView: React.FC = () => {
         {/* Security Footer Notice */}
         <div className="mt-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Ambiente protegido por criptografia de ponta a ponta e Supabase Auth.</span>
+          <span>Ambiente protegido por criptografia de ponta a ponta e autenticação avançada.</span>
         </div>
       </div>
     </div>

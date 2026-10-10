@@ -25,6 +25,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { userService, type CondominiumUser } from '../../services/userService';
+import { unitService } from '../../services/unitService';
 import type { CondominiumRole } from '../../types/database.types';
 import {
   bankAccountService,
@@ -105,9 +106,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [usersList, setUsersList] = useState<CondominiumUser[]>([]);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserFullName, setNewUserFullName] = useState('');
+  const [newUserCpf, setNewUserCpf] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
-  const [newUserUnit, setNewUserUnit] = useState('');
+  const [newUserApartment, setNewUserApartment] = useState('');
+  const [newUserBlock, setNewUserBlock] = useState('Bloco A');
+  const [newUserResidentType, setNewUserResidentType] = useState<'Proprietário' | 'Inquilino'>('Proprietário');
+  const [newUserHasPet, setNewUserHasPet] = useState<boolean>(false);
   const [newUserRole, setNewUserRole] = useState<CondominiumRole>('morador');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | CondominiumRole>('all');
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
@@ -362,17 +367,43 @@ END $$;`;
     }
 
     setIsSubmittingUser(true);
+
+    const condoId = currentCondominium?.id || 'condo-imperial-001';
+    const formattedUnit = newUserApartment.trim()
+      ? `${newUserApartment.trim()} (${newUserBlock})`
+      : '';
+
     const res = await userService.createUser(
       {
-        condominium_id: currentCondominium?.id || 'condo-imperial-001',
+        condominium_id: condoId,
         full_name: newUserFullName,
         email: newUserEmail,
         phone: newUserPhone,
-        unit_number: newUserUnit,
+        cpf: newUserCpf,
+        unit_number: formattedUnit,
+        block: newUserBlock,
+        resident_type: newUserResidentType,
+        has_pet: newUserHasPet,
         role: newUserRole,
       },
       currentRole
     );
+
+    // Se for morador ou se informou apartamento, registra/atualiza no censo e diretório de unidades
+    if (newUserRole === 'morador' || newUserApartment.trim()) {
+      await unitService.registerOrUpdateResidentUnit({
+        condominium_id: condoId,
+        identifier: newUserApartment.trim() || '101',
+        block: newUserBlock.trim() || 'Bloco A',
+        residentName: newUserFullName.trim(),
+        residentType: newUserResidentType,
+        hasPet: newUserHasPet,
+        phone: newUserPhone,
+        cpf: newUserCpf,
+        email: newUserEmail,
+      });
+    }
+
     setIsSubmittingUser(false);
 
     if (res.error) {
@@ -380,12 +411,16 @@ END $$;`;
       return;
     }
 
-    setFeedback(`Usuário ${newUserFullName} cadastrado com sucesso com o privilégio de ${getRoleLabel(newUserRole)}!`);
+    setFeedback(`Usuário ${newUserFullName} cadastrado com sucesso com privilégio de ${getRoleLabel(newUserRole)} e sincronizado ao censo!`);
     setIsAddingUser(false);
     setNewUserFullName('');
+    setNewUserCpf('');
     setNewUserEmail('');
     setNewUserPhone('');
-    setNewUserUnit('');
+    setNewUserApartment('');
+    setNewUserBlock('Bloco A');
+    setNewUserResidentType('Proprietário');
+    setNewUserHasPet(false);
     setNewUserRole('morador');
     loadUsers();
   };
@@ -473,21 +508,21 @@ END $$;`;
     >
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-4xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-lg shadow-sm">
+        <div className="p-6 sm:p-7 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-lg shadow-sm shrink-0">
               <Settings className="w-6 h-6 animate-spin-slow" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 id="settings-modal-title" className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <h3 id="settings-modal-title" className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
                   Configurações do Sistema
                 </h3>
-                <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                <span className="text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
                   {currentCondominium?.name || 'Condomínio'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                 Perfil de acesso, foto do usuário, dados do condomínio e status da infraestrutura
               </p>
             </div>
@@ -495,7 +530,7 @@ END $$;`;
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer shrink-0"
             aria-label="Fechar configurações"
           >
             <X className="w-4 h-4" />
@@ -504,14 +539,14 @@ END $$;`;
 
         {/* Feedback Alert */}
         {feedback && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+          <div className="mx-6 sm:mx-7 mt-4 mb-3 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-fadeIn">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{feedback}</span>
           </div>
         )}
 
         {/* Tabs Bar */}
-        <div className="flex items-center gap-1.5 px-6 pt-3 border-b border-slate-100 dark:border-slate-800 overflow-x-auto text-xs font-semibold">
+        <div className="flex items-center gap-2 px-6 sm:px-7 pt-4 pb-0 border-b border-slate-100 dark:border-slate-800 overflow-x-auto text-xs font-semibold">
           <button
             onClick={() => setActiveTab('perfil')}
             className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
@@ -874,6 +909,18 @@ END $$;`;
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            CPF
+                          </label>
+                          <input
+                            type="text"
+                            value={newUserCpf}
+                            onChange={(e) => setNewUserCpf(e.target.value)}
+                            placeholder="000.000.000-00"
+                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                             E-mail de Acesso *
                           </label>
                           <input
@@ -899,15 +946,89 @@ END $$;`;
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            Unidade / Posto
+                            Apartamento / Unidade *
                           </label>
                           <input
                             type="text"
-                            value={newUserUnit}
-                            onChange={(e) => setNewUserUnit(e.target.value)}
-                            placeholder="Ex: Apto 402-A ou Guarita Principal"
+                            value={newUserApartment}
+                            onChange={(e) => setNewUserApartment(e.target.value)}
+                            placeholder="Ex: 402 ou 104"
                             className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            Bloco / Torre *
+                          </label>
+                          <select
+                            value={newUserBlock}
+                            onChange={(e) => setNewUserBlock(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                          >
+                            <option value="Bloco A">Bloco A (Torre A)</option>
+                            <option value="Bloco B">Bloco B (Torre B)</option>
+                            <option value="Bloco C">Bloco C</option>
+                            <option value="Torre Sul">Torre Sul</option>
+                            <option value="Torre Norte">Torre Norte</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            Vínculo do Morador *
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setNewUserResidentType('Proprietário')}
+                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                newUserResidentType === 'Proprietário'
+                                  ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Proprietário
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNewUserResidentType('Inquilino')}
+                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                newUserResidentType === 'Inquilino'
+                                  ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Inquilino
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            Possui Pet / Animal de Estimação? *
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setNewUserHasPet(true)}
+                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                newUserHasPet
+                                  ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              🐾 Sim (Tem Pet)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNewUserHasPet(false)}
+                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                !newUserHasPet
+                                  ? 'border-slate-800 dark:border-slate-300 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-bold'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              Não possui
+                            </button>
+                          </div>
                         </div>
                       </div>
 

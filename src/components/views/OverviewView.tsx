@@ -75,13 +75,19 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
   const isMorador = currentRole === 'morador';
 
   useEffect(() => {
-    if (currentCondominium?.id) {
-      unitService.getUnitsByCondominium(currentCondominium.id).then(({ data }) => {
-        if (data && data.length > 0) {
-          setRealUnitsCount(data.length);
-        }
-      });
-    }
+    const fetchUnits = () => {
+      if (currentCondominium?.id) {
+        unitService.getUnitsByCondominium(currentCondominium.id).then(({ data }) => {
+          if (data && data.length > 0) {
+            setRealUnitsCount(data.length);
+          }
+        });
+      }
+    };
+
+    fetchUnits();
+    window.addEventListener('condor:units-updated', fetchUnits);
+    return () => window.removeEventListener('condor:units-updated', fetchUnits);
   }, [currentCondominium?.id]);
 
   const userName = profile?.full_name || (isMorador ? 'Morador Residente' : isPorteiro ? 'Portaria' : 'Síndico(a)');
@@ -907,7 +913,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
           <span>Sistemas de portaria e biometria conectados • Servidor Local Ativo</span>
         </div>
         <div>
-          <span>Condor SaaS Real Estate Platform • Condomínio Residencial Reserva Imperial</span>
+          <span>{currentCondominium?.name || 'Condomínio Residencial Reserva Imperial'}</span>
         </div>
       </footer>
 

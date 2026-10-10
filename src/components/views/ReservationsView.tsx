@@ -31,7 +31,7 @@ export interface ExtendedCommonArea extends CommonArea {
 }
 
 export const ReservationsView: React.FC = () => {
-  const { currentCondominium } = useAuth();
+  const { currentCondominium, isSuperAdmin } = useAuth();
 
   const [commonAreas, setCommonAreas] = useState<ExtendedCommonArea[]>([]);
   const [reservations, setReservations] = useState<AmenityReservation[]>([]);
@@ -91,7 +91,7 @@ export const ReservationsView: React.FC = () => {
       await loadAreasAndReservations();
       setNotification({
         type: 'success',
-        message: `${count} espaços comuns de lazer cadastrados no banco Supabase para ${currentCondominium.name}!`,
+        message: `${count} espaços comuns de lazer cadastrados ${isSuperAdmin ? 'no banco Supabase' : 'no sistema'} para ${currentCondominium.name}!`,
       });
       setTimeout(() => setNotification(null), 5000);
     }
@@ -110,7 +110,7 @@ export const ReservationsView: React.FC = () => {
       await loadAreasAndReservations();
       setNotification({
         type: 'success',
-        message: `${count} reservas iniciais gravadas no banco Supabase com sucesso!`,
+        message: `${count} reservas iniciais gravadas ${isSuperAdmin ? 'no banco Supabase' : 'no sistema'} com sucesso!`,
       });
       setTimeout(() => setNotification(null), 5000);
     }
@@ -188,7 +188,7 @@ export const ReservationsView: React.FC = () => {
               onClick={handleSeedCommonAreas}
               disabled={isSeedingAreas}
               className="px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition duration-150 flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700"
-              title="Popular áreas comuns iniciais no Supabase"
+              title={isSuperAdmin ? "Popular áreas comuns iniciais no Supabase" : "Popular áreas comuns no sistema"}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>{isSeedingAreas ? 'Cadastrando...' : 'Popular Áreas no Banco'}</span>
@@ -200,10 +200,10 @@ export const ReservationsView: React.FC = () => {
               onClick={handleSeedReservations}
               disabled={isSeedingReservations}
               className="px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-xs transition duration-150 flex items-center gap-1.5 cursor-pointer border border-emerald-200 dark:border-emerald-800"
-              title="Gravar reservas padrão no banco Supabase"
+              title={isSuperAdmin ? "Gravar reservas padrão no banco Supabase" : "Sincronizar reservas padrão"}
             >
               <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>{isSeedingReservations ? 'Gravando...' : 'Salvar no Supabase'}</span>
+              <span>{isSeedingReservations ? 'Gravando...' : (isSuperAdmin ? 'Salvar no Supabase' : 'Sincronizar Dados')}</span>
             </button>
           )}
 

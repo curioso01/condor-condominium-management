@@ -23,7 +23,7 @@ import { CreateVisitorPassModal, type VisitorPassData } from './CreateVisitorPas
 import { userService } from '../../services/userService';
 
 export const ConciergeView: React.FC = () => {
-  const { currentCondominium, currentRole, user } = useAuth();
+  const { currentCondominium, currentRole, user, isSuperAdmin } = useAuth();
   const canViewAccessLogs = userService.canAccessRealtimeLogs(
     user?.id,
     currentRole,
@@ -145,7 +145,7 @@ export const ConciergeView: React.FC = () => {
       await loadAccessLogs();
       setNotification({
         type: 'success',
-        message: `${count} logs de portaria gravados no Supabase com sucesso!`,
+        message: `${count} logs de portaria ${isSuperAdmin ? 'gravados no Supabase' : 'sincronizados no sistema'} com sucesso!`,
       });
       setTimeout(() => setNotification(null), 5000);
     }
@@ -296,10 +296,10 @@ export const ConciergeView: React.FC = () => {
               onClick={handleSeedLogs}
               disabled={isSeedingLogs}
               className="px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-xs transition duration-150 flex items-center gap-1.5 cursor-pointer border border-emerald-200 dark:border-emerald-800"
-              title="Gravar logs padrão no banco Supabase"
+              title={isSuperAdmin ? "Gravar logs padrão no banco Supabase" : "Sincronizar registros padrão"}
             >
               <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>{isSeedingLogs ? 'Gravando...' : 'Salvar no Supabase'}</span>
+              <span>{isSeedingLogs ? 'Gravando...' : (isSuperAdmin ? 'Salvar no Supabase' : 'Sincronizar Dados')}</span>
             </button>
           )}
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-xs font-bold border border-emerald-200/50 dark:border-emerald-800/60">

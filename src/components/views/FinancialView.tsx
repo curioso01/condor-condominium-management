@@ -203,7 +203,9 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
     if (isMockMode) {
       return {
         success: false,
-        error: 'Execute a migration 03 no Supabase para habilitar a emissão de cobranças no banco de dados.',
+        error: isSuperAdmin
+          ? 'Execute a migration 03 no Supabase para habilitar a emissão de cobranças no banco de dados.'
+          : 'Ambiente em modo de demonstração financeira. Cobranças registradas localmente.',
       };
     }
 
@@ -424,9 +426,17 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
               <Database className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold">Tabela de cobranças ainda não criada no Supabase</p>
+              <p className="font-bold">
+                {isSuperAdmin ? 'Tabela de cobranças ainda não criada no Supabase' : 'Modo de Demonstração Financeira'}
+              </p>
               <p className="text-[11px] text-amber-700 dark:text-amber-300/80">
-                Execute a migration <code className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 font-mono font-bold">20261005000003_invoices.sql</code> no SQL Editor do Supabase para ativar dados reais e persistência. Exibindo dados de demonstração.
+                {isSuperAdmin ? (
+                  <>
+                    Execute a migration <code className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 font-mono font-bold">20261005000003_invoices.sql</code> no SQL Editor do Supabase para ativar dados reais e persistência. Exibindo dados de demonstração.
+                  </>
+                ) : (
+                  'Exibindo dados e demonstrações do condomínio. As alterações são salvas para consulta nesta sessão.'
+                )}
               </p>
             </div>
           </div>

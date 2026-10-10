@@ -258,4 +258,78 @@ export const unitService = {
 
     return { error: null };
   },
+
+  /**
+   * Registra ou atualiza um morador em uma unidade, sincronizando imediatamente com o Censo.
+   */
+  async registerOrUpdateResidentUnit(input: {
+    condominium_id: string;
+    identifier: string;
+    block: string;
+    residentName: string;
+    residentType: 'Proprietário' | 'Inquilino';
+    hasPet: boolean;
+    phone?: string;
+    cpf?: string;
+    email?: string;
+  }): Promise<{ data: UIUnit | null; error: Error | null }> {
+    const units = getLocalUnits(input.condominium_id);
+    const cleanId = input.identifier.trim();
+    const cleanBlock = input.block.trim();
+
+    const existingIndex = units.findIndex(
+      (u) =>
+        u.number.trim().toLowerCase() === cleanId.toLowerCase() &&
+        (u.block.trim().toLowerCase() === cleanBlock.toLowerCase() ||
+         u.block.toLowerCase().includes(cleanBlock.toLowerCase()) ||
+         cleanBlock.toLowerCase().includes(u.block.trim().toLowerCase()))
+    );
+
+    let updatedUnit: UIUnit;
+
+    if (existingIndex >= 0) {
+      const existing = units[existingIndex];
+      const memberInitials = (input.residentName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()) || 'MR';
+      const newMember = {
+        id: `mem-${Date.now()}`,
+        name: input.residentName,
+        role: input.residentType === 'Proprietário' ? 'Proprietário' : 'Morador',
+        initials: memberInitials,
+        bioSyncActive: true,
+        isMainContact: true,
+      };
+
+      updatedUnit = {
+        ...existing,
+        contactName: input.residentName,
+        ownerName: input.residentType === 'Proprietário' ? input.residentName : existing.ownerName,
+        residentType: input.residentType,
+        hasPet: input.hasPet,
+        residentsCount: Math.max(existing.residentsCount || 1, 1),
+        members: [newMember, ...(existing.members || []).filter((m) => m.name !== input.residentName)],
+      };
+
+      units[existingIndex] = updatedUnit;
+      saveLocalUnits(input.condominium_id, units);
+    } else {
+      const res = await this.createUnit({
+        condominium_id: input.condominium_id,
+        identifier: cleanId,
+        block: cleanBlock,
+        ownerName: input.residentName,
+        contactName: input.residentName,
+        residentType: input.residentType,
+        hasPet: input.hasPet,
+      });
+      if (res.error) return res;
+      updatedUnit = res.data!;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+    }
+
+    return { data: updatedUnit, error: null };
+  },
 };
+

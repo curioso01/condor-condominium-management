@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { z } from 'zod';
 import { X, Calendar as CalendarIcon, Clock, User, Home, CheckCircle2, AlertCircle } from 'lucide-react';
 import { checkReservationConflict, type CreateReservationInput } from '../../services/amenityService';
+import { useAuth } from '../../contexts/AuthContext';
+import { userService } from '../../services/userService';
 import type { CommonArea } from '../../types/database.types';
 import type { AmenityReservation } from '../../types/condominium';
 
@@ -51,6 +53,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
   existingReservations = [],
   onReservationCreated,
 }) => {
+  const { user, profile } = useAuth();
   const [spaceName, setSpaceName] = useState('');
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('18:00');
@@ -58,6 +61,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
   const [responsibleName, setResponsibleName] = useState('');
   const [unitNumber, setUnitNumber] = useState('');
   const [emoji, setEmoji] = useState('🎉');
+  const [isAutoFilled, setIsAutoFilled] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -83,12 +87,12 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Reset form when modal opens
+  // Reset form when modal opens and prefill with logged in user data
   useEffect(() => {
     if (isOpen) {
       setSpaceName(commonAreas[0]?.name || 'Salão de Festas Principal');
       
-      // Default to initialDate if provided, or next Saturday by default
+      // Default to initialDate if provided, or today by default
       if (initialDate) {
         setDate(initialDate);
       } else {
@@ -101,13 +105,34 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
 
       setStartTime('18:00');
       setEndTime('23:00');
-      setResponsibleName('');
-      setUnitNumber('');
+
+      // Auto-preenchimento com dados do morador logado
+      const allUsers = userService.getUsers(condominiumId);
+      const condoUser = allUsers.find(
+        (u) =>
+          (user?.email && u.email.toLowerCase() === user.email.toLowerCase()) ||
+          (user?.id && u.id === user.id)
+      );
+
+      const defaultName =
+        profile?.full_name ||
+        (user?.user_metadata as any)?.full_name ||
+        condoUser?.full_name ||
+        (user?.email === 'morador@condor.com.br' ? 'Carlos Eduardo Oliveira' : '');
+
+      const defaultUnit =
+        condoUser?.unit_number ||
+        (user?.user_metadata as any)?.unit_number ||
+        (user?.email === 'morador@condor.com.br' ? '302-B' : '');
+
+      setResponsibleName(defaultName);
+      setUnitNumber(defaultUnit);
+      setIsAutoFilled(Boolean(defaultName || defaultUnit));
       setEmoji('🎉');
       setFieldErrors({});
       setFormError(null);
     }
-  }, [isOpen, commonAreas, initialDate]);
+  }, [isOpen, commonAreas, initialDate, condominiumId, user, profile]);
 
   if (!isOpen) return null;
 
@@ -451,6 +476,11 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                 className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
               >
                 Morador Responsável *
+                {isAutoFilled && responsibleName && (
+                  <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold normal-case">
+                    (preenchido)
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
@@ -481,6 +511,11 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                 className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
               >
                 Unidade / Apartamento *
+                {isAutoFilled && unitNumber && (
+                  <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold normal-case">
+                    (sua unidade)
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">

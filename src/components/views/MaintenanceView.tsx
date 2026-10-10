@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 export const MaintenanceView: React.FC = () => {
-  const { currentCondominium } = useAuth();
+  const { currentCondominium, isSuperAdmin } = useAuth();
 
   const [orders, setOrders] = useState<MaintenanceOrder[]>(mockMaintenanceOrders);
   const [isLoading, setIsLoading] = useState(true);
@@ -228,9 +228,17 @@ export const MaintenanceView: React.FC = () => {
               <Database className="w-4 h-4" />
             </div>
             <div>
-              <p className="font-bold">Tabela de ordens de serviço ainda não criada no Supabase</p>
+              <p className="font-bold">
+                {isSuperAdmin ? 'Tabela de ordens de serviço ainda não criada no Supabase' : 'Modo de Demonstração de Manutenção'}
+              </p>
               <p className="text-[11px] text-amber-700 dark:text-amber-300/80">
-                Execute a migration <code className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 font-mono font-bold">20261006000001_maintenance_orders.sql</code> no SQL Editor do Supabase para ativar dados reais e persistência. Exibindo dados de demonstração.
+                {isSuperAdmin ? (
+                  <>
+                    Execute a migration <code className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 font-mono font-bold">20261006000001_maintenance_orders.sql</code> no SQL Editor do Supabase para ativar dados reais e persistência. Exibindo dados de demonstração.
+                  </>
+                ) : (
+                  'Exibindo ordens de serviço e planos preventivos do condomínio.'
+                )}
               </p>
             </div>
           </div>
@@ -267,7 +275,7 @@ export const MaintenanceView: React.FC = () => {
               type="button"
               onClick={handleSeedOrders}
               className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs"
-              title="Inserir ordens padrão de elevadores, hidráulica e caixas d'água no Supabase"
+              title={isSuperAdmin ? "Inserir ordens padrão de elevadores, hidráulica e caixas d'água no Supabase" : "Inserir ordens padrão de manutenção"}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Popular Exemplos Reais</span>
