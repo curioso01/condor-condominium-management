@@ -506,9 +506,9 @@ END $$;`;
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-4xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-4xl w-full max-w-4xl lg:max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="p-6 sm:p-7 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60">
+        <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-lg shadow-sm shrink-0">
               <Settings className="w-6 h-6 animate-spin-slow" />
@@ -522,7 +522,7 @@ END $$;`;
                   {currentCondominium?.name || 'Condomínio'}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              <p className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
                 Perfil de acesso, foto do usuário, dados do condomínio e status da infraestrutura
               </p>
             </div>
@@ -530,7 +530,7 @@ END $$;`;
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer shrink-0"
+            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors cursor-pointer shrink-0"
             aria-label="Fechar configurações"
           >
             <X className="w-4 h-4" />
@@ -539,90 +539,97 @@ END $$;`;
 
         {/* Feedback Alert */}
         {feedback && (
-          <div className="mx-6 sm:mx-7 mt-4 mb-3 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-fadeIn">
+          <div className="mx-6 sm:mx-8 my-4 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-semibold flex items-center gap-3 animate-fadeIn">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>{feedback}</span>
+            <span className="flex-1">{feedback}</span>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+            >
+              Fechar
+            </button>
           </div>
         )}
 
         {/* Tabs Bar */}
-        <div className="flex items-center gap-2 px-6 sm:px-7 pt-4 pb-0 border-b border-slate-100 dark:border-slate-800 overflow-x-auto text-xs font-semibold">
+        <div className="flex items-center gap-4 sm:gap-6 px-6 sm:px-8 pt-5 pb-0 border-b border-slate-200 dark:border-slate-800 overflow-x-auto text-xs sm:text-sm font-semibold">
           <button
             onClick={() => setActiveTab('perfil')}
-            className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'perfil'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <User className="w-3.5 h-3.5" />
+            <User className="w-4 h-4" />
             <span>Perfil & Foto</span>
           </button>
           <button
             onClick={() => setActiveTab('condominio')}
-            className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'condominio'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <Building className="w-3.5 h-3.5" />
+            <Building className="w-4 h-4" />
             <span>Dados do Condomínio</span>
           </button>
           {canManageUsers && (
             <button
               onClick={() => setActiveTab('usuarios')}
-              className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'usuarios'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-4 h-4" />
               <span>Usuários & Privilégios</span>
             </button>
           )}
           {canManageBankSettings && (
             <button
               onClick={() => setActiveTab('banco')}
-              className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'banco'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Landmark className="w-3.5 h-3.5" />
+              <Landmark className="w-4 h-4" />
               <span>Banco de Recebimento & Boletos</span>
             </button>
           )}
           {isSuperAdmin && (
             <button
               onClick={() => setActiveTab('database')}
-              className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'database'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Database className="w-3.5 h-3.5" />
+              <Database className="w-4 h-4" />
               <span>Banco de Dados & Supabase</span>
             </button>
           )}
           <button
             onClick={() => setActiveTab('preferencias')}
-            className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'preferencias'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <Bell className="w-3.5 h-3.5" />
+            <Bell className="w-4 h-4" />
             <span>Preferências & Tema</span>
           </button>
         </div>
 
         {/* Tab Body */}
-        <div className="p-6 overflow-y-auto space-y-5 text-xs">
+        <div className="p-6 sm:p-8 pt-7 overflow-y-auto space-y-6 text-xs sm:text-sm">
           {/* TAB 1: PERFIL & FOTO */}
           {activeTab === 'perfil' && (
             <form onSubmit={handleSaveProfile} className="space-y-5">
