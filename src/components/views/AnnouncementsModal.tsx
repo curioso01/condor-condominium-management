@@ -12,17 +12,9 @@ import {
 import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
 
-export interface Announcement {
-  id: string;
-  title: string;
-  category: 'Urgente' | 'Assembleia' | 'Manutenção' | 'Convivência' | 'Geral';
-  priority: 'alta' | 'media' | 'normal';
-  author: string;
-  date: string;
-  content: string;
-  isPinned: boolean;
-  viewsCount: number;
-}
+import { announcementService, type Announcement } from '../../services/announcementService';
+
+export type { Announcement };
 
 export interface AnnouncementsModalProps {
   isOpen: boolean;
@@ -30,66 +22,17 @@ export interface AnnouncementsModalProps {
   condominiumName?: string;
 }
 
-const INITIAL_ANNOUNCEMENTS: Announcement[] = [
-  {
-    id: 'anc-1',
-    title: 'Assembleia Geral Ordinária (AGO) - Previsão Orçamentária 2027',
-    category: 'Assembleia',
-    priority: 'alta',
-    author: 'Dra. Patrícia Lima • Síndica Geral',
-    date: '28 de Outubro às 19:30',
-    content:
-      'Convocamos todos os condôminos para a Assembleia Geral no Salão de Festas Principal (Bloco A) e via transmissão online no app Condor. Pautas: Prestação de contas do exercício atual, eleição do conselho fiscal e aprovação da modernização dos elevadores.',
-    isPinned: true,
-    viewsCount: 178,
-  },
-  {
-    id: 'anc-2',
-    title: 'Manutenção Preventiva dos Elevadores Atlas & Barramento Elétrico',
-    category: 'Manutenção',
-    priority: 'media',
-    author: 'Engenharia Predial Condor',
-    date: 'Amanhã, das 09:00 às 13:00',
-    content:
-      'Informamos que os elevadores sociais da Torre 1 passarão por manutenção preventiva periódica. Durante o período, o elevador de serviço estará operando normalmente com prioridade a idosos e gestantes.',
-    isPinned: true,
-    viewsCount: 152,
-  },
-  {
-    id: 'anc-3',
-    title: 'Aviso Importante: Limpeza Semestral das Caixas d\'Água',
-    category: 'Urgente',
-    priority: 'alta',
-    author: 'Administração Predial',
-    date: '15 de Novembro (Feriado)',
-    content:
-      'Haverá interrupção temporária no fornecimento de água potável entre 08:00 e 14:00 para desinfecção e laudo bacteriológico das caixas superiores. Solicitamos que economizem água.',
-    isPinned: false,
-    viewsCount: 134,
-  },
-  {
-    id: 'anc-4',
-    title: 'Campanha de Convivência: Recolhimento de Dejetos Pets nas Áreas Verdes',
-    category: 'Convivência',
-    priority: 'normal',
-    author: 'Comissão de Moradores',
-    date: '02 de Outubro',
-    content:
-      'Lembramos aos tutores que é obrigatório o uso de guia e o recolhimento imediato dos dejetos nas praças internas e pista de caminhada. Estações de saquinhos biodegradáveis já foram instaladas no Pet Place.',
-    isPinned: false,
-    viewsCount: 165,
-  },
-];
-
 export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
   isOpen,
   onClose,
   condominiumName = 'Condomínio Residencial',
 }) => {
-  const { currentRole, profile } = useAuth();
+  const { currentRole, profile, currentCondominium } = useAuth();
   const canManageAnnouncements = currentRole === 'sindico' || currentRole === 'superadmin';
 
-  const [announcements, setAnnouncements] = useState<Announcement[]>(INITIAL_ANNOUNCEMENTS);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() =>
+    announcementService.getAnnouncements(currentCondominium?.id)
+  );
   const [categoryFilter, setCategoryFilter] = useState<'Todos' | 'Urgente' | 'Assembleia' | 'Manutenção' | 'Convivência'>('Todos');
   const [isCreating, setIsCreating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -99,6 +42,20 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
   const [newCategory, setNewCategory] = useState<Announcement['category']>('Geral');
   const [newPriority, setNewPriority] = useState<Announcement['priority']>('normal');
   const [newContent, setNewContent] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setAnnouncements(announcementService.getAnnouncements(currentCondominium?.id));
+    }
+  }, [isOpen, currentCondominium?.id]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setAnnouncements(announcementService.getAnnouncements(currentCondominium?.id));
+    };
+    window.addEventListener('condor:announcements-updated', handleUpdate);
+    return () => window.removeEventListener('condor:announcements-updated', handleUpdate);
+  }, [currentCondominium?.id]);
 
   // Handle ESC
   useEffect(() => {
@@ -127,17 +84,18 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
     const now = new Date();
     const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
 
-    const created: Announcement = {
-      id: `anc-${Date.now()}`,
-      title: newTitle.trim(),
-      category: newCategory,
-      priority: newPriority,
-      author: profile?.full_name ? `${profile.full_name} • Administração` : 'Administração do Condomínio',
-      date: `Hoje, ${dateStr}`,
-      content: newContent.trim(),
-      isPinned: newPriority === 'alta',
-      viewsCount: 1,
-    };
+    const created = announcementService.createAnnouncement(
+      {
+        title: newTitle.trim(),
+        category: newCategory,
+        priority: newPriority,
+        author: profile?.full_name ? `${profile.full_name} • Administração` : 'Administração do Condomínio',
+        date: `Hoje, ${dateStr}`,
+        content: newContent.trim(),
+        isPinned: newPriority === 'alta',
+      },
+      currentCondominium?.id
+    );
 
     setAnnouncements((prev) => [created, ...prev]);
     setIsCreating(false);
@@ -150,6 +108,7 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
   const handleDeleteAnnouncement = (id: string, title: string) => {
     if (!canManageAnnouncements) return;
     if (window.confirm(`Tem certeza de que deseja excluir o comunicado "${title}"?`)) {
+      announcementService.deleteAnnouncement(id, currentCondominium?.id);
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));
       setFeedback('Comunicado excluído com sucesso do mural.');
       setTimeout(() => setFeedback(null), 3000);
@@ -158,6 +117,7 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
 
   const handleTogglePin = (id: string) => {
     if (!canManageAnnouncements) return;
+    announcementService.togglePin(id, currentCondominium?.id);
     setAnnouncements((prev) =>
       prev.map((a) => (a.id === id ? { ...a, isPinned: !a.isPinned } : a))
     );

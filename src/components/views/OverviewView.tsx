@@ -17,10 +17,15 @@ import {
   Sliders,
   Zap,
   Edit,
+  Pin,
 } from 'lucide-react';
 import { AnnouncementsModal } from './AnnouncementsModal';
 import { ChannelMetricsModal } from './ChannelMetricsModal';
 import { AiEnergyModal } from './AiEnergyModal';
+import {
+  announcementService,
+  type Announcement,
+} from '../../services/announcementService';
 import {
   financialDataService,
   type ChannelMetricsData,
@@ -40,6 +45,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
   const [realUnitsCount, setRealUnitsCount] = useState<number | null>(null);
   const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
   const [copiedPin, setCopiedPin] = useState(false);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() =>
+    announcementService.getAnnouncements(currentCondominium?.id)
+  );
 
   // Financial & Operational Metrics
   const [channels, setChannels] = useState<ChannelMetricsData>(() => financialDataService.getChannels());
@@ -88,6 +96,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
     fetchUnits();
     window.addEventListener('condor:units-updated', fetchUnits);
     return () => window.removeEventListener('condor:units-updated', fetchUnits);
+  }, [currentCondominium?.id]);
+
+  useEffect(() => {
+    const handleAnnouncementsUpdate = () => {
+      setAnnouncements(announcementService.getAnnouncements(currentCondominium?.id));
+    };
+    setAnnouncements(announcementService.getAnnouncements(currentCondominium?.id));
+    window.addEventListener('condor:announcements-updated', handleAnnouncementsUpdate);
+    return () => window.removeEventListener('condor:announcements-updated', handleAnnouncementsUpdate);
   }, [currentCondominium?.id]);
 
   const userName = profile?.full_name || (isMorador ? 'Morador Residente' : isPorteiro ? 'Portaria' : 'Síndico(a)');
@@ -345,50 +362,51 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
-                    Assembleia (AGO)
-                  </span>
-                  <span className="text-[10px] text-slate-400">28 Out • 19:30</span>
+              {announcements.slice(0, 3).map((anc) => (
+                <div
+                  key={anc.id}
+                  onClick={() => setIsAnnouncementsOpen(true)}
+                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800 transition cursor-pointer flex flex-col justify-between space-y-2 group"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          anc.category === 'Urgente'
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                            : anc.category === 'Assembleia'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                            : anc.category === 'Manutenção'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                            : anc.category === 'Convivência'
+                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300'
+                            : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {anc.category}
+                      </span>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                        {anc.isPinned && (
+                          <Pin className="w-3 h-3 text-emerald-600 dark:text-emerald-400 fill-emerald-600 dark:fill-emerald-400" />
+                        )}
+                        <span>{anc.date}</span>
+                      </div>
+                    </div>
+                    <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
+                      {anc.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                      {anc.content}
+                    </p>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
+                    <span className="truncate max-w-[160px]">{anc.author}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold group-hover:underline">
+                      Ler mais →
+                    </span>
+                  </div>
                 </div>
-                <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                  Previsão Orçamentária 2027 & Eleição do Conselho
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
-                  Convocamos todos os condôminos para a Assembleia Geral no Salão Principal ou transmissão online.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full">
-                    Manutenção
-                  </span>
-                  <span className="text-[10px] text-slate-400">Amanhã • 09h</span>
-                </div>
-                <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                  Inspeção Semestral Atlas dos Elevadores Torre A
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
-                  Elevador de serviço estará operando normalmente durante os testes técnicos preventivos.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/60 px-2 py-0.5 rounded-full">
-                    Convivência
-                  </span>
-                  <span className="text-[10px] text-slate-400">Ativo</span>
-                </div>
-                <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                  Recolhimento Pet & Estações Biodegradáveis
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
-                  Lembramos aos tutores o uso de guia e o recolhimento nas praças internas e pista de caminhada.
-                </p>
-              </div>
+              ))}
             </div>
           </article>
         </div>
@@ -596,6 +614,102 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
             </button>
           </article>
         )}
+
+        {/* CARD: Mural Oficial de Notícias & Comunicados */}
+        <article className="col-span-12 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between" data-purpose="announcements-wall">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-xs">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">
+                    Mural Oficial de Notícias & Comunicados
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-800">
+                    {announcements.length} {announcements.length === 1 ? 'comunicado' : 'comunicados'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Avisos prediais, convocações de assembleias e informes da administração aos condôminos
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {isSindicoOrAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setIsAnnouncementsOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+                >
+                  <span>+ Novo Comunicado</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsAnnouncementsOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 font-bold text-xs transition cursor-pointer"
+              >
+                <span>Abrir Mural Completo</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Announcement Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {announcements.slice(0, 3).map((item) => (
+              <div
+                key={item.id}
+                onClick={() => setIsAnnouncementsOpen(true)}
+                className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/80 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800 hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-all cursor-pointer flex flex-col justify-between gap-3 group"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        item.category === 'Urgente'
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                          : item.category === 'Assembleia'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          : item.category === 'Manutenção'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                          : item.category === 'Convivência'
+                          ? 'bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300'
+                          : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {item.category}
+                    </span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      {item.isPinned && (
+                        <Pin className="w-3 h-3 text-emerald-600 dark:text-emerald-400 fill-emerald-600 dark:fill-emerald-400" />
+                      )}
+                      <span>{item.date}</span>
+                    </div>
+                  </div>
+
+                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
+                    {item.title}
+                  </h4>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    {item.content}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="truncate max-w-[170px]">{item.author}</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[10px] group-hover:underline">
+                    Ler comunicado →
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
 
         {/* CARD 4: Manutenção e Chamados Ativos */}
         <article className="md:col-span-12 lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
@@ -931,6 +1045,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         onClose={() => setIsAiEnergyModalOpen(false)}
         data={aiEnergy}
         onSave={handleSaveAiEnergy}
+      />
+
+      {/* Modal de Comunicados Oficiais */}
+      <AnnouncementsModal
+        isOpen={isAnnouncementsOpen}
+        onClose={() => setIsAnnouncementsOpen(false)}
+        condominiumName={condoName}
       />
     </div>
   );

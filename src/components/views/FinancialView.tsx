@@ -166,9 +166,9 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
   };
 
   const handleMarkPaid = async (inv: Invoice) => {
-    if (isMockMode) return;
     setBusyInvoiceId(inv.id);
-    const { error } = await invoiceService.markAsPaid(inv.id);
+    const condoId = currentCondominium?.id || 'condo-imperial-001';
+    const { error } = await invoiceService.markAsPaid(inv.id, condoId);
     setBusyInvoiceId(null);
 
     if (error) {
@@ -179,9 +179,9 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
 
     setNotification({
       type: 'success',
-      message: `Baixa realizada com sucesso para o Apto ${inv.unitNumber}!`,
+      message: `Baixa manual realizada com sucesso para o Apto ${inv.unitNumber} (${inv.block})! Boleto liquidado.`,
     });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 4500);
 
     setInvoices((prev) =>
       prev.map((i) =>
@@ -991,17 +991,22 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
 
                             {!isLiquidated ? (
                               <>
-                                {!isMockMode && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMarkPaid(inv)}
-                                    disabled={busyInvoiceId === inv.id}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold text-[11px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 cursor-pointer"
-                                    title="Registrar pagamento recebido"
-                                  >
-                                    Dar baixa
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkPaid(inv)}
+                                  disabled={busyInvoiceId === inv.id}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 font-semibold text-[11px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 cursor-pointer shadow-2xs"
+                                  title="Registrar baixa manual do pagamento"
+                                >
+                                  {busyInvoiceId === inv.id ? (
+                                    <>
+                                      <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                                      <span>Baixando...</span>
+                                    </>
+                                  ) : (
+                                    <span>Dar baixa</span>
+                                  )}
+                                </button>
                                 {(isOverdue || isDueToday) && (
                                   <button
                                     type="button"
