@@ -1,5 +1,7 @@
 // Service Worker para PWA do Condor
-const CACHE_NAME = 'condor-pwa-v1';
+// __BUILD_ID__ é substituído automaticamente a cada build (vite.config.ts),
+// garantindo que cada deploy gere um novo Service Worker e atualize os apps instalados.
+const CACHE_NAME = 'condor-pwa-__BUILD_ID__';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

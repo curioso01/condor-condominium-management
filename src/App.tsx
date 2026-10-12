@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { NavigationTab } from './types/condominium';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -27,6 +27,13 @@ const CondorAppShell: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<SettingsTab>('perfil');
   const [isFaqModalOpen, setIsFaqModalOpen] = useState(false);
+
+  // Ao trocar de módulo/página, a nova tela sempre começa do topo
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab]);
 
   const handleOpenSettings = (tab: SettingsTab = 'perfil') => {
     setSettingsDefaultTab(tab);
@@ -64,7 +71,7 @@ const CondorAppShell: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] dark:bg-[#0B0F17] text-[#1E293B] dark:text-[#F8FAFC] p-3 sm:p-5 lg:p-6 overflow-x-hidden transition-colors duration-200 selection:bg-emerald-100 dark:selection:bg-emerald-950 selection:text-emerald-700 dark:selection:text-emerald-300">
+    <div className="min-h-screen bg-[#F4F6F9] dark:bg-[#0B0F17] text-[#1E293B] dark:text-[#F8FAFC] p-3 sm:p-5 lg:p-6 pt-[max(env(safe-area-inset-top),0.75rem)] sm:pt-[max(env(safe-area-inset-top),1.25rem)] pb-28 xl:pb-6 overflow-x-hidden transition-colors duration-200 selection:bg-emerald-100 dark:selection:bg-emerald-950 selection:text-emerald-700 dark:selection:text-emerald-300">
       {/* MainAppContainer */}
       <div className="max-w-[1600px] mx-auto flex flex-col xl:flex-row gap-5">
         {/* Left Floating Sidebar (Desktop & Top Bar on Tablet) */}
@@ -108,7 +115,7 @@ const CondorAppShell: React.FC = () => {
       <PwaInstallPrompt />
 
       {/* Mobile Floating Bottom Bar for quick tab switching on small screens (Filtrado por Papel RBAC) */}
-      <nav className="xl:hidden fixed bottom-3 left-3 right-3 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md rounded-2xl shadow-float border border-slate-200/80 dark:border-slate-800 p-2 flex items-center justify-around z-40 transition-colors">
+      <nav className="xl:hidden fixed bottom-[max(env(safe-area-inset-bottom),0.75rem)] left-3 right-3 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md rounded-2xl shadow-float border border-slate-200/80 dark:border-slate-800 p-2 flex items-center justify-around z-40 transition-colors">
         <button
           onClick={() => setActiveTab('overview')}
           className={`p-2 rounded-xl flex flex-col items-center gap-0.5 text-[10px] font-bold ${

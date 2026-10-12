@@ -3,6 +3,7 @@ import type { NavigationTab } from '../../types/condominium';
 import { useAuth } from '../../contexts/AuthContext';
 import { LogOut, Building, Shield, ChevronDown, Camera, Settings, Smartphone } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { Logo } from '../common/Logo';
 import { AnnouncementsModal } from '../views/AnnouncementsModal';
 import { ReportsModal } from '../views/ReportsModal';
 import { NotificationDetailModal, type OperationalNotification } from '../views/NotificationDetailModal';
@@ -113,9 +114,19 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="w-full flex items-center justify-between gap-3 sm:gap-4 py-1.5" data-purpose="top-navigation">
+    <header className="w-full flex items-center justify-between gap-2 sm:gap-4 py-1.5" data-purpose="top-navigation">
+      {/* Logo (apenas mobile/tablet, a sidebar só existe em telas grandes) */}
+      <button
+        type="button"
+        onClick={() => onSelectTab?.('overview')}
+        aria-label="Condor — Início e Visão Geral"
+        className="xl:hidden shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-2xl"
+      >
+        <Logo size="sm" showText={false} />
+      </button>
+
       {/* Omnibox Search Bar */}
-      <div className="relative flex-1 max-w-sm sm:max-w-md lg:max-w-lg">
+      <div className="relative flex-1 min-w-0 sm:max-w-md lg:max-w-lg">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" strokeLinecap="round" strokeLinejoin="round" />
@@ -127,18 +138,20 @@ export const Header: React.FC<HeaderProps> = ({
           value={searchQuery}
           onChange={handleSearchChange}
           placeholder={modulePlaceholders[activeTab] || 'Buscar no sistema...'}
-          className="w-full h-11 pl-11 pr-20 text-xs font-medium bg-white dark:bg-slate-900 rounded-full border border-slate-200/80 dark:border-slate-800 shadow-soft focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 placeholder-slate-400 dark:placeholder-slate-500 text-slate-700 dark:text-slate-100 transition-all"
+          className="w-full h-11 pl-11 pr-4 sm:pr-20 text-xs font-medium truncate bg-white dark:bg-slate-900 rounded-full border border-slate-200/80 dark:border-slate-800 shadow-soft focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 placeholder-slate-400 dark:placeholder-slate-500 text-slate-700 dark:text-slate-100 transition-all"
         />
-        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 pointer-events-none select-none">
+        <span className="hidden sm:block absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 pointer-events-none select-none">
           Ctrl + K
         </span>
       </div>
 
       {/* Quick Actions (Theme Toggle + Notifications + Profile) */}
-      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
 
-        {/* Theme Toggle Button */}
-        <ThemeToggle variant="icon" />
+        {/* Theme Toggle Button (mobile usa o seletor do menu do perfil) */}
+        <div className="hidden sm:block">
+          <ThemeToggle variant="icon" />
+        </div>
 
         {/* Notifications Icon with Badge */}
         <div className="relative">
@@ -157,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick Notification Dropdown */}
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-float border border-slate-100 dark:border-slate-800 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="fixed left-3 right-3 top-[calc(4.75rem+env(safe-area-inset-top))] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-float border border-slate-100 dark:border-slate-800 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
                 <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Alertas Operacionais</span>
                 <button 
@@ -271,7 +284,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Profile Dropdown Menu */}
           {profileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 animate-fadeIn">
+            <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] max-h-[75vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 animate-fadeIn">
               <div className="p-3 border-b border-slate-100 dark:border-slate-800 mb-2">
                 <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
                   {profile?.full_name || 'Usuário Condor'}

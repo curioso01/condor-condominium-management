@@ -102,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
 
   return (
     <aside 
-      className="w-full xl:w-20 bg-white dark:bg-[#111827] rounded-3xl xl:rounded-4xl p-3 xl:py-7 flex xl:flex-col items-center justify-between shadow-floating-sidebar border border-slate-100/80 dark:border-slate-800 shrink-0 sticky top-3 xl:top-6 xl:h-[calc(100vh-3rem)] z-30 transition-colors duration-200" 
+      className="hidden xl:flex w-20 bg-white dark:bg-[#111827] rounded-4xl py-7 flex-col items-center justify-between shadow-floating-sidebar border border-slate-100/80 dark:border-slate-800 shrink-0 sticky top-6 h-[calc(100vh-3rem)] z-30 transition-colors duration-200" 
       data-purpose="primary-sidebar"
     >
       {/* Brand Logo */}
