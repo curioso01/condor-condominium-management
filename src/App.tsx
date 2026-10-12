@@ -15,6 +15,7 @@ import { SettingsModal, type SettingsTab } from './components/views/SettingsModa
 
 import { useAuth } from './contexts/AuthContext';
 import { HelpFaqModal } from './components/views/HelpFaqModal';
+import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 
 const CondorAppShell: React.FC = () => {
   const { currentRole } = useAuth();
@@ -102,6 +103,9 @@ const CondorAppShell: React.FC = () => {
         isOpen={isFaqModalOpen}
         onClose={() => setIsFaqModalOpen(false)}
       />
+
+      {/* PWA Mobile & Web Install Prompt Banner & Modal */}
+      <PwaInstallPrompt />
 
       {/* Mobile Floating Bottom Bar for quick tab switching on small screens (Filtrado por Papel RBAC) */}
       <nav className="xl:hidden fixed bottom-3 left-3 right-3 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md rounded-2xl shadow-float border border-slate-200/80 dark:border-slate-800 p-2 flex items-center justify-around z-40 transition-colors">

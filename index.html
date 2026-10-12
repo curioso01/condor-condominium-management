@@ -2,15 +2,34 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" href="/condor-emblem.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>CONDOR — Gestão Inteligente de Condomínios</title>
+
+    <!-- PWA & Mobile Web App Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="application-name" content="Condor" />
+    <meta name="apple-mobile-web-app-title" content="Condor" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#059669" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0B132B" media="(prefers-color-scheme: dark)" />
+
+    <!-- SEO & Social Preview -->
+    <meta name="description" content="Plataforma premium para gestão de condomínios, portaria, finanças e controle de acesso." />
+    <meta property="og:title" content="CONDOR — Gestão Inteligente de Condomínios" />
+    <meta property="og:description" content="Gestão predial de alto padrão, portaria ao vivo, controle de encomendas e finanças transparentes." />
+    <meta property="og:image" content="/condor-logo-full.png" />
+
     <!-- Google Fonts: Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   </head>
-  <body class="min-h-screen bg-[#F4F6F9] text-[#1E293B] antialiased selection:bg-emerald-100 selection:text-emerald-700">
+  <body class="min-h-screen bg-[#F4F6F9] dark:bg-[#0B132B] text-[#1E293B] dark:text-slate-100 antialiased selection:bg-emerald-100 selection:text-emerald-700">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { NavigationTab } from '../../types/condominium';
 import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, Building, Shield, ChevronDown, Camera, Settings } from 'lucide-react';
+import { LogOut, Building, Shield, ChevronDown, Camera, Settings, Smartphone } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { AnnouncementsModal } from '../views/AnnouncementsModal';
 import { ReportsModal } from '../views/ReportsModal';
@@ -341,6 +341,17 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
                   <span>Configurações do Condomínio</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    window.dispatchEvent(new CustomEvent('condor:open-pwa-install'));
+                  }}
+                  className="w-full text-left p-2 rounded-2xl text-xs font-semibold flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer"
+                >
+                  <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Instalar App no Celular (PWA)</span>
                 </button>
               </div>
 

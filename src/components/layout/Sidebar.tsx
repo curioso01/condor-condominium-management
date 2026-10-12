@@ -3,6 +3,7 @@ import type { NavigationTab } from '../../types/condominium';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../common/Logo';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { Smartphone } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: NavigationTab;
@@ -145,6 +146,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
           variant="icon" 
           className="w-10 h-10 border-0 shadow-none bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-amber-300" 
         />
+        <button
+          aria-label="Instalar App CONDOR no Celular ou Computador"
+          title="Instalar App no Celular / Computador (PWA)"
+          onClick={() => window.dispatchEvent(new CustomEvent('condor:open-pwa-install'))}
+          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          <Smartphone className="w-5 h-5" />
+        </button>
         <button
           aria-label="Configurações do Condomínio"
           title="Configurações do Condomínio"

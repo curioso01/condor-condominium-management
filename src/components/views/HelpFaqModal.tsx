@@ -28,6 +28,13 @@ interface FaqItem {
 
 const FAQ_ITEMS: FaqItem[] = [
   {
+    id: 'faq-0',
+    category: 'Geral',
+    question: 'Como instalar o aplicativo CONDOR no celular (Android e iPhone)?',
+    answer:
+      'O CONDOR é um Progressive Web App (PWA) de alto desempenho: você pode instalá-lo no celular sem ocupar memória de downloads pesados. No Android (Chrome), clique no botão "Instalar App" ou no menu (três pontos) e selecione "Instalar aplicativo". No iPhone (Safari), toque no botão Compartilhar (quadrado com seta para cima) e escolha "Adicionar à Tela de Início". O app passa a abrir em tela cheia com acesso instantâneo!',
+  },
+  {
     id: 'faq-1',
     category: 'Acesso',
     question: 'Como funciona o reconhecimento facial BioSync AI nas catracas?',
