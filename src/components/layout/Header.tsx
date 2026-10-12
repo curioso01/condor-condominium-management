@@ -138,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
           value={searchQuery}
           onChange={handleSearchChange}
           placeholder={modulePlaceholders[activeTab] || 'Buscar no sistema...'}
-          className="w-full h-11 pl-11 pr-4 sm:pr-20 text-xs font-medium truncate bg-white dark:bg-slate-900 rounded-full border border-slate-200/80 dark:border-slate-800 shadow-soft focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 placeholder-slate-400 dark:placeholder-slate-500 text-slate-700 dark:text-slate-100 transition-all"
+          className="w-full h-11 pl-10 sm:pl-11 pr-4 sm:pr-20 text-xs font-medium truncate bg-white dark:bg-slate-900 rounded-full border border-slate-200/80 dark:border-slate-800 shadow-soft focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 placeholder-slate-400 dark:placeholder-slate-500 text-slate-700 dark:text-slate-100 transition-all"
         />
         <span className="hidden sm:block absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 pointer-events-none select-none">
           Ctrl + K
@@ -146,7 +146,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Quick Actions (Theme Toggle + Notifications + Profile) */}
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
 
         {/* Theme Toggle Button (mobile usa o seletor do menu do perfil) */}
         <div className="hidden sm:block">
@@ -156,94 +156,103 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Notifications Icon with Badge */}
         <div className="relative">
           <button
-            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            onClick={() => {
+              setNotificationsOpen(!notificationsOpen);
+              setProfileMenuOpen(false);
+            }}
             aria-label="Notificações"
-            className="w-11 h-11 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-soft border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-transform hover:scale-105"
+            className="w-10 h-10 sm:w-11 sm:h-11 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 shadow-soft border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-transform hover:scale-105 cursor-pointer"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             {unreadNotifications > 0 && (
-              <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-emerald-600 rounded-full ring-2 ring-white dark:ring-slate-900" />
+              <span className="absolute top-2 sm:top-2.5 right-2 sm:right-2.5 w-2 sm:w-2.5 h-2 sm:h-2.5 bg-emerald-600 rounded-full ring-2 ring-white dark:ring-slate-900" />
             )}
           </button>
 
           {/* Quick Notification Dropdown */}
           {notificationsOpen && (
-            <div className="fixed left-3 right-3 top-[calc(4.75rem+env(safe-area-inset-top))] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-float border border-slate-100 dark:border-slate-800 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Alertas Operacionais</span>
-                <button 
-                  onClick={() => setUnreadNotifications(0)} 
-                  className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
-                >
-                  Marcar lidas
-                </button>
-              </div>
-              <div className="space-y-2 text-xs">
-                {operationalAlerts.map((alert) => (
-                  <button
-                    key={alert.id}
-                    type="button"
-                    onClick={() => handleOpenNotification(alert)}
-                    className={`w-full text-left p-2.5 rounded-2xl border transition-all duration-150 cursor-pointer hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                      alert.type === 'manutencao'
-                        ? 'bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 border-amber-100/80 dark:border-amber-800/60'
-                        : alert.type === 'locker'
-                        ? 'bg-emerald-50/70 hover:bg-emerald-100/70 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 border-emerald-100/80 dark:border-emerald-800/60'
-                        : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800/80 border-slate-100 dark:border-slate-700/60'
-                    }`}
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-black/10 dark:bg-black/30 backdrop-blur-[1px] sm:bg-transparent" 
+                onClick={() => setNotificationsOpen(false)} 
+              />
+              <div className="fixed left-3 right-3 top-[calc(4.75rem+env(safe-area-inset-top))] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-float border border-slate-100 dark:border-slate-800 p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Alertas Operacionais</span>
+                  <button 
+                    onClick={() => setUnreadNotifications(0)} 
+                    className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
                   >
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p
-                        className={`font-bold ${
-                          alert.type === 'manutencao'
-                            ? 'text-amber-950 dark:text-amber-200'
-                            : alert.type === 'locker'
-                            ? 'text-emerald-950 dark:text-emerald-200'
-                            : 'text-slate-800 dark:text-slate-200'
-                        }`}
-                      >
-                        {alert.title}
-                      </p>
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                          alert.badgeVariant === 'amber'
-                            ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60'
-                            : alert.badgeVariant === 'emerald'
-                            ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60'
-                            : 'text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700'
-                        }`}
-                      >
-                        {alert.badge}
-                      </span>
-                    </div>
-                    <p
-                      className={`text-[11px] line-clamp-1 ${
+                    Marcar lidas
+                  </button>
+                </div>
+                <div className="space-y-2 text-xs">
+                  {operationalAlerts.map((alert) => (
+                    <button
+                      key={alert.id}
+                      type="button"
+                      onClick={() => handleOpenNotification(alert)}
+                      className={`w-full text-left p-2.5 rounded-2xl border transition-all duration-150 cursor-pointer hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
                         alert.type === 'manutencao'
-                          ? 'text-amber-800 dark:text-amber-300/80'
+                          ? 'bg-amber-50/70 hover:bg-amber-100/70 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 border-amber-100/80 dark:border-amber-800/60'
                           : alert.type === 'locker'
-                          ? 'text-emerald-800 dark:text-emerald-300/80'
-                          : 'text-slate-600 dark:text-slate-400'
+                          ? 'bg-emerald-50/70 hover:bg-emerald-100/70 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 border-emerald-100/80 dark:border-emerald-800/60'
+                          : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800/80 border-slate-100 dark:border-slate-700/60'
                       }`}
                     >
-                      {alert.preview}
-                    </p>
-                  </button>
-                ))}
-              </div>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <p
+                          className={`font-bold ${
+                            alert.type === 'manutencao'
+                              ? 'text-amber-950 dark:text-amber-200'
+                              : alert.type === 'locker'
+                              ? 'text-emerald-950 dark:text-emerald-200'
+                              : 'text-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          {alert.title}
+                        </p>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                            alert.badgeVariant === 'amber'
+                              ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60'
+                              : alert.badgeVariant === 'emerald'
+                              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60'
+                              : 'text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700'
+                          }`}
+                        >
+                          {alert.badge}
+                        </span>
+                      </div>
+                      <p
+                        className={`text-[11px] line-clamp-1 ${
+                          alert.type === 'manutencao'
+                            ? 'text-amber-800 dark:text-amber-300/80'
+                            : alert.type === 'locker'
+                            ? 'text-emerald-800 dark:text-emerald-300/80'
+                            : 'text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {alert.preview}
+                      </p>
+                    </button>
+                  ))}
+                </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setNotificationsOpen(false);
-                  setIsAnnouncementsModalOpen(true);
-                }}
-                className="w-full mt-3 py-2 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-xl transition cursor-pointer border border-emerald-100 dark:border-emerald-800/60"
-              >
-                Ver Mural de Comunicados Oficiais
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotificationsOpen(false);
+                    setIsAnnouncementsModalOpen(true);
+                  }}
+                  className="w-full mt-3 py-2 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-xl transition cursor-pointer border border-emerald-100 dark:border-emerald-800/60"
+                >
+                  Ver Mural de Comunicados Oficiais
+                </button>
+              </div>
+            </>
           )}
         </div>
 
@@ -251,10 +260,13 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative">
           <button 
             type="button"
-            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+            onClick={() => {
+              setProfileMenuOpen(!profileMenuOpen);
+              setNotificationsOpen(false);
+            }}
             aria-expanded={profileMenuOpen}
             aria-label="Menu do Usuário"
-            className="flex items-center gap-3 bg-white dark:bg-slate-900 pl-1.5 pr-4 py-1.5 rounded-full shadow-soft border border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-50/90 dark:hover:bg-slate-800 transition-all select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="flex items-center gap-2.5 bg-white dark:bg-slate-900 p-1 sm:pl-1.5 sm:pr-3.5 sm:py-1.5 rounded-full shadow-soft border border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-50/90 dark:hover:bg-slate-800 transition-all select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
             <div className="relative w-8 h-8 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 ring-2 ring-emerald-500/30 shrink-0">
               {profile?.avatar_url ? (
@@ -284,7 +296,12 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Profile Dropdown Menu */}
           {profileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] max-h-[75vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 animate-fadeIn">
+            <>
+              <div 
+                className="fixed inset-0 z-40 bg-black/10 dark:bg-black/30 backdrop-blur-[1px] sm:bg-transparent" 
+                onClick={() => setProfileMenuOpen(false)} 
+              />
+              <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] max-h-[75vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 animate-fadeIn">
               <div className="p-3 border-b border-slate-100 dark:border-slate-800 mb-2">
                 <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
                   {profile?.full_name || 'Usuário Condor'}
@@ -389,6 +406,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>Sair da Conta (Logout)</span>
               </button>
             </div>
+            </>
           )}
         </div>
       </div>

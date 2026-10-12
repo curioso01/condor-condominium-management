@@ -151,9 +151,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         </div>
 
         {/* Resident Bento Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0">
           {/* CARD 1: Minha Unidade & Cadastro */}
-          <article className="md:col-span-12 lg:col-span-4 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+          <article className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -220,7 +220,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
           </article>
 
           {/* CARD 2: Encomendas no Smart Locker */}
-          <article className="md:col-span-12 lg:col-span-4 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+          <article className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -287,7 +287,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
           </article>
 
           {/* CARD 3: Minhas Reservas de Espaços */}
-          <article className="md:col-span-12 lg:col-span-4 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+          <article className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -338,7 +338,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
           </article>
 
           {/* CARD 4: Mural Oficial de Notícias & Comunicados */}
-          <article className="col-span-12 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+          <article className="col-span-1 lg:col-span-12 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
@@ -466,19 +466,19 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
       </div>
 
       {/* Bento Grid Dashboard */}
-      <section className="grid grid-cols-1 md:grid-cols-12 gap-5" data-purpose="bento-grid">
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0" data-purpose="bento-grid">
         {/* CARD 1: Total de Unidades e Ocupação */}
-        <article className="md:col-span-12 lg:col-span-4 bg-white rounded-3xl p-6 shadow-soft border border-slate-100 flex flex-col justify-between relative overflow-hidden group">
+        <article className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between relative overflow-hidden group">
           <div className="flex items-start justify-between">
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
                 Ocupação Predial
               </span>
-              <h2 className="text-3xl font-extrabold text-slate-900 mt-1">
+              <h2 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">
                 {realUnitsCount ?? 192} <span className="text-lg font-semibold text-slate-500">Unidades</span>
               </h2>
               <div className="flex items-center gap-1.5 mt-2">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/50">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/60">
                   96.8% Ativas
                 </span>
                 <span className="text-[11px] text-slate-400">Torres Sol & Mar</span>
@@ -527,7 +527,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         </article>
 
         {/* CARD 2: Fluxo Diário de Visitantes e Portaria */}
-        <article className="md:col-span-12 lg:col-span-5 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between overflow-hidden">
+        <article className="col-span-1 lg:col-span-5 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between overflow-hidden">
           <DynamicTelemetryChart
             title="Fluxo de Acessos & Portaria"
             subtitle="Tráfego consolidado de moradores, prestadores e visitantes"
@@ -551,7 +551,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
 
         {/* CARD 3: Próximos Vencimentos & Fundo de Reserva (Apenas Síndico / Admin) OU Operação Portaria (Porteiro) */}
         {isSindicoOrAdmin ? (
-          <article className="md:col-span-12 lg:col-span-3 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-surface-dark text-white rounded-3xl p-6 shadow-lg shadow-emerald-900/10 dark:shadow-soft flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-transparent">
+          <article className="col-span-1 lg:col-span-3 w-full min-w-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-surface-dark text-white rounded-3xl p-5 sm:p-6 shadow-lg shadow-emerald-900/10 dark:shadow-soft flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-transparent">
             <div className="absolute -right-10 -top-10 w-44 h-44 bg-emerald-400/20 rounded-full blur-2xl pointer-events-none dark:hidden" />
             <div className="flex items-center justify-between relative z-10">
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 dark:text-slate-400">
@@ -591,7 +591,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
             </div>
           </article>
         ) : (
-          <article className="md:col-span-12 lg:col-span-3 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-6 shadow-soft flex flex-col justify-between relative overflow-hidden border border-slate-700/80">
+          <article className="col-span-1 lg:col-span-3 w-full min-w-0 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 sm:p-6 shadow-soft flex flex-col justify-between relative overflow-hidden border border-slate-700/80">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
                 Portaria em Turno
@@ -616,7 +616,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         )}
 
         {/* CARD: Mural Oficial de Notícias & Comunicados */}
-        <article className="col-span-12 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between" data-purpose="announcements-wall">
+        <article className="col-span-1 lg:col-span-12 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between" data-purpose="announcements-wall">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-xs">
@@ -712,7 +712,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         </article>
 
         {/* CARD 4: Manutenção e Chamados Ativos */}
-        <article className="md:col-span-12 lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+        <article className="col-span-1 lg:col-span-7 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
@@ -815,7 +815,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         </article>
 
         {/* CARD 5: Origem de Ocorrências (Barras Listradas do Behance) */}
-        <article className="md:col-span-12 lg:col-span-5 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+        <article className="col-span-1 lg:col-span-5 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -899,7 +899,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         </article>
 
         {/* CARD 6: Auto-generated Insights AI Condor */}
-        <article className="md:col-span-12 lg:col-span-4 bg-gradient-to-br from-emerald-500 to-teal-700 text-white rounded-3xl p-6 shadow-soft flex flex-col justify-between relative overflow-hidden">
+        <article className="col-span-1 lg:col-span-4 w-full min-w-0 bg-gradient-to-br from-emerald-500 to-teal-700 text-white rounded-3xl p-5 sm:p-6 shadow-soft flex flex-col justify-between relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -951,7 +951,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigateTab, onOpe
         </article>
 
         {/* CARD 7: Status Financeiro & Score de Qualidade */}
-        <article className="md:col-span-12 lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+        <article className="col-span-1 lg:col-span-8 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">

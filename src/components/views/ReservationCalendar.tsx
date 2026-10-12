@@ -252,31 +252,32 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
         </div>
 
         {/* Status Badges Legend */}
-        <div className="flex items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-600 flex-wrap">
+        <div className="flex items-center justify-center sm:justify-start gap-3 text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-xs" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" />
             <span>Livre</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-amber-400 shadow-xs" />
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-xs" />
             <span>Parcial</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-rose-500 shadow-xs" />
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-xs" />
             <span>Ocupado</span>
           </div>
         </div>
       </div>
 
       {/* Calendar Grid & Side Details Split */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0">
         {/* Days Grid (Col 8) */}
-        <div className="lg:col-span-8 bg-slate-50/70 p-2 sm:p-4 rounded-2xl sm:rounded-2.5xl border border-slate-200/80">
+        <div className="col-span-1 lg:col-span-8 w-full min-w-0 bg-slate-50/70 dark:bg-slate-800/40 p-2 sm:p-4 rounded-2xl sm:rounded-2.5xl border border-slate-200/80 dark:border-slate-800">
           {/* Weekday Headers */}
           <div className="grid grid-cols-7 gap-1 sm:gap-1.5 text-center mb-1.5 sm:mb-2">
-            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, idx) => (
               <span key={day} className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider py-1">
-                {day}
+                <span className="sm:hidden">{['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][idx]}</span>
+                <span className="hidden sm:inline">{day}</span>
               </span>
             ))}
           </div>
@@ -304,43 +305,43 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
                     day.status === 'free' ? 'livre' : day.status === 'partial' ? 'parcialmente ocupado' : 'ocupado'
                   }`}
                   aria-pressed={isSelected}
-                  className={`min-h-[46px] sm:min-h-[72px] p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border flex flex-col items-center justify-center sm:items-stretch sm:justify-between gap-0.5 sm:gap-0 transition-all cursor-pointer relative ${
+                  className={`aspect-square sm:aspect-auto sm:min-h-[72px] p-1 sm:p-2 rounded-xl sm:rounded-2xl border flex flex-col items-center justify-center sm:items-stretch sm:justify-between transition-all cursor-pointer relative ${
                     isSelected
-                      ? 'ring-2 ring-emerald-500 border-emerald-500 bg-white dark:bg-slate-800 shadow-md'
+                      ? 'ring-2 ring-emerald-500 border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 shadow-sm'
                       : day.isCurrentMonth
-                      ? 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
-                      : 'bg-slate-100/60 border-slate-200/40 opacity-40 hover:opacity-75'
+                      ? 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs'
+                      : 'bg-slate-100/60 dark:bg-slate-800/30 border-slate-200/30 dark:border-slate-800/30 opacity-40 hover:opacity-75'
                   }`}
                 >
-                  <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-0.5 sm:gap-0 w-full">
+                  <div className="flex flex-col sm:flex-row items-center sm:justify-between w-full">
                     <span
-                      className={`text-xs font-bold leading-none ${
+                      className={`flex items-center justify-center text-xs font-bold leading-none ${
                         day.isToday
-                          ? 'w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]'
+                          ? 'w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-600 text-white font-extrabold shadow-xs text-[11px]'
                           : isSelected
-                          ? 'text-emerald-600 dark:text-emerald-400 font-black'
-                          : 'text-slate-700'
+                          ? 'text-emerald-700 dark:text-emerald-300 font-extrabold'
+                          : 'text-slate-700 dark:text-slate-200'
                       }`}
                     >
                       {day.dayNumber}
                     </span>
 
                     {/* Status Dot */}
-                    <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${dotColor}`} />
+                    <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${dotColor} mt-0.5 sm:mt-0`} />
                   </div>
 
                   {/* Booking count or free label (somente telas maiores) */}
                   <div className="hidden sm:block mt-1">
                     {day.status === 'free' ? (
-                      <span className="text-[10px] font-semibold text-emerald-600 block truncate">
+                      <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 block truncate">
                         Livre
                       </span>
                     ) : day.status === 'partial' ? (
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded-md block truncate">
-                        {day.reservations.length} reserva
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/60 px-1.5 py-0.5 rounded-md block truncate">
+                        {day.reservations.length} {day.reservations.length === 1 ? 'reserva' : 'reservas'}
                       </span>
                     ) : (
-                      <span className="text-[10px] font-bold text-rose-700 bg-rose-100/70 px-1.5 py-0.5 rounded-md block truncate">
+                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100/70 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-md block truncate">
                         Ocupado
                       </span>
                     )}
@@ -352,14 +353,14 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
         </div>
 
         {/* Selected Day Details Panel (Col 4) */}
-        <div className="lg:col-span-4 bg-slate-50/70 p-4 sm:p-5 rounded-2.5xl border border-slate-200/80 flex flex-col justify-between">
+        <div className="col-span-1 lg:col-span-4 w-full min-w-0 bg-slate-50/70 dark:bg-slate-800/40 p-4 sm:p-5 rounded-2.5xl border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Data Selecionada
                 </span>
-                <h4 className="text-sm font-bold text-slate-900 capitalize mt-0.5">
+                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 capitalize mt-0.5">
                   {formattedSelectedDay}
                 </h4>
               </div>
@@ -368,10 +369,10 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
               <span
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
                   selectedDay?.status === 'free'
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                     : selectedDay?.status === 'partial'
-                    ? 'bg-amber-100 text-amber-800 border-amber-200'
-                    : 'bg-rose-100 text-rose-800 border-rose-200'
+                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                 }`}
               >
                 {selectedDay?.status === 'free'
@@ -384,15 +385,15 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
 
             {/* List of reservations for the selected date */}
             <div className="space-y-2.5">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                 Agendamentos no Dia ({selectedDay?.reservations.length || 0})
               </span>
 
               {selectedDay?.reservations.length === 0 ? (
-                <div className="p-4 bg-white rounded-2xl border border-dashed border-slate-200 text-center">
+                <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto mb-1.5" />
-                  <p className="text-xs font-bold text-slate-800">Nenhum evento agendado</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Nenhum evento agendado</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                     Todos os espaços comuns estão disponíveis para reserva nesta data.
                   </p>
                 </div>
@@ -401,24 +402,24 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
                   {selectedDay?.reservations.map((res) => (
                     <div
                       key={res.id}
-                      className="p-3 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-1.5"
+                      className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col gap-1.5"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                           <span>{res.emoji}</span>
                           <span>{res.spaceName}</span>
                         </span>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/50 dark:border-emerald-800/50">
                           {res.status}
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3 text-slate-400" />
                           <span>{res.startTime && res.endTime ? `${res.startTime} às ${res.endTime}` : res.dateStr}</span>
                         </span>
-                        <span className="flex items-center gap-1 font-semibold text-slate-700">
+                        <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
                           <User className="w-3 h-3 text-slate-400" />
                           <span>{res.responsibleName} ({res.unitNumber})</span>
                         </span>
@@ -431,7 +432,7 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
           </div>
 
           {/* Action CTA */}
-          <div className="pt-4 border-t border-slate-200 mt-4">
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 mt-4">
             <button
               type="button"
               onClick={() => onSelectDateToReserve(selectedDay?.dateIso || '')}

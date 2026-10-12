@@ -452,9 +452,9 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
       )}
 
       {/* Bento Grid Container */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5" data-purpose="bento-grid">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0" data-purpose="bento-grid">
         {/* BENTO CARD 1: Resumo de Receita & Distribuição */}
-        <section className="md:col-span-12 lg:col-span-4 bg-white rounded-3xl p-6 shadow-bento border border-slate-100 flex flex-col justify-between relative overflow-hidden group hover:shadow-bento-hover transition-all duration-300">
+        <section className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-bento border border-slate-100 dark:border-slate-800 flex flex-col justify-between relative overflow-hidden group hover:shadow-bento-hover transition-all duration-300">
           <div>
             <div className="flex items-start justify-between">
               <div>
@@ -537,7 +537,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
         </section>
 
         {/* BENTO CARD 2: Gráfico Principal de Fluxo & Arrecadação */}
-        <section className="md:col-span-12 lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-bento border border-slate-100 dark:border-slate-800 flex flex-col justify-between group hover:shadow-bento-hover transition-all duration-300">
+        <section className="col-span-1 lg:col-span-8 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-bento border border-slate-100 dark:border-slate-800 flex flex-col justify-between group hover:shadow-bento-hover transition-all duration-300">
           <DynamicTelemetryChart
             title="Fluxo Dinâmico de Arrecadação & Receita"
             subtitle="Comparativo dinâmico entre arrecadação liquidada e receita orçamentária"
@@ -553,7 +553,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
         </section>
 
         {/* BENTO CARD 3: Fundo de Reserva & Obras */}
-        <section className="md:col-span-12 lg:col-span-4 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 text-white rounded-3xl p-6 shadow-lg shadow-emerald-900/10 dark:shadow-bento flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-transparent group hover:shadow-2xl transition-all duration-300">
+        <section className="col-span-1 lg:col-span-4 w-full min-w-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-lg shadow-emerald-900/10 dark:shadow-bento flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-transparent group hover:shadow-2xl transition-all duration-300">
           <div className="absolute -right-12 -top-12 w-48 h-48 bg-emerald-400/20 dark:bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-4">
@@ -627,7 +627,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
         </section>
 
         {/* BENTO CARD 4: CONDOR AI • Diagnóstico Financeiro */}
-        <section className="md:col-span-12 lg:col-span-4 bg-gradient-to-br from-teal-700 via-emerald-700 to-teal-800 dark:from-teal-900 dark:via-slate-900 dark:to-slate-950 text-white rounded-3xl p-6 shadow-lg shadow-emerald-900/10 dark:shadow-bento relative overflow-hidden flex flex-col justify-between border border-teal-500/30 dark:border-teal-800/40">
+        <section className="col-span-1 lg:col-span-4 w-full min-w-0 bg-gradient-to-br from-teal-700 via-emerald-700 to-teal-800 dark:from-teal-900 dark:via-slate-900 dark:to-slate-950 text-white rounded-3xl p-5 sm:p-6 shadow-lg shadow-emerald-900/10 dark:shadow-bento relative overflow-hidden flex flex-col justify-between border border-teal-500/30 dark:border-teal-800/40">
           <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-teal-400/20 rounded-full blur-3xl pointer-events-none dark:hidden" />
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-3">
@@ -681,7 +681,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
         </section>
 
         {/* BENTO CARD 5: Despesas Operacionais por Categoria */}
-        <section className="md:col-span-12 lg:col-span-4 bg-white rounded-3xl p-6 shadow-bento border border-slate-100 flex flex-col justify-between group hover:shadow-bento-hover transition-all duration-300">
+        <section className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-bento border border-slate-100 dark:border-slate-800 flex flex-col justify-between group hover:shadow-bento-hover transition-all duration-300">
           <div>
             <div className="flex items-center justify-between mb-2">
               <div>
@@ -777,7 +777,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
         </section>
 
         {/* BENTO CARD 6: Tabela Bento de Boletos e Cobranças (Data Tables Pattern) */}
-        <section className="md:col-span-12 bg-white rounded-3xl p-6 lg:p-7 shadow-bento border border-slate-100 group hover:shadow-bento-hover transition-all duration-300">
+        <section className="col-span-1 lg:col-span-12 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 lg:p-7 shadow-bento border border-slate-100 dark:border-slate-800 group hover:shadow-bento-hover transition-all duration-300">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <div>
               <div className="flex items-center gap-2">

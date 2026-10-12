@@ -278,9 +278,9 @@ export const ConciergeView: React.FC = () => {
       </div>
 
       {/* Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0">
         {/* CARD 1: Portaria BioSync AI */}
-        <section className="col-span-12 lg:col-span-7 bg-white dark:bg-slate-900 rounded-4xl p-6 lg:p-7 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between relative overflow-hidden group">
+        <section className="col-span-1 lg:col-span-7 w-full min-w-0 bg-white dark:bg-slate-900 rounded-4xl p-5 sm:p-6 lg:p-7 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between relative overflow-hidden group">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -358,7 +358,7 @@ export const ConciergeView: React.FC = () => {
         </section>
 
         {/* CARD 2: Smart Lockers de Encomendas */}
-        <section className="col-span-12 lg:col-span-5 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 text-white rounded-4xl p-6 lg:p-7 shadow-lg shadow-emerald-900/10 dark:shadow-xl dark:shadow-slate-900/10 flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-slate-800">
+        <section className="col-span-1 lg:col-span-5 w-full min-w-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 text-white rounded-4xl p-5 sm:p-6 lg:p-7 shadow-lg shadow-emerald-900/10 dark:shadow-xl dark:shadow-slate-900/10 flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-slate-800">
           <div className="absolute -right-10 -bottom-10 w-44 h-44 bg-emerald-400/20 dark:bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-4">
@@ -412,7 +412,7 @@ export const ConciergeView: React.FC = () => {
         </section>
 
         {/* CARD 3: Gráfico Dinâmico de Fluxo de Acesso por Horário */}
-        <section className="col-span-12 bg-white dark:bg-slate-900 rounded-4xl p-6 lg:p-7 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+        <section className="col-span-1 lg:col-span-12 w-full min-w-0 bg-white dark:bg-slate-900 rounded-4xl p-5 sm:p-6 lg:p-7 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <DynamicTelemetryChart
             title="Fluxo Dinâmico de Acessos & Portaria"
             subtitle="Monitoramento em tempo real do tráfego de moradores, visitantes QR e prestadores"
@@ -428,7 +428,7 @@ export const ConciergeView: React.FC = () => {
 
         {/* CARD 4: Log em Tempo Real de Acessos Recentes (Permissão Restrita: Super Admin / Síndico ou Porteiro autorizado) */}
         {canViewAccessLogs ? (
-          <section className="col-span-12 bg-white dark:bg-slate-900 rounded-4xl p-6 lg:p-7 border border-slate-100 dark:border-slate-800 shadow-sm" data-purpose="access-log-feed">
+          <section className="col-span-1 lg:col-span-12 w-full min-w-0 bg-white dark:bg-slate-900 rounded-4xl p-5 sm:p-6 lg:p-7 border border-slate-100 dark:border-slate-800 shadow-sm" data-purpose="access-log-feed">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -544,7 +544,7 @@ export const ConciergeView: React.FC = () => {
             )}
           </section>
         ) : (
-          <section className="col-span-12 bg-white dark:bg-slate-900 rounded-4xl p-8 border border-dashed border-slate-200 dark:border-slate-800 text-center shadow-xs">
+          <section className="col-span-1 lg:col-span-12 w-full min-w-0 bg-white dark:bg-slate-900 rounded-4xl p-6 sm:p-8 border border-dashed border-slate-200 dark:border-slate-800 text-center shadow-xs">
             <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-3">
               <ShieldCheck className="w-6 h-6" />
             </div>

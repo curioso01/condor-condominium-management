@@ -210,10 +210,10 @@ export const UnitsView: React.FC = () => {
       </div>
 
       {/* Grid Bento Content */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5" data-purpose="bento-layout">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0" data-purpose="bento-layout">
         {/* CARD 1: Censo & Indicadores Operacionais */}
         <section
-          className="col-span-12 lg:col-span-4 bg-white rounded-3xl p-5 shadow-soft border border-slate-100 flex flex-col justify-between"
+          className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
           data-purpose="metric-census-card"
         >
           <div>
@@ -309,7 +309,7 @@ export const UnitsView: React.FC = () => {
 
         {/* CARD 2: Visualização de Blocos & Topologia */}
         <section
-          className="col-span-12 lg:col-span-5 bg-white rounded-3xl p-5 shadow-soft border border-slate-100 flex flex-col justify-between"
+          className="col-span-1 lg:col-span-5 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
           data-purpose="block-distribution-card"
         >
           <div>
@@ -318,17 +318,17 @@ export const UnitsView: React.FC = () => {
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   Topologia do Condomínio
                 </span>
-                <h2 className="text-lg font-bold text-slate-900">Bloco A & Bloco B</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Bloco A & Bloco B</h2>
               </div>
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs">
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-full text-xs">
                 {(['Torre A', 'Torre B'] as const).map((tower) => (
                   <button
                     key={tower}
                     onClick={() => setActiveTower(tower)}
                     className={`px-3 py-1 rounded-full font-semibold transition-all cursor-pointer ${
                       activeTower === tower
-                        ? 'bg-white text-slate-800 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
+                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                   >
                     {tower}
@@ -384,7 +384,7 @@ export const UnitsView: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-4 text-[11px] text-slate-500">
+            <div className="flex items-center gap-4 text-[11px] text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> 95-100%
               </div>
@@ -392,13 +392,13 @@ export const UnitsView: React.FC = () => {
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Vagas Disponíveis
               </div>
             </div>
-            <span className="text-xs font-semibold text-slate-700">Topologia Ativa</span>
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Topologia Ativa</span>
           </div>
         </section>
 
         {/* CARD 3: Biometria Facial BioSync */}
         <section
-          className="col-span-12 lg:col-span-3 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 rounded-3xl p-5 shadow-lg shadow-emerald-900/10 dark:shadow-soft text-white flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-transparent"
+          className="col-span-1 lg:col-span-3 w-full min-w-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 rounded-3xl p-5 shadow-lg shadow-emerald-900/10 dark:shadow-soft text-white flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-transparent"
           data-purpose="biosync-card"
         >
           <div className="absolute -right-12 -top-12 w-44 h-44 bg-emerald-400/20 dark:bg-emerald-600/20 rounded-full blur-3xl pointer-events-none" />
@@ -440,7 +440,7 @@ export const UnitsView: React.FC = () => {
 
         {/* SECTION BOTTOM: Diretório de Unidades (Col 8) */}
         <section
-          className="col-span-12 lg:col-span-8 bg-white rounded-3xl p-5 shadow-soft border border-slate-100 flex flex-col"
+          className="col-span-1 lg:col-span-8 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col"
           data-purpose="directory-table-list"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -631,7 +631,7 @@ export const UnitsView: React.FC = () => {
 
         {/* SUB-BENTO: Painel de Detalhes da Unidade Selecionada (Col 4) */}
         <section
-          className="col-span-12 lg:col-span-4 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
+          className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
           data-purpose="unit-detail-panel"
         >
           {selectedUnit ? (

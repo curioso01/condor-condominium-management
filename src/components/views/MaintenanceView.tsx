@@ -357,9 +357,9 @@ export const MaintenanceView: React.FC = () => {
       </div>
 
       {/* LINHA 2: Telemetria & Inspeção Crítica (Colunas Perfeitamente Balanceadas) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch w-full min-w-0">
         {/* Coluna 8: Gráfico de Telemetria Dinâmica */}
-        <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+        <div className="col-span-1 lg:col-span-8 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
           <DynamicTelemetryChart
             title="Performance de Resolução & Preventivas"
             subtitle="Monitoramento de Ordens de Serviço concluídas vs metas preventivas programadas"
@@ -374,7 +374,7 @@ export const MaintenanceView: React.FC = () => {
         </div>
 
         {/* Coluna 4: Destaque de Inspeção Crítica Programada */}
-        <div className="lg:col-span-4 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 text-white rounded-3xl p-6 shadow-lg shadow-emerald-900/10 dark:shadow-card flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-slate-800">
+        <div className="col-span-1 lg:col-span-4 w-full min-w-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-lg shadow-emerald-900/10 dark:shadow-card flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-slate-800">
           <div className="absolute -right-16 -top-16 w-52 h-52 bg-emerald-400/20 dark:bg-emerald-600/20 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10">
             <div className="flex items-center justify-between">
@@ -648,9 +648,9 @@ export const MaintenanceView: React.FC = () => {
       </section>
 
       {/* LINHA 4: Rodapé Técnico - Calendário de Vistorias & Inteligência Predial */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0">
         {/* Card Marco Obrigatório (lg:col-span-7) */}
-        <article className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-5">
+        <article className="col-span-1 lg:col-span-7 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex flex-col items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-800/60">
               <span className="text-[10px] font-extrabold uppercase leading-none">NOV</span>
@@ -679,7 +679,7 @@ export const MaintenanceView: React.FC = () => {
         </article>
 
         {/* Card Condor AI (lg:col-span-5) */}
-        <article className="lg:col-span-5 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900 rounded-3xl p-6 border border-emerald-100/80 dark:border-emerald-800/50 shadow-soft flex flex-col justify-between">
+        <article className="col-span-1 lg:col-span-5 w-full min-w-0 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900 rounded-3xl p-5 sm:p-6 border border-emerald-100/80 dark:border-emerald-800/50 shadow-soft flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-sm">

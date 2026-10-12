@@ -267,7 +267,7 @@ export const DynamicTelemetryChart: React.FC<DynamicTelemetryChartProps> = ({
   ];
 
   return (
-    <div className="flex flex-col justify-between w-full" data-purpose="dynamic-telemetry-chart">
+    <div className="flex flex-col justify-between w-full min-w-0 overflow-hidden" data-purpose="dynamic-telemetry-chart">
       {/* Chart Header & Controls */}
       <div className="flex flex-col gap-2.5 mb-3.5 w-full">
         <div className="flex items-start justify-between gap-2">
