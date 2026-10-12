@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { NavigationTab } from '../../types/condominium';
 import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, Building, Shield, ChevronDown, Camera, Settings, Smartphone } from 'lucide-react';
+import { LogOut, Building, Shield, ChevronDown, Camera, Settings, Smartphone, HelpCircle } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Logo } from '../common/Logo';
 import { AnnouncementsModal } from '../views/AnnouncementsModal';
@@ -13,6 +13,7 @@ interface HeaderProps {
   onSelectTab?: (tab: NavigationTab) => void;
   onSearch?: (query: string) => void;
   onOpenSettings?: () => void;
+  onOpenFaq?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTab,
   onSearch,
   onOpenSettings,
+  onOpenFaq,
 }) => {
   const { profile, user, currentCondominium, currentRole, memberships, setCurrentCondominiumId, signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,6 +154,17 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="hidden sm:block">
           <ThemeToggle variant="icon" />
         </div>
+
+        {/* Central de Ajuda & FAQ */}
+        <button
+          type="button"
+          onClick={() => onOpenFaq?.()}
+          aria-label="Central de Ajuda & Perguntas Frequentes (FAQ)"
+          title="Central de Ajuda & FAQ"
+          className="w-10 h-10 sm:w-11 sm:h-11 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 shadow-soft border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-transform hover:scale-105 cursor-pointer shrink-0"
+        >
+          <HelpCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+        </button>
 
         {/* Notifications Icon with Badge */}
         <div className="relative">
@@ -382,6 +395,17 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>Instalar App no Celular (PWA)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    onOpenFaq?.();
+                  }}
+                  className="w-full text-left p-2 rounded-2xl text-xs font-semibold flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer"
+                >
+                  <HelpCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Central de Ajuda & FAQ</span>
                 </button>
               </div>
 
