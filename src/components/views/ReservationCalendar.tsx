@@ -16,6 +16,7 @@ export interface ReservationCalendarProps {
   reservations: AmenityReservation[];
   commonAreas: CommonArea[];
   onSelectDateToReserve: (dateIso: string) => void;
+  onOpenNewSpace?: () => void;
 }
 
 type DayStatus = 'free' | 'partial' | 'occupied';
@@ -34,6 +35,7 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
   reservations,
   commonAreas,
   onSelectDateToReserve,
+  onOpenNewSpace,
 }) => {
   // Navigation base date: default to real current date/month
   const [currentDate, setCurrentDate] = useState(() => {
@@ -230,24 +232,38 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
           </div>
         </div>
 
-        {/* Filter by Space */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="calendar-space-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
-            Espaço:
-          </label>
-          <select
-            id="calendar-space-filter"
-            value={selectedSpaceFilter}
-            onChange={(e) => setSelectedSpaceFilter(e.target.value)}
-            className="flex-1 sm:flex-none min-w-0 px-3 py-2 sm:py-1.5 bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-          >
-            <option value="all">Todos os Espaços</option>
-            {filterSpacesList.map((space) => (
-              <option key={space.id} value={space.name}>
-                {space.name}
-              </option>
-            ))}
-          </select>
+        {/* Filter by Space and New Space Button */}
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
+            <label htmlFor="calendar-space-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+              Espaço:
+            </label>
+            <select
+              id="calendar-space-filter"
+              value={selectedSpaceFilter}
+              onChange={(e) => setSelectedSpaceFilter(e.target.value)}
+              className="w-full sm:w-auto min-w-0 px-3 py-2 sm:py-1.5 bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+            >
+              <option value="all">Todos os Espaços</option>
+              {filterSpacesList.map((space) => (
+                <option key={space.id} value={space.name}>
+                  {space.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {onOpenNewSpace && (
+            <button
+              type="button"
+              onClick={onOpenNewSpace}
+              className="px-3 py-2 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
+              title="Cadastrar Novo Espaço Comum"
+            >
+              <Plus className="w-3.5 h-3.5 text-emerald-400" />
+              <span>+ Novo Espaço</span>
+            </button>
+          )}
         </div>
       </div>
 
