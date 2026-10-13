@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { amenityService, type CreateReservationInput } from '../../services/amenityService';
+import { 
+  amenityService, 
+  type CreateReservationInput, 
+  type UpsertCommonAreaInput, 
+  type ExtendedCommonArea 
+} from '../../services/amenityService';
 import type { AmenityReservation } from '../../types/condominium';
-import type { CommonArea } from '../../types/database.types';
 import { ReservationCalendar } from './ReservationCalendar';
 import { CreateReservationModal } from './CreateReservationModal';
+import { CommonAreaModal } from './CommonAreaModal';
 import { EmptyState } from '../ui/EmptyState';
 import { Skeleton } from '../ui/Skeleton';
 import {
@@ -20,17 +25,15 @@ import {
   Check,
   Layers,
   Award,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 
-export interface ExtendedCommonArea extends CommonArea {
-  requires_approval?: boolean;
-  rules?: string;
-  capacity?: number;
-  fee?: number;
-}
+export type { ExtendedCommonArea };
 
 export const ReservationsView: React.FC = () => {
-  const { currentCondominium, isSuperAdmin } = useAuth();
+  const { currentCondominium, isSuperAdmin, currentRole } = useAuth();
+  const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin' || isSuperAdmin;
 
   const [commonAreas, setCommonAreas] = useState<ExtendedCommonArea[]>([]);
   const [reservations, setReservations] = useState<AmenityReservation[]>([]);
@@ -41,6 +44,11 @@ export const ReservationsView: React.FC = () => {
   const [viewTab, setViewTab] = useState<'calendar' | 'spaces' | 'list'>('calendar');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [filterSpace, setFilterSpace] = useState<string>('Todos');
+
+  // Common Area CRUD states for Síndico & Super Admin
+  const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
+  const [areaToEdit, setAreaToEdit] = useState<ExtendedCommonArea | null>(null);
+  const [areaToDelete, setAreaToDelete] = useState<ExtendedCommonArea | null>(null);
 
   // Load common areas and reservations
   const loadAreasAndReservations = useCallback(async () => {
@@ -100,6 +108,57 @@ export const ReservationsView: React.FC = () => {
     });
     setTimeout(() => setNotification(null), 5000);
     return { success: true };
+  };
+
+  // Handle Save Common Area (Create or Update)
+  const handleSaveCommonArea = async (input: UpsertCommonAreaInput): Promise<{ success: boolean; error?: string }> => {
+    if (areaToEdit) {
+      const res = await amenityService.updateCommonArea(areaToEdit.id, input);
+      if (res.error) {
+        return { success: false, error: res.error.message };
+      }
+      setCommonAreas((prev) => prev.map((a) => (a.id === areaToEdit.id ? (res.data || { ...a, ...input }) : a)));
+      setNotification({
+        type: 'success',
+        message: `Espaço comum "${input.name}" atualizado com sucesso!`,
+      });
+      setTimeout(() => setNotification(null), 5000);
+      return { success: true };
+    } else {
+      const res = await amenityService.createCommonArea(input);
+      if (res.error || !res.data) {
+        return { success: false, error: res.error?.message || 'Erro ao criar espaço comum' };
+      }
+      setCommonAreas((prev) => [...prev, res.data!]);
+      setNotification({
+        type: 'success',
+        message: `Novo espaço comum "${res.data.name}" cadastrado com sucesso!`,
+      });
+      setTimeout(() => setNotification(null), 5000);
+      return { success: true };
+    }
+  };
+
+  // Handle Confirm Delete Common Area
+  const handleConfirmDeleteArea = async () => {
+    if (!areaToDelete || !currentCondominium?.id) return;
+    const deletedName = areaToDelete.name;
+    const targetId = areaToDelete.id;
+    setAreaToDelete(null);
+
+    const res = await amenityService.deleteCommonArea(targetId, currentCondominium.id);
+    if (res.error) {
+      setNotification({ type: 'error', message: `Erro ao excluir espaço: ${res.error.message}` });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
+
+    setCommonAreas((prev) => prev.filter((a) => a.id !== targetId));
+    setNotification({
+      type: 'success',
+      message: `Espaço comum "${deletedName}" excluído com sucesso!`,
+    });
+    setTimeout(() => setNotification(null), 5000);
   };
 
   const filteredReservations = reservations.filter((r) => {
@@ -353,75 +412,146 @@ export const ReservationsView: React.FC = () => {
         {/* TAB 2: Vitrine dos Espaços Comuns */}
         {viewTab === 'spaces' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {commonAreas.map((area) => (
-                <div
-                  key={area.id}
-                  className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover:border-emerald-300 dark:hover:border-emerald-600/50 transition-all group"
+            {/* Header / Ações de Administração para Síndico e Superadmin */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Espaços Comuns do Condomínio ({commonAreas.length})
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isSindicoOrAdmin 
+                    ? 'Você tem permissão para incluir novos espaços, editar capacidade e regras, ou excluir.' 
+                    : 'Consulte as regras e capacidades de cada ambiente de lazer do condomínio.'}
+                </p>
+              </div>
+
+              {isSindicoOrAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAreaToEdit(null);
+                    setIsAreaModalOpen(true);
+                  }}
+                  className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-pill transition duration-150 flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-xl font-bold">
-                        {area.name.includes('Gourmet') || area.name.includes('Churrasco')
-                          ? '🥩'
-                          : area.name.includes('Piscina')
-                          ? '🏊‍♂️'
-                          : area.name.includes('Academia')
-                          ? '🏋️'
-                          : '🎉'}
-                      </div>
-                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        {area.requires_approval ? 'Requer Aprovação' : 'Aprovação Imediata'}
-                      </span>
-                    </div>
-
-                    <h4 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-1">{area.name}</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-4">
-                      {area.rules || 'Espaço de uso compartilhado com reserva prévia pelo sistema Condor.'}
-                    </p>
-
-                    <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-3 border-t border-slate-200/60 dark:border-slate-700/60">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-400">
-                          <Users className="w-3.5 h-3.5" /> Capacidade
-                        </span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                          Até {area.capacity || 50} pessoas
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-400">
-                          <Clock className="w-3.5 h-3.5" /> Horário
-                        </span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                          08:00 às 23:30
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-slate-400">
-                          <MapPin className="w-3.5 h-3.5" /> Taxa de Aluguel
-                        </span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                          {area.fee ? `R$ ${Number(area.fee).toFixed(2)}` : 'Isento'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedDateForModal(undefined);
-                      setIsModalOpen(true);
-                    }}
-                    className="mt-5 w-full py-2.5 px-4 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-xs font-bold text-slate-700 dark:text-slate-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Reservar este Espaço</span>
-                  </button>
-                </div>
-              ))}
+                  <Plus className="w-4 h-4" />
+                  <span>Cadastrar Novo Espaço</span>
+                </button>
+              )}
             </div>
+
+            {commonAreas.length === 0 ? (
+              <EmptyState
+                title="Nenhum espaço cadastrado"
+                description="Cadastre as áreas comuns do condomínio para permitir que os moradores realizem agendamentos."
+                actionLabel={isSindicoOrAdmin ? "+ Cadastrar Primeiro Espaço" : undefined}
+                onAction={isSindicoOrAdmin ? () => {
+                  setAreaToEdit(null);
+                  setIsAreaModalOpen(true);
+                } : undefined}
+                className="my-3 py-8"
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {commonAreas.map((area) => (
+                  <div
+                    key={area.id}
+                    className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex flex-col justify-between hover:border-emerald-300 dark:hover:border-emerald-600/50 transition-all group"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-xl font-bold">
+                          {area.name.includes('Gourmet') || area.name.includes('Churrasco')
+                            ? '🥩'
+                            : area.name.includes('Piscina')
+                            ? '🏊‍♂️'
+                            : area.name.includes('Academia')
+                            ? '🏋️'
+                            : '🎉'}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            {area.requires_approval ? 'Requer Aprovação' : 'Aprovação Imediata'}
+                          </span>
+
+                          {isSindicoOrAdmin && (
+                            <div className="flex items-center gap-0.5 ml-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAreaToEdit(area);
+                                  setIsAreaModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-700 transition cursor-pointer"
+                                title="Editar este espaço comum"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAreaToDelete(area);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-700 transition cursor-pointer"
+                                title="Excluir este espaço comum"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <h4 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-1">{area.name}</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-4">
+                        {area.rules || 'Espaço de uso compartilhado com reserva prévia pelo sistema Condor.'}
+                      </p>
+
+                      <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 pt-3 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-slate-400">
+                            <Users className="w-3.5 h-3.5" /> Capacidade
+                          </span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            Até {area.capacity || 50} pessoas
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-slate-400">
+                            <Clock className="w-3.5 h-3.5" /> Horário
+                          </span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            08:00 às 23:30
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-slate-400">
+                            <MapPin className="w-3.5 h-3.5" /> Taxa de Aluguel
+                          </span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                            {area.fee ? `R$ ${Number(area.fee).toFixed(2)}` : 'Isento'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDateForModal(undefined);
+                        setIsModalOpen(true);
+                      }}
+                      className="mt-5 w-full py-2.5 px-4 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-xs font-bold text-slate-700 dark:text-slate-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Reservar este Espaço</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -535,6 +665,55 @@ export const ReservationsView: React.FC = () => {
         existingReservations={reservations}
         onReservationCreated={handleReservationCreated}
       />
+
+      {/* Modal de Cadastro / Edição de Espaço Comum (Síndico / Admin) */}
+      <CommonAreaModal
+        isOpen={isAreaModalOpen}
+        onClose={() => {
+          setIsAreaModalOpen(false);
+          setAreaToEdit(null);
+        }}
+        areaToEdit={areaToEdit}
+        condominiumId={currentCondominium?.id || ''}
+        onSave={handleSaveCommonArea}
+      />
+
+      {/* Confirmação de Exclusão de Espaço Comum */}
+      {areaToDelete && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-sm w-full border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Excluir Espaço Comum?</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                Tem certeza de que deseja excluir o espaço <strong className="text-slate-700 dark:text-slate-300">"{areaToDelete.name}"</strong>? Esta ação removerá o espaço do calendário do condomínio.
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setAreaToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteArea}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white transition cursor-pointer shadow-sm"
+              >
+                Confirmar Exclusão
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

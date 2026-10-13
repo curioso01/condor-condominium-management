@@ -35,14 +35,17 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
   commonAreas,
   onSelectDateToReserve,
 }) => {
-  // Navigation base date: default to current month (October 2026 based on app timeline)
+  // Navigation base date: default to real current date/month
   const [currentDate, setCurrentDate] = useState(() => {
-    // Current date in the app context is October 2026
-    return new Date(2026, 9, 1); // Month 9 is October (0-indexed)
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
   const [selectedSpaceFilter, setSelectedSpaceFilter] = useState<string>('all');
-  const [selectedDayIso, setSelectedDayIso] = useState<string>('2026-10-10');
+  const [selectedDayIso, setSelectedDayIso] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
 
   // Month navigation
   const handlePrevMonth = () => {
@@ -60,6 +63,25 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
     ];
     return `${months[currentDate.getMonth()]} de ${currentDate.getFullYear()}`;
   }, [currentDate]);
+
+  // Combine spaces from commonAreas and reservations so the dropdown filter is always populated
+  const filterSpacesList = useMemo(() => {
+    const map = new Map<string, string>();
+    commonAreas.forEach((a) => {
+      if (a.name) map.set(a.name, a.id);
+    });
+    reservations.forEach((r) => {
+      if (r.spaceName && !map.has(r.spaceName)) {
+        map.set(r.spaceName, `space-${r.spaceName}`);
+      }
+    });
+    if (map.size === 0) {
+      ['Salão de Festas Principal', 'Espaço Gourmet & Churrasqueira', 'Quiosque Piscina', 'Academia & Espaço Fitness'].forEach((name, i) => {
+        map.set(name, `fallback-${i}`);
+      });
+    }
+    return Array.from(map.entries()).map(([name, id]) => ({ id, name }));
+  }, [commonAreas, reservations]);
 
   // Filter reservations by selected space if applicable
   const activeReservations = useMemo(() => {
@@ -138,7 +160,10 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
         dateIso: iso,
         dayNumber: day,
         isCurrentMonth: true,
-        isToday: day === 5 && month === 9 && year === 2026, // Oct 05, 2026
+        isToday:
+          d.getDate() === new Date().getDate() &&
+          d.getMonth() === new Date().getMonth() &&
+          d.getFullYear() === new Date().getFullYear(),
         reservations: dayRes,
         status,
       });
@@ -217,9 +242,9 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
             className="flex-1 sm:flex-none min-w-0 px-3 py-2 sm:py-1.5 bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
           >
             <option value="all">Todos os Espaços</option>
-            {commonAreas.map((area) => (
-              <option key={area.id} value={area.name}>
-                {area.name}
+            {filterSpacesList.map((space) => (
+              <option key={space.id} value={space.name}>
+                {space.name}
               </option>
             ))}
           </select>

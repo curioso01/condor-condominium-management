@@ -516,7 +516,7 @@ END $$;`;
             <div>
               <div className="flex items-center gap-3 flex-wrap mb-1">
                 <h3 id="settings-modal-title" className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-                  Configurações do Sistema
+                  Configurações
                 </h3>
                 <span className="text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
                   {currentCondominium?.name || 'Condomínio'}

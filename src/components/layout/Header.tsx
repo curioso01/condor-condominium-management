@@ -383,7 +383,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="w-full text-left p-2 rounded-2xl text-xs font-semibold flex items-center gap-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                  <span>Configurações do Condomínio</span>
+                  <span>Configurações</span>
                 </button>
                 <button
                   type="button"

@@ -155,8 +155,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
           <Smartphone className="w-5 h-5" />
         </button>
         <button
-          aria-label="Configurações do Condomínio"
-          title="Configurações do Condomínio"
+          aria-label="Configurações"
+          title="Configurações"
           onClick={() => onOpenSettings?.()}
           className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         >
