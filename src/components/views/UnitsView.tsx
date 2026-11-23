@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export const UnitsView: React.FC = () => {
-  const { currentCondominium, canManageUsers } = useAuth();
+  const { currentCondominium, canManageUsers, isSuperAdmin } = useAuth();
 
   const [units, setUnits] = useState<Unit[]>([]);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -30,8 +30,7 @@ export const UnitsView: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const [filter, setFilter] = useState<'Todos' | 'Bloco A' | 'Bloco B' | 'Inquilinos' | 'Com Pets'>('Todos');
-  const [activeTower, setActiveTower] = useState<'Torre A' | 'Torre B'>('Torre A');
+  const [filter, setFilter] = useState<string>('Todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -41,6 +40,8 @@ export const UnitsView: React.FC = () => {
     if (!currentCondominium?.id) return;
     setIsLoading(true);
     setErrorMessage(null);
+    setUnits([]);
+    setSelectedUnit(null);
 
     const { data, error } = await unitService.getUnitsByCondominium(currentCondominium.id);
     setIsLoading(false);
@@ -59,6 +60,11 @@ export const UnitsView: React.FC = () => {
 
   useEffect(() => {
     loadUnits();
+    const handleUnitsUpdated = () => {
+      loadUnits();
+    };
+    window.addEventListener('condor:units-updated', handleUnitsUpdated);
+    return () => window.removeEventListener('condor:units-updated', handleUnitsUpdated);
   }, [loadUnits]);
 
   // Handle unit creation
@@ -112,14 +118,19 @@ export const UnitsView: React.FC = () => {
     }
   };
 
-  // Filtered units
+  // Blocos reais presentes no condomínio
+  const dynamicBlocks = useMemo(
+    () => Array.from(new Set(units.map((u) => u.block).filter(Boolean))).sort(),
+    [units]
+  );
+
+  // Filtered units (funciona com qualquer nome de bloco/torre do condomínio)
   const filteredUnits = useMemo(() => {
     return units.filter((u) => {
-      if (filter === 'Bloco A') return u.block.includes('A');
-      if (filter === 'Bloco B') return u.block.includes('B');
+      if (filter === 'Todos') return true;
       if (filter === 'Inquilinos') return u.residentType === 'Inquilino';
       if (filter === 'Com Pets') return u.hasPet;
-      return true;
+      return u.block === filter;
     });
   }, [units, filter]);
 
@@ -129,9 +140,20 @@ export const UnitsView: React.FC = () => {
     const residents = units.reduce((acc, u) => acc + (u.residentsCount || 1), 0);
     const vehicles = units.filter((u) => Boolean(u.parkingSpot)).length;
     const pets = units.filter((u) => Boolean(u.hasPet)).length;
-    const rate = total > 0 ? 100 : 0;
-    return { total, residents, vehicles, pets, rate };
-  }, [units]);
+    const owners = units.filter((u) => u.residentType !== 'Inquilino').length;
+    const tenants = units.filter((u) => u.residentType === 'Inquilino').length;
+    const rate = total > 0 ? Math.round((owners / total) * 100) : 0;
+    const byBlock = dynamicBlocks.map((blockName) => {
+      const blockUnits = units.filter((u) => u.block === blockName);
+      return {
+        name: blockName,
+        count: blockUnits.length,
+        residents: blockUnits.reduce((acc, u) => acc + (u.residentsCount || 1), 0),
+        share: total > 0 ? Math.round((blockUnits.length / total) * 100) : 0,
+      };
+    });
+    return { total, residents, vehicles, pets, owners, tenants, rate, byBlock };
+  }, [units, dynamicBlocks]);
 
   return (
     <div className="flex flex-col gap-5 pb-6" data-purpose="units-view">
@@ -168,7 +190,7 @@ export const UnitsView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Unidades & Diretório de Moradores
+              Unidades e Moradores
             </h2>
             <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
               {currentCondominium?.name || 'Condomínio'}
@@ -198,17 +220,17 @@ export const UnitsView: React.FC = () => {
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold shadow-pill transition-all flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Cadastrar Morador / Unidade</span>
+              <span>Cadastrar Novo Morador ou Unidade</span>
             </button>
           </div>
         )}
       </div>
 
       {/* Grid Bento Content */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5" data-purpose="bento-layout">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0" data-purpose="bento-layout">
         {/* CARD 1: Censo & Indicadores Operacionais */}
         <section
-          className="col-span-12 lg:col-span-4 bg-white rounded-3xl p-5 shadow-soft border border-slate-100 flex flex-col justify-between"
+          className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
           data-purpose="metric-census-card"
         >
           <div>
@@ -290,7 +312,7 @@ export const UnitsView: React.FC = () => {
           <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">
             <span className="text-[11px] text-slate-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Sincronizado com Supabase
+              {isSuperAdmin ? 'Sincronizado com Supabase' : 'Sincronizado em tempo real'}
             </span>
             <button
               onClick={loadUnits}
@@ -302,140 +324,117 @@ export const UnitsView: React.FC = () => {
           </div>
         </section>
 
-        {/* CARD 2: Visualização de Blocos & Topologia */}
+        {/* CARD 2: Distribuição Real de Blocos & Torres */}
         <section
-          className="col-span-12 lg:col-span-5 bg-white rounded-3xl p-5 shadow-soft border border-slate-100 flex flex-col justify-between"
+          className="col-span-1 lg:col-span-5 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
           data-purpose="block-distribution-card"
         >
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <div>
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Topologia do Condomínio
+                  Topologia Real do Condomínio
                 </span>
-                <h2 className="text-lg font-bold text-slate-900">Bloco A & Bloco B</h2>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                  {dynamicBlocks.length > 0
+                    ? `${dynamicBlocks.length} ${dynamicBlocks.length === 1 ? 'Bloco / Torre' : 'Blocos / Torres'}`
+                    : 'Sem Blocos Cadastrados'}
+                </h2>
               </div>
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full text-xs">
-                {(['Torre A', 'Torre B'] as const).map((tower) => (
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full">
+                {census.total} unid.
+              </span>
+            </div>
+
+            {census.byBlock.length === 0 ? (
+              <div className="my-3 p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center text-xs text-slate-500 dark:text-slate-400">
+                Cadastre unidades para visualizar automaticamente a distribuição por bloco ou torre.
+              </div>
+            ) : (
+              <div className="space-y-3 my-3">
+                {census.byBlock.map((blk) => (
                   <button
-                    key={tower}
-                    onClick={() => setActiveTower(tower)}
-                    className={`px-3 py-1 rounded-full font-semibold transition-all cursor-pointer ${
-                      activeTower === tower
-                        ? 'bg-white text-slate-800 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800'
+                    key={blk.name}
+                    type="button"
+                    onClick={() => setFilter(filter === blk.name ? 'Todos' : blk.name)}
+                    className={`w-full text-left p-3 rounded-2xl border transition cursor-pointer ${
+                      filter === blk.name
+                        ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600'
                     }`}
                   >
-                    {tower}
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{blk.name}</span>
+                      <span className="font-semibold text-slate-500 dark:text-slate-400 tabular-nums">
+                        {blk.count} {blk.count === 1 ? 'unidade' : 'unidades'} • {blk.residents} morad.
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-600 rounded-full transition-all"
+                        style={{ width: `${Math.max(8, blk.share)}%` }}
+                      />
+                    </div>
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Tower Block Diagram */}
-            <div className="my-3 p-4 bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/80 dark:to-slate-900/90 rounded-2.5xl border border-slate-100 dark:border-slate-800 relative overflow-hidden flex items-center justify-center">
-              <div className="w-full flex items-center justify-around py-2">
-                {/* Bloco A */}
-                <div className="flex flex-col items-center">
-                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-2">Bloco A • Cerejeiras</span>
-                  <div className="space-y-1.5 w-32">
-                    <div className="h-6 bg-emerald-600 rounded-lg flex items-center justify-between px-2 text-[10px] text-white font-medium">
-                      <span>12º ao 16º</span> <span>100%</span>
-                    </div>
-                    <div className="h-6 bg-emerald-600 rounded-lg flex items-center justify-between px-2 text-[10px] text-white font-medium">
-                      <span>08º ao 11º</span> <span>100%</span>
-                    </div>
-                    <div className="h-6 bg-emerald-500 rounded-lg flex items-center justify-between px-2 text-[10px] text-white font-medium">
-                      <span>04º ao 07º</span> <span>96%</span>
-                    </div>
-                    <div className="h-6 bg-emerald-500 rounded-lg flex items-center justify-between px-2 text-[10px] text-white font-medium">
-                      <span>01º ao 03º</span> <span>98%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="h-28 w-px bg-slate-200 dark:bg-slate-700" />
-
-                {/* Bloco B */}
-                <div className="flex flex-col items-center">
-                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-2">Bloco B • Ipês</span>
-                  <div className="space-y-1.5 w-32">
-                    <div className="h-6 bg-emerald-600 rounded-lg flex items-center justify-between px-2 text-[10px] text-white font-medium">
-                      <span>12º ao 16º</span> <span>100%</span>
-                    </div>
-                    <div className="h-6 bg-emerald-500 rounded-lg flex items-center justify-between px-2 text-[10px] text-white font-medium">
-                      <span>08º ao 11º</span> <span>94%</span>
-                    </div>
-                    <div className="h-6 bg-amber-400 rounded-lg flex items-center justify-between px-2 text-[10px] text-slate-900 font-medium">
-                      <span>04º ao 07º</span> <span>88%</span>
-                    </div>
-                    <div className="h-6 bg-emerald-600 rounded-lg flex items-center justify-between px-2 text-[10px] text-white font-medium">
-                      <span>01º ao 03º</span> <span>100%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-4 text-[11px] text-slate-500">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> 95-100%
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Vagas Disponíveis
-              </div>
-            </div>
-            <span className="text-xs font-semibold text-slate-700">Topologia Ativa</span>
+          <div className="flex items-center justify-between pt-2 text-[11px] text-slate-400">
+            <span>Clique em um bloco para filtrar a tabela</span>
+            <span className="font-semibold text-slate-600 dark:text-slate-300">Dados do Banco</span>
           </div>
         </section>
 
-        {/* CARD 3: Biometria Facial BioSync */}
+        {/* CARD 3: Perfil de Ocupação Real (Proprietários vs Inquilinos) */}
         <section
-          className="col-span-12 lg:col-span-3 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 dark:bg-none dark:bg-slate-900 rounded-3xl p-5 shadow-lg shadow-emerald-900/10 dark:shadow-soft text-white flex flex-col justify-between relative overflow-hidden border border-emerald-400/30 dark:border-transparent"
-          data-purpose="biosync-card"
+          className="col-span-1 lg:col-span-3 w-full min-w-0 bg-slate-900 text-white rounded-3xl p-5 shadow-soft flex flex-col justify-between border border-slate-800"
+          data-purpose="occupancy-profile-card"
         >
-          <div className="absolute -right-12 -top-12 w-44 h-44 bg-emerald-400/20 dark:bg-emerald-600/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative z-10">
+          <div>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold tracking-wider text-white dark:text-emerald-400 bg-white/20 dark:bg-emerald-950/80 border border-white/25 dark:border-emerald-800 px-2.5 py-1 rounded-full uppercase flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 dark:bg-emerald-400 animate-pulse" />
-                BioSync 4.2 Online
+              <span className="text-[10px] font-bold tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2.5 py-1 rounded-full uppercase">
+                Perfil de Posse
               </span>
-              <div className="w-8 h-8 rounded-full bg-white/20 dark:bg-slate-800 flex items-center justify-center text-white dark:text-slate-300">
-                <Layers className="w-4 h-4 text-white dark:text-emerald-400" />
+              <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-emerald-400">
+                <Layers className="w-4 h-4" />
               </div>
             </div>
-            <h3 className="text-base font-bold text-white mt-4">Biometria Facial</h3>
-            <p className="text-xs text-emerald-100 dark:text-slate-400 mt-0.5">Leitores das portarias A e B</p>
+            <h3 className="text-base font-bold text-white mt-4">Proprietários &amp; Inquilinos</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Composição real do censo</p>
 
-            <div className="mt-5">
-              <div className="flex items-baseline justify-between mb-1.5">
-                <span className="text-3xl font-black tracking-tight text-white">98.5%</span>
-                <span className="text-xs font-semibold text-emerald-200 dark:text-emerald-400">BioSync Ativo</span>
+            <div className="mt-5 space-y-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-slate-300">Proprietários</span>
+                <span className="text-2xl font-black text-white tabular-nums">{census.owners}</span>
               </div>
-              <div className="w-full bg-black/15 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden p-0.5 border border-white/20 dark:border-slate-700/50">
-                <div className="bg-emerald-300 dark:bg-gradient-to-r dark:from-emerald-500 dark:to-emerald-400 h-full rounded-full shadow-[0_0_8px_rgba(110,231,183,0.7)] dark:shadow-none" style={{ width: '98%' }} />
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-slate-300">Inquilinos</span>
+                <span className="text-2xl font-black text-emerald-400 tabular-nums">{census.tenants}</span>
               </div>
-              <p className="text-[11px] text-emerald-100/90 dark:text-slate-400 mt-2">
-                Reconhecimento instantâneo em 0.24s na guarita.
-              </p>
+              <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-emerald-400 h-full rounded-full transition-all"
+                  style={{ width: `${census.rate}%` }}
+                />
+              </div>
             </div>
           </div>
 
           <button
-            onClick={() => alert('Sincronização BioSync com totens de portaria executada com sucesso.')}
-            className="w-full mt-4 py-2.5 px-4 bg-white hover:bg-emerald-50 text-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:text-white rounded-2xl text-xs font-bold shadow-md dark:shadow-pill transition-all flex items-center justify-center gap-1.5 cursor-pointer relative z-10"
+            type="button"
+            onClick={() => setFilter(filter === 'Inquilinos' ? 'Todos' : 'Inquilinos')}
+            className="w-full mt-4 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            <span>Auditoria Biométrica</span>
+            <span>{filter === 'Inquilinos' ? 'Mostrar Todas' : 'Filtrar Inquilinos'}</span>
           </button>
         </section>
 
         {/* SECTION BOTTOM: Diretório de Unidades (Col 8) */}
         <section
-          className="col-span-12 lg:col-span-8 bg-white rounded-3xl p-5 shadow-soft border border-slate-100 flex flex-col"
+          className="col-span-1 lg:col-span-8 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col"
           data-purpose="directory-table-list"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -443,16 +442,17 @@ export const UnitsView: React.FC = () => {
               <h2 className="text-base font-bold text-slate-900">Diretório de Unidades</h2>
               <p className="text-xs text-slate-400">Consulte ocupantes, veículos autorizados e adimplência</p>
             </div>
-            {/* Filter Pills */}
-            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-full text-xs">
-              {(['Todos', 'Bloco A', 'Bloco B', 'Inquilinos', 'Com Pets'] as const).map((item) => (
+            {/* Filter Pills (Dinâmicos pelos blocos reais do condomínio) */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
+              {(['Todos', ...dynamicBlocks, 'Inquilinos', 'Com Pets']).map((item) => (
                 <button
                   key={item}
+                  type="button"
                   onClick={() => setFilter(item)}
-                  className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                     filter === item
-                      ? 'bg-white text-slate-900 font-semibold shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800 font-medium'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-semibold shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium'
                   }`}
                 >
                   {item}
@@ -483,7 +483,9 @@ export const UnitsView: React.FC = () => {
           {!isLoading && errorMessage && (
             <div className="p-8 text-center border border-dashed border-rose-200 rounded-2.5xl my-4 bg-rose-50/40">
               <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
-              <p className="text-xs font-bold text-rose-800">Falha ao carregar unidades do Supabase</p>
+              <p className="text-xs font-bold text-rose-800">
+                {isSuperAdmin ? 'Falha ao carregar unidades do Supabase' : 'Falha ao carregar unidades do sistema'}
+              </p>
               <p className="text-[11px] text-rose-600 mt-1 mb-4">{errorMessage}</p>
               <button
                 onClick={loadUnits}
@@ -498,7 +500,11 @@ export const UnitsView: React.FC = () => {
           {!isLoading && !errorMessage && units.length === 0 && (
             <EmptyState
               title={`Nenhuma unidade cadastrada no ${currentCondominium?.name || 'Condomínio'}`}
-              description="Você ainda não possui unidades registradas neste condomínio no Supabase. Cadastre a primeira unidade ou use o preenchimento automático inicial."
+              description={
+                isSuperAdmin
+                  ? 'Você ainda não possui unidades registradas neste condomínio no Supabase. Cadastre a primeira unidade ou use o preenchimento automático inicial.'
+                  : 'Você ainda não possui unidades registradas neste condomínio. Cadastre a primeira unidade ou use o preenchimento automático inicial.'
+              }
               actionLabel="+ Cadastrar Primeira Unidade"
               onAction={() => setIsModalOpen(true)}
               className="my-4 py-8"
@@ -612,7 +618,7 @@ export const UnitsView: React.FC = () => {
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-                Supabase PostgreSQL
+                {isSuperAdmin ? 'Supabase PostgreSQL' : 'Banco em Tempo Real'}
               </span>
             </div>
           </div>
@@ -620,7 +626,7 @@ export const UnitsView: React.FC = () => {
 
         {/* SUB-BENTO: Painel de Detalhes da Unidade Selecionada (Col 4) */}
         <section
-          className="col-span-12 lg:col-span-4 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
+          className="col-span-1 lg:col-span-4 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
           data-purpose="unit-detail-panel"
         >
           {selectedUnit ? (
@@ -726,6 +732,11 @@ export const UnitsView: React.FC = () => {
         condominiumId={currentCondominium?.id || ''}
         condominiumName={currentCondominium?.name || 'Condomínio'}
         onUnitCreated={handleUnitCreated}
+        onSuccess={(msg) => {
+          setNotification({ type: 'success', message: msg });
+          setTimeout(() => setNotification(null), 5000);
+          loadUnits();
+        }}
       />
 
       {/* Modal de Detalhes Completos da Unidade */}

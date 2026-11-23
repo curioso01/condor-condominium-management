@@ -1,11 +1,17 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { 
-  UserProfile, 
-  Condominium, 
-  CondominiumMember, 
-  CondominiumRole 
+import {
+  supabase,
+  isSupabaseConfigured,
+  isDemoModeEnabled,
+  DEMO_SESSION_STORAGE_KEY,
+  clearSensitiveLocalStorage,
+} from '../lib/supabase';
+import type {
+  UserProfile,
+  Condominium,
+  CondominiumMember,
+  CondominiumRole,
 } from '../types/database.types';
 
 export interface CondominiumWithRole {
@@ -21,9 +27,13 @@ export interface AuthContextType {
   currentCondominium: Condominium | null;
   currentRole: CondominiumRole | null;
   setCurrentCondominiumId: (condoId: string) => void;
+  refreshMemberships: () => Promise<void>;
   isLoading: boolean;
   isConfigured: boolean;
+  isDemoModeEnabled: boolean;
+  isDemoSession: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  enterDemoMode: (personaEmail: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPasswordForEmail: (email: string) => Promise<{ error: Error | null; successMessage?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
@@ -36,109 +46,118 @@ export interface AuthContextType {
   canManageUsers: boolean;
 }
 
-// Preset demonstration personas for testing & preview when live backend is offline
-const DEMO_PERSONAS: Record<string, {
-  user: User;
-  profile: UserProfile;
-  memberships: CondominiumWithRole[];
-}> = {
+const DEMO_CONDOMINIUMS: Condominium[] = [
+  {
+    id: 'condo-imperial-001',
+    name: 'Residencial Reserva Imperial (Demo 01)',
+    cnpj: '10.111.222/0001-01',
+    address: 'Av. Paulista, 1000',
+    city: 'São Paulo',
+    state: 'SP',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'condo-ilhas-002',
+    name: 'Condomínio Ilhas Gregas (Demo 02)',
+    cnpj: '20.222.333/0001-02',
+    address: 'Rua Oscar Freire, 450',
+    city: 'São Paulo',
+    state: 'SP',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'condo-jardim-003',
+    name: 'Edifício Jardim Botânico (Demo 03)',
+    cnpj: '30.333.444/0001-03',
+    address: 'Al. Santos, 820',
+    city: 'São Paulo',
+    state: 'SP',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'condo-palmeiras-004',
+    name: 'Solar das Palmeiras (Demo 04 - Vazio)',
+    cnpj: '40.444.555/0001-04',
+    address: 'Rua dos Pinheiros, 310',
+    city: 'São Paulo',
+    state: 'SP',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+// Personas de demonstração (somente utilizadas quando VITE_ENABLE_DEMO_MODE=true)
+const DEMO_PERSONAS: Record<
+  string,
+  {
+    user: User;
+    profile: UserProfile;
+    memberships: CondominiumWithRole[];
+  }
+> = {
   'sindico@condor.com.br': {
     user: {
       id: 'usr-sindico-001',
       app_metadata: {},
-      user_metadata: { full_name: 'Dra. Patrícia Lima' },
+      user_metadata: { full_name: 'Dra. Helena Martins (Demo)' },
       aud: 'authenticated',
       created_at: new Date().toISOString(),
       email: 'sindico@condor.com.br',
     } as unknown as User,
     profile: {
       id: 'usr-sindico-001',
-      full_name: 'Dra. Patrícia Lima',
-      phone: '(11) 98765-4321',
-      avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCcP2EM7PC3LJ-2tvwQdWRy4rZQHQfz32_v0HHn2ANWMg-BcuiRQgCTS3AsMkvhoYaTcH-I3azZMuXcowKAlf25CS3BVa5WIG7PXHBtH_9ptOqZJBwecSc-CShsf3tQACctQWqGXWl1GS7Bn95cYEubf_IEPUUzvlJ_wertPm0iXxxGASFB0WmV5nKuLcUOPwwMy2gn1vpEEXpUYVIHLw4THq1rGIi5WTlem19-6YXj88WVJd244wElMg',
+      full_name: 'Dra. Helena Martins (Demo)',
+      email: 'sindico@condor.com.br',
+      phone: '(11) 90000-0001',
+      avatar_url: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
-    memberships: [
-      {
-        condominium: {
-          id: 'condo-imperial-001',
-          name: 'Residencial Imperial Tower',
-          cnpj: '12.345.678/0001-90',
-          address: 'Av. Paulista, 1000',
-          city: 'São Paulo',
-          state: 'SP',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        membership: {
-          id: 'mem-001',
-          condominium_id: 'condo-imperial-001',
-          user_id: 'usr-sindico-001',
-          role: 'sindico',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+    memberships: DEMO_CONDOMINIUMS.map((condo, idx) => ({
+      condominium: condo,
+      membership: {
+        id: `mem-sindico-00${idx + 1}`,
+        condominium_id: condo.id,
+        user_id: 'usr-sindico-001',
+        role: 'sindico',
+        status: 'active',
+        log_access_granted: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
-      {
-        condominium: {
-          id: 'condo-ilhas-002',
-          name: 'Residencial Ilhas Gregas',
-          cnpj: '98.765.432/0001-10',
-          address: 'Rua das Palmeiras, 450',
-          city: 'Santos',
-          state: 'SP',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        membership: {
-          id: 'mem-002',
-          condominium_id: 'condo-ilhas-002',
-          user_id: 'usr-sindico-001',
-          role: 'sindico',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      },
-    ],
+    })),
   },
   'morador@condor.com.br': {
     user: {
       id: 'usr-morador-002',
       app_metadata: {},
-      user_metadata: { full_name: 'Carlos Eduardo Oliveira' },
+      user_metadata: { full_name: 'Morador Fictício (Demo)' },
       aud: 'authenticated',
       created_at: new Date().toISOString(),
       email: 'morador@condor.com.br',
     } as unknown as User,
     profile: {
       id: 'usr-morador-002',
-      full_name: 'Carlos Eduardo Oliveira',
-      phone: '(11) 97123-4567',
+      full_name: 'Morador Fictício (Demo)',
+      email: 'morador@condor.com.br',
+      phone: '(11) 90000-0002',
       avatar_url: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
     memberships: [
       {
-        condominium: {
-          id: 'condo-imperial-001',
-          name: 'Residencial Imperial Tower',
-          cnpj: '12.345.678/0001-90',
-          address: 'Av. Paulista, 1000',
-          city: 'São Paulo',
-          state: 'SP',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        condominium: DEMO_CONDOMINIUMS[0],
         membership: {
-          id: 'mem-003',
-          condominium_id: 'condo-imperial-001',
+          id: 'mem-morador-001',
+          condominium_id: DEMO_CONDOMINIUMS[0].id,
           user_id: 'usr-morador-002',
           role: 'morador',
           status: 'active',
+          log_access_granted: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -149,37 +168,30 @@ const DEMO_PERSONAS: Record<string, {
     user: {
       id: 'usr-porteiro-003',
       app_metadata: {},
-      user_metadata: { full_name: 'Marcos Silva (Portaria)' },
+      user_metadata: { full_name: 'Portaria Turno A (Demo)' },
       aud: 'authenticated',
       created_at: new Date().toISOString(),
       email: 'porteiro@condor.com.br',
     } as unknown as User,
     profile: {
       id: 'usr-porteiro-003',
-      full_name: 'Marcos Silva',
-      phone: '(11) 96543-2109',
+      full_name: 'Portaria Turno A (Demo)',
+      email: 'porteiro@condor.com.br',
+      phone: '(11) 90000-0003',
       avatar_url: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
     memberships: [
       {
-        condominium: {
-          id: 'condo-imperial-001',
-          name: 'Residencial Imperial Tower',
-          cnpj: '12.345.678/0001-90',
-          address: 'Av. Paulista, 1000',
-          city: 'São Paulo',
-          state: 'SP',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        condominium: DEMO_CONDOMINIUMS[0],
         membership: {
-          id: 'mem-004',
-          condominium_id: 'condo-imperial-001',
+          id: 'mem-porteiro-001',
+          condominium_id: DEMO_CONDOMINIUMS[0].id,
           user_id: 'usr-porteiro-003',
           role: 'porteiro',
           status: 'active',
+          log_access_granted: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -190,130 +202,37 @@ const DEMO_PERSONAS: Record<string, {
     user: {
       id: 'usr-admin-004',
       app_metadata: {},
-      user_metadata: { full_name: 'Superadministrador Condor' },
+      user_metadata: { full_name: 'Superadministrador Condor (Demo)' },
       aud: 'authenticated',
       created_at: new Date().toISOString(),
       email: 'admin@condor.com.br',
     } as unknown as User,
     profile: {
       id: 'usr-admin-004',
-      full_name: 'Superadministrador Geral',
-      phone: '(11) 99999-9999',
+      full_name: 'Superadministrador Condor (Demo)',
+      email: 'admin@condor.com.br',
+      phone: '(11) 90000-0000',
       avatar_url: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
-    memberships: [
-      {
-        condominium: {
-          id: 'condo-imperial-001',
-          name: 'Residencial Imperial Tower',
-          cnpj: '12.345.678/0001-90',
-          address: 'Av. Paulista, 1000',
-          city: 'São Paulo',
-          state: 'SP',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        membership: {
-          id: 'mem-005',
-          condominium_id: 'condo-imperial-001',
-          user_id: 'usr-admin-004',
-          role: 'superadmin',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+    memberships: DEMO_CONDOMINIUMS.map((condo, idx) => ({
+      condominium: condo,
+      membership: {
+        id: `mem-admin-00${idx + 1}`,
+        condominium_id: condo.id,
+        user_id: 'usr-admin-004',
+        role: 'superadmin',
+        status: 'active',
+        log_access_granted: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
-    ],
-  },
-  'morador.teste@condor.com.br': {
-    user: {
-      id: '786e1481-818d-4161-93b2-db836b08f168',
-      app_metadata: { provider: 'email', providers: ['email'] },
-      user_metadata: { full_name: 'Carlos Oliveira (Morador Teste)', role: 'morador' },
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-      email: 'morador.teste@condor.com.br',
-    } as unknown as User,
-    profile: {
-      id: '786e1481-818d-4161-93b2-db836b08f168',
-      full_name: 'Carlos Oliveira (Morador Teste)',
-      phone: '(11) 97123-4567',
-      avatar_url: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    memberships: [
-      {
-        condominium: {
-          id: 'condo-imperial-001',
-          name: 'Residencial Imperial Tower',
-          cnpj: '12.345.678/0001-90',
-          address: 'Av. Paulista, 1000',
-          city: 'São Paulo',
-          state: 'SP',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        membership: {
-          id: 'mem-morador-teste',
-          condominium_id: 'condo-imperial-001',
-          user_id: '786e1481-818d-4161-93b2-db836b08f168',
-          role: 'morador',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      },
-    ],
-  },
-  'porteiro.teste@condor.com.br': {
-    user: {
-      id: '28297913-3de5-45c5-8b33-ec019c174d4c',
-      app_metadata: { provider: 'email', providers: ['email'] },
-      user_metadata: { full_name: 'Antônio Ferreira (Porteiro Teste)', role: 'porteiro' },
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-      email: 'porteiro.teste@condor.com.br',
-    } as unknown as User,
-    profile: {
-      id: '28297913-3de5-45c5-8b33-ec019c174d4c',
-      full_name: 'Antônio Ferreira (Porteiro Teste)',
-      phone: '(11) 96543-2109',
-      avatar_url: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    memberships: [
-      {
-        condominium: {
-          id: 'condo-imperial-001',
-          name: 'Residencial Imperial Tower',
-          cnpj: '12.345.678/0001-90',
-          address: 'Av. Paulista, 1000',
-          city: 'São Paulo',
-          state: 'SP',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        membership: {
-          id: 'mem-porteiro-teste',
-          condominium_id: 'condo-imperial-001',
-          user_id: '28297913-3de5-45c5-8b33-ec019c174d4c',
-          role: 'porteiro',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      },
-    ],
+    })),
   },
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const DEMO_SESSION_KEY = 'condor_demo_session_email';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -322,9 +241,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [memberships, setMemberships] = useState<CondominiumWithRole[]>([]);
   const [currentCondominium, setCurrentCondominium] = useState<Condominium | null>(null);
   const [currentRole, setCurrentRole] = useState<CondominiumRole | null>(null);
+  const [isDemoSession, setIsDemoSession] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Load user profile and associated condominiums from Supabase database
   const loadUserData = useCallback(async (userId: string) => {
     try {
       if (!isSupabaseConfigured) return;
@@ -341,22 +260,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (profileData) {
-        const savedAvatar = localStorage.getItem('condor_custom_avatar');
-        setProfile({
-          ...(profileData as UserProfile),
-          ...(savedAvatar ? { avatar_url: savedAvatar } : {}),
-        });
+        setProfile(profileData as UserProfile);
       }
 
       // 2. Fetch user active memberships and condominium details
       const { data: memberData, error: memberError } = await supabase
         .from('condominium_members')
-        .select(`
+        .select(
+          `
           id,
           condominium_id,
           user_id,
           role,
           status,
+          log_access_granted,
           created_at,
           updated_at,
           condominiums:condominium_id (
@@ -369,13 +286,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             created_at,
             updated_at
           )
-        `)
+        `
+        )
         .eq('user_id', userId)
         .eq('status', 'active');
 
       if (memberError) {
         console.warn('[Condor Auth] Erro ao carregar vínculos condominiais:', memberError.message);
-      } else if (memberData && memberData.length > 0) {
+        setMemberships([]);
+        setCurrentCondominium(null);
+        setCurrentRole(null);
+        return;
+      }
+
+      if (memberData && memberData.length > 0) {
         const mappedMemberships: CondominiumWithRole[] = memberData
           .filter((item: any) => item.condominiums)
           .map((item: any) => ({
@@ -385,6 +309,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               user_id: item.user_id,
               role: item.role as CondominiumRole,
               status: item.status,
+              log_access_granted: Boolean(item.log_access_granted),
               created_at: item.created_at,
               updated_at: item.updated_at,
             },
@@ -392,15 +317,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }));
 
         setMemberships(mappedMemberships);
-        if (mappedMemberships.length > 0) {
-          setCurrentCondominium(mappedMemberships[0].condominium);
-          setCurrentRole(mappedMemberships[0].membership.role);
+
+        const savedCondoId = localStorage.getItem(`condor_active_condo_${userId}`);
+        const preferred =
+          (savedCondoId && mappedMemberships.find((m) => m.condominium.id === savedCondoId)) ||
+          mappedMemberships[0];
+
+        if (preferred) {
+          setCurrentCondominium(preferred.condominium);
+          setCurrentRole(preferred.membership.role);
         }
+      } else {
+        setMemberships([]);
+        setCurrentCondominium(null);
+        setCurrentRole(null);
       }
     } catch (err) {
       console.error('[Condor Auth] Erro inesperado ao recuperar contexto:', err);
     }
   }, []);
+
+  const refreshMemberships = useCallback(async () => {
+    if (user?.id && !isDemoSession && isSupabaseConfigured) {
+      await loadUserData(user.id);
+    }
+  }, [user?.id, isDemoSession, loadUserData]);
 
   // Initialize session on mount
   useEffect(() => {
@@ -409,10 +350,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async function initAuth() {
       setIsLoading(true);
 
-      // Check if demo session is stored
-      const demoEmail = sessionStorage.getItem(DEMO_SESSION_KEY);
-      if (!isSupabaseConfigured && demoEmail && DEMO_PERSONAS[demoEmail]) {
+      // Somente restaura sessão demonstrativa se VITE_ENABLE_DEMO_MODE=true
+      const demoEmail = sessionStorage.getItem(DEMO_SESSION_STORAGE_KEY);
+      if (isDemoModeEnabled && demoEmail && DEMO_PERSONAS[demoEmail]) {
         const persona = DEMO_PERSONAS[demoEmail];
+        setIsDemoSession(true);
+        setSession(null);
         setUser(persona.user);
         setProfile(persona.profile);
         setMemberships(persona.memberships);
@@ -420,12 +363,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentRole(persona.memberships[0]?.membership.role || null);
         setIsLoading(false);
         return;
+      } else if (!isDemoModeEnabled && demoEmail) {
+        sessionStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
       }
 
       if (isSupabaseConfigured) {
         try {
-          const { data: { session: initialSession } } = await supabase.auth.getSession();
+          const {
+            data: { session: initialSession },
+          } = await supabase.auth.getSession();
           if (isMounted) {
+            setIsDemoSession(false);
             setSession(initialSession);
             setUser(initialSession?.user ?? null);
             if (initialSession?.user) {
@@ -438,21 +386,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (isMounted) {
-        const savedAvatar = localStorage.getItem('condor_custom_avatar');
-        if (savedAvatar) {
-          setProfile((prev) => (prev ? { ...prev, avatar_url: savedAvatar } : prev));
-        }
         setIsLoading(false);
       }
     }
 
     initAuth();
 
-    // Listen for real-time auth changes
     let subscription: { unsubscribe: () => void } | null = null;
     if (isSupabaseConfigured) {
       const authListener = supabase.auth.onAuthStateChange(async (event, newSession) => {
         if (!isMounted) return;
+        // Se uma sessão real do Supabase ocorrer, garante que não é modo demo
+        if (newSession?.user) {
+          sessionStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+          setIsDemoSession(false);
+        }
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
@@ -477,26 +425,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loadUserData]);
 
   // Switch active condominium
-  const setCurrentCondominiumId = useCallback((condoId: string) => {
-    const found = memberships.find((m) => m.condominium.id === condoId);
-    if (found) {
-      setCurrentCondominium(found.condominium);
-      setCurrentRole(found.membership.role);
-    }
-  }, [memberships]);
+  const setCurrentCondominiumId = useCallback(
+    (condoId: string) => {
+      const found = memberships.find((m) => m.condominium.id === condoId);
+      if (found) {
+        setCurrentCondominium(found.condominium);
+        setCurrentRole(found.membership.role);
+        if (user?.id) {
+          try {
+            localStorage.setItem(`condor_active_condo_${user.id}`, condoId);
+          } catch {
+            // ignore storage errors
+          }
+        }
+      }
+    },
+    [memberships, user?.id]
+  );
 
-  // Sign In function
-  const signIn = useCallback(async (email: string, password: string): Promise<{ error: Error | null }> => {
-    setIsLoading(true);
-    try {
-      // If live Supabase is configured, use real auth
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+  /**
+   * Autenticação real via Supabase Auth.
+   * Com Supabase configurado, uma senha incorreta SEMPRE resulta em acesso negado
+   * (sem qualquer fallback automático para DEMO_PERSONAS).
+   */
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<{ error: Error | null }> => {
+      setIsLoading(true);
+      try {
+        if (isSupabaseConfigured) {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
 
-        if (!error && data.user) {
+          if (error || !data.user) {
+            setIsLoading(false);
+            return {
+              error: error || new Error('Acesso negado: credenciais inválidas.'),
+            };
+          }
+
+          sessionStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+          setIsDemoSession(false);
           setUser(data.user);
           setSession(data.session);
           await loadUserData(data.user.id);
@@ -504,59 +474,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { error: null };
         }
 
-        // Se falhou no Supabase (ex: email não confirmado no plano gratuito),
-        // mas é um usuário de teste da plataforma, ativa o login transparente de teste
-        const normalizedEmail = email.trim().toLowerCase();
-        const persona = DEMO_PERSONAS[normalizedEmail];
-        if (persona) {
-          sessionStorage.setItem(DEMO_SESSION_KEY, normalizedEmail);
-          setUser(persona.user);
-          setProfile(persona.profile);
-          setMemberships(persona.memberships);
-          setCurrentCondominium(persona.memberships[0]?.condominium || null);
-          setCurrentRole(persona.memberships[0]?.membership.role || null);
-          setIsLoading(false);
-          return { error: null };
-        }
-
-        if (error) {
-          setIsLoading(false);
-          return { error };
-        }
-      }
-
-      // Offline / Preview Demo authentication mode
-      const normalizedEmail = email.trim().toLowerCase();
-      const persona = DEMO_PERSONAS[normalizedEmail] || DEMO_PERSONAS['sindico@condor.com.br'];
-
-      if (persona) {
-        sessionStorage.setItem(DEMO_SESSION_KEY, normalizedEmail in DEMO_PERSONAS ? normalizedEmail : 'sindico@condor.com.br');
-        setUser(persona.user);
-        setProfile(persona.profile);
-        setMemberships(persona.memberships);
-        setCurrentCondominium(persona.memberships[0]?.condominium || null);
-        setCurrentRole(persona.memberships[0]?.membership.role || null);
+        // Se o Supabase não estiver configurado, o login por formulário é negado;
+        // o modo demonstração só pode ser acionado explicitamente via enterDemoMode se VITE_ENABLE_DEMO_MODE=true
         setIsLoading(false);
-        return { error: null };
+        return {
+          error: new Error(
+            isDemoModeEnabled
+              ? 'Banco Supabase não configurado. Utilize os botões explícitos de Modo Demonstração abaixo.'
+              : 'Serviço de autenticação indisponível: banco de dados Supabase não configurado.'
+          ),
+        };
+      } catch (err: any) {
+        setIsLoading(false);
+        return {
+          error: err instanceof Error ? err : new Error('Falha inesperada na autenticação.'),
+        };
+      }
+    },
+    [loadUserData]
+  );
+
+  /**
+   * Entrada explícita em modo demonstração.
+   * Bloqueada se VITE_ENABLE_DEMO_MODE !== 'true'.
+   */
+  const enterDemoMode = useCallback(
+    async (personaEmail: string): Promise<{ error: Error | null }> => {
+      if (!isDemoModeEnabled) {
+        return {
+          error: new Error(
+            'Modo demonstração desabilitado neste ambiente (VITE_ENABLE_DEMO_MODE=false).'
+          ),
+        };
       }
 
-      setIsLoading(false);
-      return { error: new Error('Credenciais inválidas.') };
-    } catch (err: any) {
-      setIsLoading(false);
-      return { error: err instanceof Error ? err : new Error('Falha inesperada no login.') };
-    }
-  }, [loadUserData]);
+      const normalizedEmail = personaEmail.trim().toLowerCase();
+      const persona = DEMO_PERSONAS[normalizedEmail];
+      if (!persona) {
+        return { error: new Error('Perfil de demonstração não encontrado.') };
+      }
 
-  // Sign Out function
+      sessionStorage.setItem(DEMO_SESSION_STORAGE_KEY, normalizedEmail);
+      setIsDemoSession(true);
+      setSession(null);
+      setUser(persona.user);
+      setProfile(persona.profile);
+      setMemberships(persona.memberships);
+      setCurrentCondominium(persona.memberships[0]?.condominium || null);
+      setCurrentRole(persona.memberships[0]?.membership.role || null);
+      return { error: null };
+    },
+    []
+  );
+
+  // Sign Out function — limpa todos os dados pessoais e caches de sessão locais
   const signOut = useCallback(async () => {
     setIsLoading(true);
     try {
-      sessionStorage.removeItem(DEMO_SESSION_KEY);
-      if (isSupabaseConfigured) {
+      clearSensitiveLocalStorage();
+      if (isSupabaseConfigured && !isDemoSession) {
         await supabase.auth.signOut();
       }
     } finally {
+      setIsDemoSession(false);
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -565,161 +545,204 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentRole(null);
       setIsLoading(false);
     }
-  }, []);
+  }, [isDemoSession]);
 
-  // Request password reset email (Supabase flow)
-  const resetPasswordForEmail = useCallback(async (email: string): Promise<{ error: Error | null; successMessage?: string }> => {
-    const genericSuccess = 'Se houver uma conta associada a este e-mail, as instruções para redefinição foram enviadas com sucesso.';
-    if (!isSupabaseConfigured) {
-      return { error: null, successMessage: genericSuccess };
-    }
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/#reset-password`,
-      });
-
-      if (error) {
-        console.warn('[Condor Auth] Erro ao solicitar redefinição:', error.message);
+  const resetPasswordForEmail = useCallback(
+    async (email: string): Promise<{ error: Error | null; successMessage?: string }> => {
+      const genericSuccess =
+        'Se houver uma conta associada a este e-mail, as instruções para redefinição foram enviadas com sucesso.';
+      if (!isSupabaseConfigured) {
+        return { error: null, successMessage: genericSuccess };
       }
 
-      // Security rule from auth-screens skill: Never leak whether an account exists
-      return { error: null, successMessage: genericSuccess };
-    } catch (err) {
-      return { error: null, successMessage: genericSuccess };
-    }
-  }, []);
-
-  // Update password after recovery
-  const updatePassword = useCallback(async (newPassword: string): Promise<{ error: Error | null }> => {
-    if (!isSupabaseConfigured) {
-      return { error: null };
-    }
-
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) {
-        return { error };
-      }
-
-      return { error: null };
-    } catch (err: any) {
-      return { error: err instanceof Error ? err : new Error('Falha ao atualizar senha.') };
-    }
-  }, []);
-
-  // Update user profile (name, phone, avatar_url)
-  const updateProfile = useCallback(async (updates: Partial<UserProfile>): Promise<{ error: Error | null }> => {
-    try {
-      setProfile((prev) => {
-        const updated = prev
-          ? { ...prev, ...updates, updated_at: new Date().toISOString() }
-          : ({
-              id: user?.id || 'usr-custom',
-              full_name: 'Usuário',
-              phone: null,
-              avatar_url: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              ...updates,
-            } as UserProfile);
-
-        try {
-          localStorage.setItem('condor_custom_profile', JSON.stringify(updated));
-          if (updates.avatar_url) {
-            localStorage.setItem('condor_custom_avatar', updates.avatar_url);
-          }
-        } catch {
-          // ignore localStorage issues
-        }
-
-        return updated;
-      });
-
-      if (isSupabaseConfigured && user?.id) {
-        await (supabase.from('user_profiles') as any).upsert({
-          id: user.id,
-          full_name: updates.full_name || profile?.full_name || 'Usuário Condor',
-          phone: updates.phone !== undefined ? updates.phone : (profile?.phone || null),
-          avatar_url: updates.avatar_url !== undefined ? updates.avatar_url : (profile?.avatar_url || null),
-          updated_at: new Date().toISOString(),
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: `${window.location.origin}/#reset-password`,
         });
 
-        if (updates.avatar_url || updates.full_name) {
-          await supabase.auth.updateUser({
-            data: {
-              ...(updates.avatar_url ? { avatar_url: updates.avatar_url } : {}),
-              ...(updates.full_name ? { full_name: updates.full_name } : {}),
-            },
-          });
+        if (error) {
+          console.warn('[Condor Auth] Erro ao solicitar redefinição:', error.message);
         }
+
+        return { error: null, successMessage: genericSuccess };
+      } catch {
+        return { error: null, successMessage: genericSuccess };
+      }
+    },
+    []
+  );
+
+  const updatePassword = useCallback(
+    async (newPassword: string): Promise<{ error: Error | null }> => {
+      if (!isSupabaseConfigured || isDemoSession) {
+        return {
+          error: new Error(
+            'A alteração de senha exige uma sessão autenticada no Supabase.'
+          ),
+        };
       }
 
-      return { error: null };
-    } catch (err: any) {
-      return { error: err instanceof Error ? err : new Error('Falha ao atualizar perfil.') };
-    }
-  }, [user?.id, profile?.full_name, profile?.avatar_url, profile?.phone]);
+      try {
+        const { error } = await supabase.auth.updateUser({
+          password: newPassword,
+        });
 
-  // Shortcut to update profile avatar
-  const updateAvatar = useCallback(async (newAvatarUrl: string): Promise<{ error: Error | null }> => {
-    return updateProfile({ avatar_url: newAvatarUrl });
-  }, [updateProfile]);
+        if (error) {
+          return { error };
+        }
 
-  // Authorization helper roles derived from current active condominium membership
+        return { error: null };
+      } catch (err: any) {
+        return { error: err instanceof Error ? err : new Error('Falha ao atualizar senha.') };
+      }
+    },
+    [isDemoSession]
+  );
+
+  const updateProfile = useCallback(
+    async (updates: Partial<UserProfile>): Promise<{ error: Error | null }> => {
+      try {
+        if (isSupabaseConfigured && !isDemoSession) {
+          if (!user?.id) {
+            return { error: new Error('Sessão de usuário inválida.') };
+          }
+
+          const payload = {
+            id: user.id,
+            full_name: updates.full_name || profile?.full_name || 'Usuário Condor',
+            email: user.email || profile?.email || null,
+            phone: updates.phone !== undefined ? updates.phone : profile?.phone || null,
+            avatar_url:
+              updates.avatar_url !== undefined ? updates.avatar_url : profile?.avatar_url || null,
+            updated_at: new Date().toISOString(),
+          };
+
+          const { data, error } = await (supabase.from('user_profiles') as any)
+            .upsert(payload)
+            .select('*')
+            .single();
+
+          if (error) {
+            return { error: new Error(error.message || 'Erro ao salvar perfil no Supabase.') };
+          }
+
+          setProfile(data as UserProfile);
+
+          if (updates.avatar_url || updates.full_name) {
+            await supabase.auth.updateUser({
+              data: {
+                ...(updates.avatar_url ? { avatar_url: updates.avatar_url } : {}),
+                ...(updates.full_name ? { full_name: updates.full_name } : {}),
+              },
+            });
+          }
+
+          return { error: null };
+        }
+
+        // Somente em sessão explícita de demonstração atualiza o estado em memória
+        if (isDemoSession && isDemoModeEnabled) {
+          setProfile((prev) =>
+            prev
+              ? { ...prev, ...updates, updated_at: new Date().toISOString() }
+              : ({
+                  id: user?.id || 'usr-demo',
+                  full_name: updates.full_name || 'Usuário Demo',
+                  phone: updates.phone || null,
+                  avatar_url: updates.avatar_url || null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                } as UserProfile)
+          );
+          return { error: null };
+        }
+
+        return { error: new Error('Não foi possível confirmar a persistência do perfil.') };
+      } catch (err: any) {
+        return { error: err instanceof Error ? err : new Error('Falha ao atualizar perfil.') };
+      }
+    },
+    [user?.id, user?.email, profile?.full_name, profile?.avatar_url, profile?.phone, profile?.email, isDemoSession]
+  );
+
+  const updateAvatar = useCallback(
+    async (newAvatarUrl: string): Promise<{ error: Error | null }> => {
+      return updateProfile({ avatar_url: newAvatarUrl });
+    },
+    [updateProfile]
+  );
+
+  // Regra estrita: Papel nulo JAMAIS concede qualquer permissão administrativa
   const isSuperAdmin = useMemo(() => currentRole === 'superadmin', [currentRole]);
-  const isSindico = useMemo(() => currentRole === 'sindico' || currentRole === 'superadmin', [currentRole]);
-  const isPorteiro = useMemo(() => currentRole === 'porteiro' || currentRole === 'sindico' || currentRole === 'superadmin', [currentRole]);
-  const isMorador = useMemo(() => Boolean(currentRole), [currentRole]);
+  const isSindico = useMemo(
+    () => currentRole === 'sindico' || currentRole === 'superadmin',
+    [currentRole]
+  );
+  const isPorteiro = useMemo(
+    () =>
+      currentRole === 'porteiro' ||
+      currentRole === 'sindico' ||
+      currentRole === 'superadmin',
+    [currentRole]
+  );
+  const isMorador = useMemo(() => currentRole === 'morador', [currentRole]);
+  const canManageUsers = useMemo(
+    () => currentRole === 'sindico' || currentRole === 'superadmin',
+    [currentRole]
+  );
 
-  // "Apenas o síndico e o super adm devem ter a função de cadastrar novos usuários e conceder privilégios"
-  const canManageUsers = useMemo(() => currentRole === 'sindico' || currentRole === 'superadmin', [currentRole]);
-
-  const value = useMemo<AuthContextType>(() => ({
-    user,
-    session,
-    profile,
-    memberships,
-    currentCondominium,
-    currentRole,
-    setCurrentCondominiumId,
-    isLoading,
-    isConfigured: isSupabaseConfigured,
-    signIn,
-    signOut,
-    resetPasswordForEmail,
-    updatePassword,
-    updateProfile,
-    updateAvatar,
-    isSuperAdmin,
-    isSindico,
-    isPorteiro,
-    isMorador,
-    canManageUsers,
-  }), [
-    user,
-    session,
-    profile,
-    memberships,
-    currentCondominium,
-    currentRole,
-    setCurrentCondominiumId,
-    isLoading,
-    signIn,
-    signOut,
-    resetPasswordForEmail,
-    updatePassword,
-    updateProfile,
-    updateAvatar,
-    isSuperAdmin,
-    isSindico,
-    isPorteiro,
-    isMorador,
-    canManageUsers,
-  ]);
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      session,
+      profile,
+      memberships,
+      currentCondominium,
+      currentRole,
+      setCurrentCondominiumId,
+      refreshMemberships,
+      isLoading,
+      isConfigured: isSupabaseConfigured,
+      isDemoModeEnabled,
+      isDemoSession,
+      signIn,
+      enterDemoMode,
+      signOut,
+      resetPasswordForEmail,
+      updatePassword,
+      updateProfile,
+      updateAvatar,
+      isSuperAdmin,
+      isSindico,
+      isPorteiro,
+      isMorador,
+      canManageUsers,
+    }),
+    [
+      user,
+      session,
+      profile,
+      memberships,
+      currentCondominium,
+      currentRole,
+      setCurrentCondominiumId,
+      refreshMemberships,
+      isLoading,
+      isDemoSession,
+      signIn,
+      enterDemoMode,
+      signOut,
+      resetPasswordForEmail,
+      updatePassword,
+      updateProfile,
+      updateAvatar,
+      isSuperAdmin,
+      isSindico,
+      isPorteiro,
+      isMorador,
+      canManageUsers,
+    ]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -1,10 +1,15 @@
 export type NavigationTab = 
   | 'overview' 
+  | 'portfolio'
   | 'finance' 
   | 'units' 
   | 'concierge' 
   | 'reservations' 
   | 'maintenance';
+
+export type InvoiceStatus = 'liquidated' | 'due_today' | 'overdue' | 'advance' | 'upcoming';
+
+export type AccessAuthType = 'facial' | 'qr' | 'qr_code' | 'delivery' | 'manual' | 'tag';
 
 export interface Condominium {
   id: string;
@@ -37,6 +42,8 @@ export interface Unit {
   parkingSpot: string;
   parkingFloor?: string;
   financialStatus: 'Condomínio em Dia' | 'Boleto a Vencer (Hoje)' | 'Em Atraso';
+  status?: string;
+  avatarUrl?: string;
   bioSyncCount: string;
   bioSyncActive: boolean;
   hasPet?: boolean;
@@ -56,10 +63,11 @@ export interface Invoice {
   unitNumber: string;
   block: string;
   residentName: string;
+  residentInitials?: string;
   description: string;
   dueDate: string;
   amount: number;
-  status: 'liquidated' | 'due_today' | 'overdue' | 'advance' | 'upcoming';
+  status: InvoiceStatus;
   statusLabel: string;
   pixAuthenticated: boolean;
   whatsappReminderSent?: boolean;
@@ -78,7 +86,7 @@ export interface AccessEntry {
   accessPoint: string;
   destination: string;
   type: 'Morador Residente' | 'Convidado QR Válido' | 'Liberação Temp. (15 min)' | 'Prestador de Serviço' | 'Abertura Remota Emergencial';
-  authType: 'facial' | 'qr' | 'qr_code' | 'delivery' | 'manual' | 'tag';
+  authType: AccessAuthType;
   authDetail: string;
 }
 
@@ -92,7 +100,20 @@ export interface AmenityReservation {
   endTime?: string; // HH:mm
   responsibleName: string;
   unitNumber: string;
-  status: 'Aprovado / Taxa Paga' | 'Aprovado' | 'Aguardando Caução';
+  rentalFee?: number;
+  status:
+    | 'Aprovado / Taxa Paga'
+    | 'Aprovado'
+    | 'Aprovada pela Administração'
+    | 'Recusada pela Administração'
+    | 'Aguardando Caução'
+    | 'Aguardando Aprovação do Síndico'
+    | 'Aprovado / Taxa em Boleto'
+    | 'Confirmada / Uso Gratuito'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'cancelled';
   statusType: 'success' | 'warning' | 'info';
 }
 
@@ -108,6 +129,7 @@ export interface MaintenanceOrder {
   progressPercentage: number;
   scheduledTime: string;
   scheduledDate?: string;
+  scheduledDateIso?: string;
   priority: 'Prioridade Máxima' | 'Média' | 'Normal' | 'Preventiva';
   technicians: {
     initials: string;

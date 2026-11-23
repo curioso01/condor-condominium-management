@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supportService } from '../../services/supportService';
 import {
   X,
   HelpCircle,
@@ -27,6 +28,13 @@ interface FaqItem {
 }
 
 const FAQ_ITEMS: FaqItem[] = [
+  {
+    id: 'faq-0',
+    category: 'Geral',
+    question: 'Como instalar o aplicativo CONDOR no celular (Android e iPhone)?',
+    answer:
+      'O CONDOR é um Progressive Web App (PWA) de alto desempenho: você pode instalá-lo no celular sem ocupar memória de downloads pesados. No Android (Chrome), clique no botão "Instalar App" ou no menu (três pontos) e selecione "Instalar aplicativo". No iPhone (Safari), toque no botão Compartilhar (quadrado com seta para cima) e escolha "Adicionar à Tela de Início". O app passa a abrir em tela cheia com acesso instantâneo!',
+  },
   {
     id: 'faq-1',
     category: 'Acesso',
@@ -87,6 +95,7 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
   // Support form state (for admin users)
   const [supportMessage, setSupportMessage] = useState('');
   const [supportSuccess, setSupportSuccess] = useState(false);
+  const [supportError, setSupportError] = useState<string | null>(null);
   const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
 
   const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin';
@@ -112,16 +121,28 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
     return matchesCategory && matchesSearch;
   });
 
-  const handleSendSupportTicket = (e: React.FormEvent) => {
+  const handleSendSupportTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supportMessage.trim()) return;
     setIsSubmittingSupport(true);
-    setTimeout(() => {
-      setIsSubmittingSupport(false);
-      setSupportSuccess(true);
-      setSupportMessage('');
-      setTimeout(() => setSupportSuccess(false), 5000);
-    }, 800);
+    setSupportError(null);
+    setSupportSuccess(false);
+
+    const { error } = await supportService.createTicket({
+      condominiumId: currentCondominium?.id,
+      subject: `Suporte — ${currentCondominium?.name || 'Condomínio'}`,
+      message: supportMessage.trim(),
+    });
+
+    setIsSubmittingSupport(false);
+    if (error) {
+      setSupportError(error.message);
+      return;
+    }
+
+    setSupportSuccess(true);
+    setSupportMessage('');
+    setTimeout(() => setSupportSuccess(false), 5000);
   };
 
   return (
@@ -311,6 +332,11 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
                   Enviar Mensagem Direta à Equipe Condor:
                 </label>
+                {supportError && (
+                  <p role="alert" className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                    {supportError}
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <input
                     type="text"

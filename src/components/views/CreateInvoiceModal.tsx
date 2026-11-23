@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
-import { X, Receipt, CheckCircle2, AlertCircle, CalendarDays, Users } from 'lucide-react';
+import { X, Receipt, CheckCircle2, AlertCircle, CalendarDays, Users, Landmark } from 'lucide-react';
 import type { Unit } from '../../types/condominium';
 import { toLocalIsoDate } from '../../services/invoiceService';
+import { bankAccountService } from '../../services/bankAccountService';
 
 const PRESET_DESCRIPTIONS = ['Condomínio Ordinário', 'Fundo de Reserva', 'Taxa Extra – Obras'];
 
@@ -63,6 +64,7 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const firstFieldRef = useRef<HTMLInputElement>(null);
+  const bankSettings = useMemo(() => bankAccountService.getSettings(), [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -217,6 +219,26 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
             <span>{formError}</span>
           </div>
         )}
+
+        {/* Banner do Banco Emissor Cadastrado */}
+        <div className="mb-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+              <Landmark className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800">
+                Banco Emissor: {bankSettings.bankName}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Agência {bankSettings.agency} • Conta {bankSettings.accountNumber}-{bankSettings.accountDigit} • Carteira {bankSettings.walletCode} • Pix: {bankSettings.pixKey}
+              </p>
+            </div>
+          </div>
+          <span className="hidden sm:inline text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+            QR Code Pix + Código FEBRABAN
+          </span>
+        </div>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {/* Descrição */}

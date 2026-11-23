@@ -37,7 +37,7 @@ const resetPasswordSchema = z.object({
 type AuthViewMode = 'login' | 'forgot_password' | 'reset_password';
 
 export const LoginView: React.FC = () => {
-  const { signIn, resetPasswordForEmail, updatePassword, isConfigured } = useAuth();
+  const { signIn, enterDemoMode, resetPasswordForEmail, updatePassword, isDemoModeEnabled } = useAuth();
 
   const [mode, setMode] = useState<AuthViewMode>('login');
   const [email, setEmail] = useState('');
@@ -137,12 +137,14 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  // Quick fill demo personas for developer and reviewer testing
-  const selectDemoPersona = (personaEmail: string) => {
-    setEmail(personaEmail);
-    setPassword('condor@2026');
+  // Explicit Demo Mode entry (only when VITE_ENABLE_DEMO_MODE=true)
+  const selectDemoPersona = async (personaEmail: string) => {
     setFormError(null);
     setFieldErrors({});
+    const { error } = await enterDemoMode(personaEmail);
+    if (error) {
+      setFormError(error.message);
+    }
   };
 
   return (
@@ -316,64 +318,54 @@ export const LoginView: React.FC = () => {
                 </button>
               </form>
 
-              {/* Developer / Demo Quick Access Switcher */}
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                    Perfis de Demonstração
-                  </span>
-                  {!isConfigured && (
-                    <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-semibold border border-amber-200">
-                      Modo Preview
+              {/* Explicit Demo Switcher (Visible ONLY when VITE_ENABLE_DEMO_MODE=true) */}
+              {isDemoModeEnabled && (
+                <div className="mt-8 pt-6 border-t border-amber-200 bg-amber-50/40 -mx-2 px-3 py-3 rounded-2xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                      Modo Demonstração (Simulado)
                     </span>
-                  )}
+                    <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold border border-amber-300">
+                      VITE_ENABLE_DEMO_MODE=true
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => selectDemoPersona('sindico@condor.com.br')}
+                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
+                    >
+                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Síndica (4 Condos)</span>
+                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDemoPersona('porteiro@condor.com.br')}
+                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
+                    >
+                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Portaria & Acessos</span>
+                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDemoPersona('morador@condor.com.br')}
+                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
+                    >
+                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Morador</span>
+                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDemoPersona('admin@condor.com.br')}
+                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
+                    >
+                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Super Admin</span>
+                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => selectDemoPersona('sindico@condor.com.br')}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-colors flex flex-col group"
-                  >
-                    <span className="font-bold text-slate-800 group-hover:text-emerald-700">Síndica Geral</span>
-                    <span className="text-[10px] text-slate-400">Res. Imperial (Admin)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => selectDemoPersona('porteiro@condor.com.br')}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-colors flex flex-col group"
-                  >
-                    <span className="font-bold text-slate-800 group-hover:text-emerald-700">Portaria & Acessos</span>
-                    <span className="text-[10px] text-slate-400">Guarita Principal</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => selectDemoPersona('morador@condor.com.br')}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-colors flex flex-col group"
-                  >
-                    <span className="font-bold text-slate-800 group-hover:text-emerald-700">Morador</span>
-                    <span className="text-[10px] text-slate-400">Unidade 302-B</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => selectDemoPersona('admin@condor.com.br')}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-colors flex flex-col group"
-                  >
-                    <span className="font-bold text-slate-800 group-hover:text-emerald-700">Super Admin</span>
-                    <span className="text-[10px] text-slate-400">Multi-condomínios</span>
-                  </button>
-                </div>
-
-                <div className="mt-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-[11px] text-slate-600">
-                  <span className="flex items-center gap-1.5">
-                    <span>Credenciais de teste:</span>
-                    <strong className="text-slate-800 font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">condor@2026</strong>
-                  </span>
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                    Supabase Pronto
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -550,7 +542,7 @@ export const LoginView: React.FC = () => {
         {/* Security Footer Notice */}
         <div className="mt-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Ambiente protegido por criptografia de ponta a ponta e Supabase Auth.</span>
+          <span>Ambiente protegido por criptografia de ponta a ponta e autenticação avançada.</span>
         </div>
       </div>
     </div>

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Condor SaaS - Manutenções &amp; Ordens de Serviço</title>
+<!-- Tailwind CSS CDN v3 com plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Configurações do Tailwind: Paleta Esmeralda & Ardósia e Bordas Ultra-Arredondadas estilo VANTA -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            emerald: {
+              DEFAULT: '#0d9488',
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+            },
+            slate: {
+              900: '#0f172a',
+              850: '#151e33',
+              800: '#1e293b',
+              700: '#334155',
+              100: '#f1f5f9',
+              50: '#f8fafc',
+            }
+          },
+          borderRadius: {
+            '3xl': '24px',
+            '4xl': '32px',
+            '5xl': '40px',
+          },
+          boxShadow: {
+            'soft': '0 10px 30px -5px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.02)',
+            'card': '0 18px 40px -12px rgba(15, 23, 42, 0.06)',
+            'pill': '0 4px 16px 0 rgba(13, 148, 136, 0.25)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- Google Fonts: Plus Jakarta Sans para estética SaaS ultra-moderna -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<style data-purpose="typography">
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+<style data-purpose="custom-scroll-and-effects">
+    /* Barra de rolagem sutil para manter o visual limpo */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-6 lg:p-8 flex items-center justify-center">
+<!-- BEGIN: MainContainer -->
+<!-- Container principal estilo Mockup/Aplicação Real com fundo suave e bordas arredondadas -->
+<div class="w-full max-w-[1520px] bg-[#f8fafc] rounded-4xl md:rounded-5xl shadow-card border border-slate-200/70 p-4 md:p-6 flex flex-col md:flex-row gap-5 overflow-hidden min-h-[920px]">
+<!-- BEGIN: FloatingSidebar -->
+<!-- Barra lateral flutuante em pílula branca com cantos ultra-arredondados -->
+<aside class="w-full md:w-20 bg-white rounded-3xl md:rounded-4xl p-4 flex md:flex-col items-center justify-between shadow-soft border border-slate-100 shrink-0">
+<!-- Logo do SaaS Condor -->
+<div class="flex flex-col items-center gap-1">
+<div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-white shadow-pill font-black text-xl tracking-tighter">
+          C
+        </div>
+<span class="text-[10px] font-extrabold tracking-widest text-slate-400 uppercase hidden md:block mt-1">CONDOR</span>
+</div>
+<!-- Links de Navegação Vertical -->
+<nav class="flex md:flex-col items-center gap-3">
+<!-- Ícone Dashboard Geral -->
+<button class="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors" title="Painel Geral">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<!-- Ícone Manutenções & Ordens de Serviço (Ativo em Pílula Esmeralda) -->
+<button class="w-12 h-12 rounded-2xl bg-emerald-600 text-white shadow-pill flex items-center justify-center transition-transform hover:scale-105" title="Manutenções &amp; OS">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<!-- Ícone Financeiro -->
+<button class="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors" title="Financeiro">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<!-- Ícone Portaria & Acesso -->
+<button class="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors" title="Controle de Acesso">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</nav>
+<!-- Ações do rodapé da barra lateral -->
+<div class="flex md:flex-col items-center gap-3">
+<button class="w-10 h-10 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</aside>
+<!-- END: FloatingSidebar -->
+<!-- BEGIN: MainContentArea -->
+<main class="flex-1 flex flex-col gap-6 overflow-y-auto pr-1">
+<!-- BEGIN: HeaderSection -->
+<!-- Cabeçalho superior: Pill Tabs, Barra de Busca e Perfil do Gestor -->
+<header class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 shrink-0">
+<!-- Pílulas de Navegação de Módulo (Estilo VANTA) -->
+<nav class="bg-white p-1.5 rounded-full shadow-soft flex items-center gap-1 border border-slate-100 overflow-x-auto">
+<button class="px-5 py-2.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors whitespace-nowrap">
+            Visão Geral
+          </button>
+<button class="px-5 py-2.5 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-pill whitespace-nowrap">
+            Ordens de Serviço
+          </button>
+<button class="px-5 py-2.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors whitespace-nowrap">
+            Preventivas
+          </button>
+<button class="px-5 py-2.5 rounded-full text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors whitespace-nowrap">
+            Fornecedores
+          </button>
+</nav>
+<!-- Controles Direitos: Busca Pill e Perfil -->
+<div class="flex items-center gap-3">
+<!-- Input Busca com atalho de teclado -->
+<div class="relative flex-1 lg:w-72 bg-white rounded-full px-4 py-2 shadow-soft border border-slate-100 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<input class="bg-transparent border-none text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-0 p-0 w-36" placeholder="Buscar OS, equipamento..." type="text"/>
+</div>
+<kbd class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">⌘K</kbd>
+</div>
+<!-- Botão Notificação -->
+<button class="w-10 h-10 rounded-full bg-white border border-slate-100 shadow-soft flex items-center justify-center text-slate-600 hover:bg-slate-50 relative">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span class="w-2 h-2 rounded-full bg-emerald-500 absolute top-2 right-2 ring-2 ring-white"></span>
+</button>
+<!-- Perfil do Gestor Predial -->
+<div class="bg-white rounded-full p-1 pl-3 shadow-soft border border-slate-100 flex items-center gap-2">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold text-slate-800 leading-tight">Rodrigo Paiva</p>
+<p class="text-[10px] font-medium text-slate-400">Síndico Geral</p>
+</div>
+<div class="w-9 h-9 rounded-full bg-slate-200 border-2 border-emerald-500 overflow-hidden flex items-center justify-center text-xs font-bold text-slate-700">
+              RP
+            </div>
+</div>
+</div>
+</header>
+<!-- END: HeaderSection -->
+<!-- BEGIN: BentoGridContainer -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+<!-- CARD 1: Status Geral de Chamados (md:col-span-4) -->
+<article class="md:col-span-4 bg-white rounded-3xl p-6 shadow-soft border border-slate-100 flex flex-col justify-between h-[300px]" data-purpose="metrics-summary">
+<div class="flex items-center justify-between">
+<div>
+<p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Panorama Operacional</p>
+<h2 class="text-xl font-extrabold text-slate-900 mt-0.5">Status dos Chamados</h2>
+</div>
+<span class="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold text-sm">
+              14
+            </span>
+</div>
+<!-- Métricas em Pílulas & Dados -->
+<div class="grid grid-cols-2 gap-3 my-auto">
+<div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+<div class="flex items-center gap-2 text-rose-500 text-xs font-bold mb-1">
+<span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                Urgentes
+              </div>
+<div class="text-2xl font-black text-slate-900">03 <span class="text-xs font-medium text-slate-400">chamados</span></div>
+</div>
+<div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+<div class="flex items-center gap-2 text-emerald-600 text-xs font-bold mb-1">
+<span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+                Preventivos
+              </div>
+<div class="text-2xl font-black text-slate-900">11 <span class="text-xs font-medium text-slate-400">em dia</span></div>
+</div>
+</div>
+<!-- Barra de Conformidade AVCB -->
+<div class="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-3 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs font-black">
+                ✓
+              </div>
+<div>
+<p class="text-xs font-extrabold text-emerald-950">AVCB 100% Conforme</p>
+<p class="text-[10px] font-medium text-emerald-700">Validade até 14/Nov/2026</p>
+</div>
+</div>
+<span class="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full shadow-sm">Regular</span>
+</div>
+</article>
+<!-- CARD 2: Gráfico Analítico de Manutenções (md:col-span-8) -->
+<article class="md:col-span-8 bg-white rounded-3xl p-6 shadow-soft border border-slate-100 flex flex-col justify-between h-[300px]" data-purpose="chart-analytics">
+<div class="flex flex-wrap items-center justify-between gap-3">
+<div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Performance de Resolução</p>
+</div>
+<h2 class="text-xl font-extrabold text-slate-900">Realizadas vs Preventivas Programadas</h2>
+</div>
+<!-- Seletor Pill Dia / Semana / Mês -->
+<div class="bg-slate-100 p-1 rounded-full flex items-center gap-1 text-xs font-semibold text-slate-600">
+<button class="px-3 py-1 rounded-full hover:text-slate-900">Dia</button>
+<button class="px-3 py-1 rounded-full bg-white shadow-sm font-bold text-slate-900">Semana</button>
+<button class="px-3 py-1 rounded-full hover:text-slate-900">Mês</button>
+</div>
+</div>
+<!-- Simulação Gráfico Vetorial em SVG com visual limpo do VANTA -->
+<div class="relative w-full h-36 flex flex-col justify-end">
+<!-- Ponto de Pico Flutuante (Tooltip) -->
+<div class="absolute left-[62%] top-2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+<span>Pico: 28 OS concluídas</span>
+</div>
+<svg class="w-full h-28 overflow-visible" preserveaspectratio="none" viewbox="0 0 600 120">
+<!-- Grid Horizontal -->
+<line stroke="#f1f5f9" stroke-dasharray="4 4" stroke-width="1" x1="0" x2="600" y1="20" y2="20"></line>
+<line stroke="#f1f5f9" stroke-dasharray="4 4" stroke-width="1" x1="0" x2="600" y1="70" y2="70"></line>
+<line stroke="#f1f5f9" stroke-width="1" x1="0" x2="600" y1="110" y2="110"></line>
+<!-- Linha de Fundo Suave (Preventivas) -->
+<path d="M0,85 C90,80 150,65 240,60 C330,55 420,40 510,35 L600,30" fill="none" stroke="#cbd5e1" stroke-dasharray="6 6" stroke-width="2.5"></path>
+<!-- Linha Gradiente Principal (Concluídas) -->
+<defs>
+<lineargradient id="emeraldGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#0d9488" stop-opacity="0.25"></stop>
+<stop offset="100%" stop-color="#0d9488" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<path d="M0,95 C100,90 180,45 280,60 C370,75 420,15 480,15 C540,15 570,30 600,25 L600,120 L0,120 Z" fill="url(#emeraldGrad)"></path>
+<path d="M0,95 C100,90 180,45 280,60 C370,75 420,15 480,15 C540,15 570,30 600,25" fill="none" stroke="#0d9488" stroke-linecap="round" stroke-width="3"></path>
+<!-- Ponto de destaque no ápice -->
+<circle cx="480" cy="15" fill="#0d9488" r="5" stroke="#ffffff" stroke-width="2.5"></circle>
+</svg>
+<!-- Legenda do Eixo X -->
+<div class="flex justify-between text-[11px] font-semibold text-slate-400 mt-2 px-1">
+<span>Seg 12</span>
+<span>Ter 13</span>
+<span>Qua 14</span>
+<span class="text-slate-900 font-bold">Qui 15 (Hoje)</span>
+<span>Sex 16</span>
+<span>Sáb 17</span>
+<span>Dom 18</span>
+</div>
+</div>
+<!-- Legendas de Status -->
+<div class="flex items-center gap-6 pt-2 border-t border-slate-100 text-xs">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-emerald-600"></span>
+<span class="font-bold text-slate-700">OS Executadas (94%)</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-slate-300"></span>
+<span class="font-medium text-slate-500">Meta Planejada</span>
+</div>
+</div>
+</article>
+<!-- CARD 3: Destaque Escuro - Inspeção Crítica (md:col-span-12 lg:col-span-4) -->
+<article class="md:col-span-12 lg:col-span-4 bg-slate-900 text-white rounded-3xl p-6 shadow-card flex flex-col justify-between min-h-[360px] relative overflow-hidden" data-purpose="critical-alert-card">
+<!-- Efeito de brilho de fundo esmeralda -->
+<div class="absolute -right-16 -top-16 w-52 h-52 bg-emerald-600/20 rounded-full blur-3xl pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between">
+<span class="px-3 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-extrabold uppercase tracking-wider">
+                Prioridade Máxima
+              </span>
+<span class="text-xs text-slate-400 font-medium">Torre A</span>
+</div>
+<h3 class="text-2xl font-black tracking-tight mt-4 leading-snug">
+              Inspeção Crítica: Elevadores ATLAS
+            </h3>
+<p class="text-slate-400 text-xs mt-2 leading-relaxed">
+              Verificação semestral obrigatória de cabos de tração e freios eletromagnéticos com emissão de ART.
+            </p>
+</div>
+<!-- Informações de Horário e Técnico Responsável -->
+<div class="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 my-4 space-y-3">
+<div class="flex items-center justify-between text-xs">
+<span class="text-slate-400 font-medium">Agendamento:</span>
+<span class="text-emerald-400 font-bold flex items-center gap-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                Amanhã, às 09:00
+              </span>
+</div>
+<div class="flex items-center gap-3 pt-2 border-t border-slate-700/40">
+<div class="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-xs text-white">
+                EN
+              </div>
+<div>
+<p class="text-xs font-bold text-slate-100">Eng. Marcos Fonseca</p>
+<p class="text-[10px] text-slate-400">CREA-SP 506.842-D • Atlas Schindler</p>
+</div>
+</div>
+</div>
+<!-- Botão Pill Branco de Ação Rápida -->
+<button class="w-full py-3 px-5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-pill flex items-center justify-center gap-2">
+<span>Ver Checklist Técnico</span>
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</article>
+<!-- SEÇÃO: Grade de Ordens de Serviço (md:col-span-12 lg:col-span-8) -->
+<div class="md:col-span-12 lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4" data-purpose="kanban-os-cards">
+<!-- OS #8491: Preventiva Concluída 100% -->
+<article class="bg-white rounded-3xl p-5 shadow-soft border border-slate-100 hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[175px]">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-black text-slate-400">OS #8491</span>
+<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                  100% Concluído
+                </span>
+</div>
+<h4 class="text-sm font-extrabold text-slate-900 mt-2">Inspeção Preventiva Elevadores</h4>
+<p class="text-xs text-slate-500 mt-1">Torre B &amp; C • Rotina mensal concluída</p>
+</div>
+<div class="mt-4">
+<!-- Barra de Progresso Cápsula Verde -->
+<div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-3">
+<div class="bg-emerald-600 h-2 rounded-full w-full"></div>
+</div>
+<div class="flex items-center justify-between text-xs">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px] font-bold ring-2 ring-white">MS</div>
+<div class="w-6 h-6 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px] font-bold ring-2 ring-white">LA</div>
+</div>
+<span class="text-[10px] font-medium text-slate-400">Finalizado hoje às 11:20</span>
+</div>
+</div>
+</article>
+<!-- OS #8502: Reparo Bomba de Recalque 67% -->
+<article class="bg-white rounded-3xl p-5 shadow-soft border border-slate-100 hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[175px]">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-black text-slate-400">OS #8502</span>
+<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">
+                  67% Em Andamento
+                </span>
+</div>
+<h4 class="text-sm font-extrabold text-slate-900 mt-2">Reparo Bomba de Recalque Subsolo 2</h4>
+<p class="text-xs text-slate-500 mt-1">Hidráulica Central • Troca de selo mecânico</p>
+</div>
+<div class="mt-4">
+<!-- Barra de Progresso Cápsula Azul/Esmeralda -->
+<div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-3">
+<div class="bg-sky-600 h-2 rounded-full w-[67%]"></div>
+</div>
+<div class="flex items-center justify-between text-xs">
+<span class="text-[11px] font-bold text-slate-700">Previsão: Hoje, 17:30</span>
+<span class="text-[10px] font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full">Etapa 2 de 3</span>
+</div>
+</div>
+</article>
+<!-- OS #8510: Substituição LED Garagem G1 -->
+<article class="bg-white rounded-3xl p-5 shadow-soft border border-slate-100 hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[175px]">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-black text-slate-400">OS #8510</span>
+<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                  Agendado
+                </span>
+</div>
+<h4 class="text-sm font-extrabold text-slate-900 mt-2">Substituição LED Garagem G1</h4>
+<p class="text-xs text-slate-500 mt-1">16 luminárias tubulares • Almoxarifado OK</p>
+</div>
+<div class="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between">
+<span class="text-[10px] font-bold text-slate-500">Agendado para Sexta, 08:00</span>
+<span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Materiais Reservados</span>
+</div>
+</article>
+<!-- OS #8515: Limpeza Caixas d'Água Bloco B -->
+<article class="bg-white rounded-3xl p-5 shadow-soft border border-slate-100 hover:border-emerald-300 transition-all flex flex-col justify-between min-h-[175px]">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-black text-slate-400">OS #8515</span>
+<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                  Laudo Emitido
+                </span>
+</div>
+<h4 class="text-sm font-extrabold text-slate-900 mt-2">Limpeza Semestral Caixas d'Água</h4>
+<p class="text-xs text-slate-500 mt-1">Bloco B (Superior + Cisterna) • Sanitas Engenharia</p>
+</div>
+<div class="mt-4 pt-2 border-t border-slate-100 flex items-center justify-between">
+<span class="text-[10px] font-medium text-slate-400">Potabilidade aprovada</span>
+<span class="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+                Certificado anexado
+              </span>
+</div>
+</article>
+</div>
+<!-- CARD INFERIOR 1: Calendário Técnico & Ação Nova OS (md:col-span-8) -->
+<article class="md:col-span-8 bg-white rounded-3xl p-6 shadow-soft border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6" data-purpose="technical-schedule-cta">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex flex-col items-center justify-center shrink-0 border border-emerald-100">
+<span class="text-[10px] font-extrabold uppercase leading-none">NOV</span>
+<span class="text-xl font-black mt-0.5">18</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Próximo Marco Obrigatório</p>
+</div>
+<h4 class="text-base font-extrabold text-slate-900 mt-0.5">Teste Mensal do Gerador Diesel Stemac</h4>
+<p class="text-xs text-slate-500">Teste em carga automática de 30 min sem desabastecer áreas comuns.</p>
+</div>
+</div>
+<!-- Botão Pill "+ Abrir Nova Ordem de Serviço" -->
+<button class="w-full sm:w-auto px-6 py-3.5 rounded-full bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs tracking-tight transition-all shadow-md hover:shadow-pill flex items-center justify-center gap-2 shrink-0">
+<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>+ Abrir Nova Ordem de Serviço</span>
+</button>
+</article>
+<!-- CARD INFERIOR 2: Condor AI Insights (md:col-span-4) -->
+<article class="md:col-span-4 bg-gradient-to-br from-emerald-50 to-teal-50/50 rounded-3xl p-6 border border-emerald-100/80 shadow-soft flex flex-col justify-between" data-purpose="ai-insights-box">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-sm">⚡</span>
+<span class="text-xs font-black tracking-wider text-emerald-900 uppercase">Condor AI Insights</span>
+</div>
+<span class="text-[10px] font-bold bg-white text-emerald-700 px-2 py-0.5 rounded-full shadow-xs">Telemetria Ativa</span>
+</div>
+<p class="text-xs font-medium text-slate-700 leading-relaxed my-3">
+            "Economia estimada de <strong class="text-emerald-900 font-extrabold">18% em manutenção corretiva</strong> através das rotinas preventivas de sensores IoT nas bombas hidráulicas."
+          </p>
+<div class="flex items-center justify-between pt-2 border-t border-emerald-100 text-[11px] font-bold text-emerald-800">
+<span>Sensores: 12/12 online</span>
+<a class="hover:underline flex items-center gap-1" href="#">Relatório Completo →</a>
+</div>
+</article>
+</section>
+<!-- END: BentoGridContainer -->
+</main>
+<!-- END: MainContentArea -->
+</div>
+<!-- END: MainContainer -->
+</body></html>

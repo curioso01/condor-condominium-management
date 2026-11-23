@@ -24,8 +24,8 @@ BEGIN
         RETURNING id INTO v_condo_id;
     END IF;
 
-    -- Senha criptografada padrão: condor@2026
-    v_encrypted_pw := crypt('condor@2026', gen_salt('bf'));
+    -- ATENÇÃO: Substitua o placeholder abaixo por uma senha temporária exclusiva de STAGING antes de executar no SQL Editor.
+    v_encrypted_pw := crypt('DEFINIR_SENHA_TEMPORARIA_STAGING', gen_salt('bf'));
 
     -- 3. CADASTRO DE MORADOR NO SUPABASE AUTH (auth.users)
     -- Se o usuário já foi criado via API, atualizamos a confirmação de e-mail e senha

@@ -1,12 +1,8 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { Unit as DatabaseUnit } from '../types/database.types';
+import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
+import type { Unit as DbUnit } from '../types/database.types';
 import type { Unit as UIUnit } from '../types/condominium';
 import { mockUnits } from './mockData';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function isUuid(val?: string | null): boolean {
-  return typeof val === 'string' && UUID_REGEX.test(val);
-}
+import { auditService } from './auditService';
 
 export interface CreateUnitInput {
   condominium_id: string;
@@ -18,75 +14,101 @@ export interface CreateUnitInput {
   residentType?: 'Proprietário' | 'Inquilino';
   parkingSpot?: string;
   hasPet?: boolean;
+  vehicleModel?: string;
+  vehiclePlate?: string;
+  squareMeters?: number;
+  residentsCount?: number;
 }
 
-function getStorageKey(condoId: string): string {
-  return `condor_units_${condoId || 'default'}`;
-}
+const DEMO_UNITS_KEY_PREFIX = 'condor_demo_units_';
 
-function getLocalUnits(condoId: string): UIUnit[] {
+function loadDemoUnits(condominiumId: string): UIUnit[] {
   try {
-    const raw = localStorage.getItem(getStorageKey(condoId));
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    const raw = localStorage.getItem(`${DEMO_UNITS_KEY_PREFIX}${condominiumId}`);
+    if (!raw) {
+      return condominiumId === 'condo-imperial-001' ? [...mockUnits] : [];
     }
-  } catch (e) {
-    console.warn('[unitService] Erro ao ler unidades locais:', e);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
-  return [...mockUnits];
 }
 
-function saveLocalUnits(condoId: string, units: UIUnit[]): void {
+function saveDemoUnits(condominiumId: string, units: UIUnit[]): void {
   try {
-    localStorage.setItem(getStorageKey(condoId), JSON.stringify(units));
-  } catch (e) {
-    console.warn('[unitService] Erro ao salvar unidades locais:', e);
+    localStorage.setItem(`${DEMO_UNITS_KEY_PREFIX}${condominiumId}`, JSON.stringify(units));
+  } catch {
+    // ignore storage errors in demo mode
   }
 }
 
-/**
- * Maps database units to UI presentation units, merging with any mock templates
- * or generating consistent presentation attributes for new units.
- */
-function mapDatabaseUnitToUI(dbUnit: DatabaseUnit): UIUnit {
-  // Check if there's a matching mock template by unit number to preserve rich Stitch details
-  const template = mockUnits.find((m) => m.number === dbUnit.identifier);
+export function mapDbUnitToUI(dbUnit: DbUnit, extra?: Partial<CreateUnitInput>): UIUnit {
+  const numHash = dbUnit.identifier
+    .split('')
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-  if (template) {
-    return {
-      ...template,
-      id: dbUnit.id,
-      number: dbUnit.identifier,
-      block: dbUnit.block,
-    };
-  }
+  const ownerName =
+    extra?.ownerName ||
+    dbUnit.owner_name ||
+    `Unidade ${dbUnit.identifier} (${dbUnit.block})`;
 
-  // Otherwise, construct a clean, realistic UIUnit representation
+  const residentType: 'Proprietário' | 'Inquilino' =
+    extra?.residentType ||
+    (dbUnit.resident_type as 'Proprietário' | 'Inquilino') ||
+    'Proprietário';
+
+  const hasPet =
+    extra?.hasPet !== undefined
+      ? extra.hasPet
+      : dbUnit.has_pet !== undefined
+      ? Boolean(dbUnit.has_pet)
+      : false;
+
+  const parkingSpot =
+    extra?.parkingSpot !== undefined
+      ? extra.parkingSpot
+      : dbUnit.parking_spot || `G1 - ${dbUnit.identifier}`;
+
   return {
     id: dbUnit.id,
     number: dbUnit.identifier,
     block: dbUnit.block,
-    tower: dbUnit.block.includes('B') ? 'Torre B' : 'Torre A',
-    squareMeters: 90 + ((parseInt(dbUnit.identifier, 10) || 1) % 5) * 15,
-    residentsCount: 2,
-    residentType: 'Proprietário',
-    ownerName: 'Morador Registrado',
-    contactName: 'Morador Registrado',
-    parkingSpot: `G-${dbUnit.identifier.slice(-2) || '01'}`,
-    parkingFloor: dbUnit.floor && dbUnit.floor > 5 ? 'Subsolo 1' : 'Térreo',
-    financialStatus: 'Condomínio em Dia',
-    bioSyncCount: '2/2',
+    tower: dbUnit.block,
+    ownerName,
+    contactName:
+      extra?.contactName ||
+      (dbUnit as any).contact_name ||
+      `${ownerName.split(' ')[0]} • ${residentType}`,
+    residentType,
+    avatarUrl: `https://images.unsplash.com/photo-${1500648767791 + (numHash % 5) * 1000}?w=150&auto=format&fit=crop&q=80`,
     bioSyncActive: true,
-    hasPet: false,
-    vehicleModel: 'Veículo Cadastrado',
-    vehiclePlate: 'BRA-2026',
+    bioSyncCount: '1 Facial Ativa',
+    financialStatus: 'Condomínio em Dia',
+    parkingSpot,
+    hasPet,
+    status: 'Ativo',
+    squareMeters: extra?.squareMeters ?? Number(dbUnit.square_meters ?? 92),
+    residentsCount: extra?.residentsCount ?? Number(dbUnit.residents_count ?? 1),
+    vehicleModel:
+      extra?.vehicleModel !== undefined
+        ? extra.vehicleModel
+        : dbUnit.vehicle_model || 'Não informado',
+    vehiclePlate:
+      extra?.vehiclePlate !== undefined
+        ? extra.vehiclePlate
+        : dbUnit.vehicle_plate || '—',
     members: [
       {
-        id: `mem-${dbUnit.id}-1`,
-        name: 'Morador Titular',
-        role: 'Titular',
-        initials: 'MT',
+        id: `mem-${dbUnit.id}`,
+        name: ownerName,
+        role: residentType,
+        initials: ownerName
+          .split(' ')
+          .map((w) => w[0])
+          .slice(0, 2)
+          .join('')
+          .toUpperCase(),
         bioSyncActive: true,
         isMainContact: true,
       },
@@ -96,13 +118,23 @@ function mapDatabaseUnitToUI(dbUnit: DatabaseUnit): UIUnit {
 
 export const unitService = {
   /**
-   * Fetches all units for the given condominium from Supabase or localStorage.
+   * Busca todas as unidades de um condomínio no Supabase.
+   * Quando conectado ao Supabase, retorna [] se o condomínio estiver vazio (sem mockUnits).
    */
-  async getUnitsByCondominium(condominiumId: string): Promise<{ data: UIUnit[]; error: Error | null }> {
-    const local = getLocalUnits(condominiumId);
+  async getUnitsByCondominium(condominiumId: string): Promise<{
+    data: UIUnit[];
+    error: { message: string; code?: string } | null;
+  }> {
+    if (!condominiumId) {
+      return { data: [], error: null };
+    }
 
-    if (!isSupabaseConfigured || !isUuid(condominiumId)) {
-      return { data: local, error: null };
+    if (isDemoSessionActive()) {
+      return { data: loadDemoUnits(condominiumId), error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: [], error: { message: 'Supabase não configurado.' } };
     }
 
     try {
@@ -114,148 +146,315 @@ export const unitService = {
         .order('identifier', { ascending: true });
 
       if (error) {
-        console.warn('[unitService] Erro ao buscar unidades:', error.message);
-        return { data: local, error: null };
+        return { data: [], error: { message: error.message, code: error.code } };
       }
 
-      if (!data || data.length === 0) {
-        return { data: local, error: null };
-      }
-
-      const mapped = data.map(mapDatabaseUnitToUI);
-      saveLocalUnits(condominiumId, mapped);
+      const mapped = ((data as DbUnit[]) || []).map((u) => mapDbUnitToUI(u));
       return { data: mapped, error: null };
     } catch (err: any) {
-      console.error('[unitService] Erro inesperado ao buscar unidades:', err);
-      return { data: local, error: null };
+      return {
+        data: [],
+        error: { message: err?.message || 'Erro ao buscar unidades no Supabase.' },
+      };
     }
   },
 
   /**
-   * Creates a new unit in the Supabase database and local storage.
+   * Cadastra uma nova unidade com os dados completos de morador, vaga, pet e veículo no Supabase.
+   * Não retorna sucesso se o banco falhar.
    */
-  async createUnit(input: CreateUnitInput): Promise<{ data: UIUnit | null; error: Error | null }> {
-    const localId = `unit-${Date.now()}`;
-    const newUIUnit: UIUnit = {
-      id: localId,
-      number: input.identifier.trim(),
-      block: input.block.trim(),
-      tower: input.block.includes('B') ? 'Torre B' : 'Torre A',
-      squareMeters: 90,
-      residentsCount: 2,
-      residentType: input.residentType || 'Proprietário',
-      ownerName: input.ownerName || 'Morador Registrado',
-      contactName: input.contactName || 'Morador Registrado',
-      parkingSpot: input.parkingSpot || `G-${input.identifier.slice(-2) || '01'}`,
-      parkingFloor: input.floor && input.floor > 5 ? 'Subsolo 1' : 'Térreo',
-      financialStatus: 'Condomínio em Dia',
-      bioSyncCount: '1/1',
-      bioSyncActive: true,
-      hasPet: Boolean(input.hasPet),
-      vehicleModel: 'Veículo Cadastrado',
-      vehiclePlate: 'BRA-2026',
-      members: [
+  async createUnit(input: CreateUnitInput): Promise<{
+    data: UIUnit | null;
+    error: { message: string; code?: string; isDuplicate?: boolean } | null;
+  }> {
+    if (isDemoSessionActive()) {
+      const current = loadDemoUnits(input.condominium_id);
+      const duplicate = current.some(
+        (u) =>
+          u.block.toLowerCase() === input.block.trim().toLowerCase() &&
+          u.number.toLowerCase() === input.identifier.trim().toLowerCase()
+      );
+      if (duplicate) {
+        return {
+          data: null,
+          error: {
+            message: `A unidade ${input.identifier} no ${input.block} já está cadastrada neste condomínio.`,
+            isDuplicate: true,
+          },
+        };
+      }
+      const demoUnit = mapDbUnitToUI(
         {
-          id: `mem-${localId}`,
-          name: input.contactName || input.ownerName || 'Morador',
-          role: 'Titular',
-          initials: (input.contactName || 'MT').slice(0, 2).toUpperCase(),
-          bioSyncActive: true,
-          isMainContact: true,
-        },
-      ],
-    };
-
-    if (!isSupabaseConfigured || !isUuid(input.condominium_id)) {
-      const list = getLocalUnits(input.condominium_id);
-      const updated = [newUIUnit, ...list];
-      saveLocalUnits(input.condominium_id, updated);
-      return { data: newUIUnit, error: null };
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('units')
-        .insert({
+          id: `demo-unit-${Date.now()}`,
           condominium_id: input.condominium_id,
           identifier: input.identifier.trim(),
           block: input.block.trim(),
           floor: input.floor ?? null,
-        })
-        .select()
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        input
+      );
+      saveDemoUnits(input.condominium_id, [demoUnit, ...current]);
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { data: demoUnit, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return {
+        data: null,
+        error: { message: 'Cadastro bloqueado: banco de dados Supabase não configurado.' },
+      };
+    }
+
+    try {
+      const extendedPayload = {
+        condominium_id: input.condominium_id,
+        identifier: input.identifier.trim(),
+        block: input.block.trim(),
+        floor: input.floor,
+        owner_name: input.ownerName?.trim() || null,
+        contact_name: input.ownerName?.trim()
+          ? `${input.ownerName.trim().split(' ')[0]} • ${input.residentType || 'Proprietário'}`
+          : null,
+        resident_type: input.residentType || 'Proprietário',
+        parking_spot: input.parkingSpot?.trim() || null,
+        has_pet: Boolean(input.hasPet),
+        vehicle_model: input.vehicleModel?.trim() || null,
+        vehicle_plate: input.vehiclePlate?.trim() || null,
+        square_meters: input.squareMeters ?? 92,
+        residents_count: input.residentsCount ?? 1,
+      };
+
+      let { data, error } = await (supabase.from('units') as any)
+        .insert(extendedPayload)
+        .select('*')
         .single();
 
-      if (error) {
-        if (error.code === '23505') {
-          return { data: null, error: new Error(`A unidade ${input.identifier} já existe neste bloco.`) };
-        }
-        console.warn('[unitService] Falha Supabase, gravando localmente:', error.message);
-        const list = getLocalUnits(input.condominium_id);
-        saveLocalUnits(input.condominium_id, [newUIUnit, ...list]);
-        return { data: newUIUnit, error: null };
+      // Caso a migration 20261104000001 ainda não tenha sido rodada (erro 42703 column does not exist),
+      // tenta inserir com as colunas básicas para não quebrar antes da migration, mas ainda exigindo persistência no Supabase
+      if (error && (error.code === '42703' || error.message?.includes('column'))) {
+        const fallbackRes = await (supabase.from('units') as any)
+          .insert({
+            condominium_id: input.condominium_id,
+            identifier: input.identifier.trim(),
+            block: input.block.trim(),
+            floor: input.floor,
+          })
+          .select('*')
+          .single();
+        data = fallbackRes.data;
+        error = fallbackRes.error;
       }
 
-      const uiUnit = mapDatabaseUnitToUI(data);
-      if (input.ownerName) uiUnit.ownerName = input.ownerName;
-      if (input.contactName) uiUnit.contactName = input.contactName;
-      if (input.residentType) uiUnit.residentType = input.residentType;
-      if (input.parkingSpot) uiUnit.parkingSpot = input.parkingSpot;
-      if (typeof input.hasPet === 'boolean') uiUnit.hasPet = input.hasPet;
+      if (error || !data) {
+        const isDuplicate =
+          error?.code === '23505' || error?.message?.includes('unique_condominium_unit');
+        return {
+          data: null,
+          error: {
+            message: isDuplicate
+              ? `A unidade ${input.identifier} no ${input.block} já está cadastrada neste condomínio.`
+              : error?.message || 'Erro ao salvar unidade no Supabase.',
+            code: error?.code,
+            isDuplicate,
+          },
+        };
+      }
 
-      const list = getLocalUnits(input.condominium_id);
-      saveLocalUnits(input.condominium_id, [uiUnit, ...list]);
-      return { data: uiUnit, error: null };
+      const createdUI = mapDbUnitToUI(data as DbUnit, input);
+
+      await auditService.log({
+        condominiumId: input.condominium_id,
+        action: 'UNIT_CREATED',
+        entityTable: 'units',
+        entityId: createdUI.id,
+        metadata: { identifier: createdUI.number, block: createdUI.block },
+      });
+
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { data: createdUI, error: null };
     } catch (err: any) {
-      const list = getLocalUnits(input.condominium_id);
-      saveLocalUnits(input.condominium_id, [newUIUnit, ...list]);
-      return { data: newUIUnit, error: null };
+      return {
+        data: null,
+        error: { message: err?.message || 'Erro inesperado ao salvar unidade no Supabase.' },
+      };
     }
   },
 
   /**
-   * Seeds initial sample units for a condominium.
+   * Remove uma unidade do condomínio no Supabase.
    */
-  async seedInitialUnits(condominiumId: string): Promise<{ count: number; error: Error | null }> {
-    const list = [...mockUnits];
-    saveLocalUnits(condominiumId, list);
-
-    if (isSupabaseConfigured && isUuid(condominiumId)) {
-      try {
-        const initialRows = [
-          { condominium_id: condominiumId, identifier: '402', block: 'Bloco A', floor: 4 },
-          { condominium_id: condominiumId, identifier: '401', block: 'Bloco A', floor: 4 },
-          { condominium_id: condominiumId, identifier: '303', block: 'Bloco A', floor: 3 },
-          { condominium_id: condominiumId, identifier: '108', block: 'Bloco B', floor: 1 },
-          { condominium_id: condominiumId, identifier: '204', block: 'Bloco B', floor: 2 },
-          { condominium_id: condominiumId, identifier: '501', block: 'Bloco B', floor: 5 },
-        ];
-
-        await supabase
-          .from('units')
-          .upsert(initialRows, { onConflict: 'condominium_id,block,identifier' });
-      } catch (err) {
-        console.warn('[unitService] Falha seed Supabase:', err);
-      }
+  async deleteUnit(
+    unitId: string,
+    condominiumId: string
+  ): Promise<{
+    error: { message: string } | null;
+  }> {
+    if (isDemoSessionActive()) {
+      const current = loadDemoUnits(condominiumId);
+      saveDemoUnits(
+        condominiumId,
+        current.filter((u) => u.id !== unitId)
+      );
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { error: null };
     }
 
-    return { count: list.length, error: null };
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Exclusão bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('units')
+        .delete()
+        .eq('id', unitId)
+        .eq('condominium_id', condominiumId);
+
+      if (error) {
+        return { error: { message: error.message } };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'UNIT_DELETED',
+        entityTable: 'units',
+        entityId: unitId,
+      });
+
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { error: null };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Erro ao excluir unidade no Supabase.' } };
+    }
   },
 
   /**
-   * Deletes a unit by its ID.
+   * Atualiza ou cadastra os dados de morador/censo de uma unidade diretamente no Supabase.
    */
-  async deleteUnit(condominiumId: string, unitId: string): Promise<{ error: Error | null }> {
-    const list = getLocalUnits(condominiumId);
-    saveLocalUnits(condominiumId, list.filter((u) => u.id !== unitId));
+  async registerOrUpdateResidentUnit(input: {
+    condominium_id: string;
+    identifier: string;
+    block: string;
+    residentName: string;
+    residentType: 'Proprietário' | 'Inquilino';
+    hasPet: boolean;
+    phone?: string;
+    cpf?: string;
+    email?: string;
+  }): Promise<{ data: UIUnit | null; error: { message: string } | null }> {
+    const cleanIdentifier = input.identifier.replace(/\s*\(.*?\)\s*/g, '').trim() || '101';
+    const cleanBlock = input.block.trim() || 'Bloco A';
+    const digits = cleanIdentifier.replace(/\D/g, '');
+    const inferredFloor = digits.length >= 3 ? parseInt(digits.slice(0, -2), 10) : 1;
 
-    if (isSupabaseConfigured && isUuid(unitId)) {
-      try {
-        await supabase.from('units').delete().eq('id', unitId);
-      } catch (err: any) {
-        return { error: err instanceof Error ? err : new Error('Falha ao excluir unidade') };
+    if (isDemoSessionActive()) {
+      const current = loadDemoUnits(input.condominium_id);
+      const existingIndex = current.findIndex(
+        (u) =>
+          u.number.toLowerCase() === cleanIdentifier.toLowerCase() &&
+          u.block.toLowerCase() === cleanBlock.toLowerCase()
+      );
+      if (existingIndex >= 0) {
+        const updatedUnit: UIUnit = {
+          ...current[existingIndex],
+          ownerName: input.residentName.trim(),
+          contactName: `${input.residentName.trim().split(' ')[0]} • ${input.residentType}`,
+          residentType: input.residentType,
+          hasPet: input.hasPet,
+          status: 'Ativo',
+        };
+        const updatedList = [...current];
+        updatedList[existingIndex] = updatedUnit;
+        saveDemoUnits(input.condominium_id, updatedList);
+        window.dispatchEvent(new CustomEvent('condor:units-updated'));
+        return { data: updatedUnit, error: null };
       }
+      return this.createUnit({
+        condominium_id: input.condominium_id,
+        identifier: cleanIdentifier,
+        block: cleanBlock,
+        floor: inferredFloor,
+        ownerName: input.residentName.trim(),
+        residentType: input.residentType,
+        hasPet: input.hasPet,
+      });
     }
 
-    return { error: null };
+    if (!isSupabaseConfigured) {
+      return { data: null, error: { message: 'Supabase não configurado.' } };
+    }
+
+    try {
+      const payload = {
+        condominium_id: input.condominium_id,
+        identifier: cleanIdentifier,
+        block: cleanBlock,
+        floor: inferredFloor,
+        owner_name: input.residentName.trim(),
+        contact_name: `${input.residentName.trim().split(' ')[0]} • ${input.residentType}`,
+        resident_type: input.residentType,
+        has_pet: input.hasPet,
+      };
+
+      const { data, error } = await (supabase.from('units') as any)
+        .upsert(payload, { onConflict: 'condominium_id,block,identifier' })
+        .select('*')
+        .single();
+
+      if (error || !data) {
+        return {
+          data: null,
+          error: { message: error?.message || 'Erro ao sincronizar unidade no Supabase.' },
+        };
+      }
+
+      const mapped = mapDbUnitToUI(data as DbUnit, {
+        ownerName: input.residentName.trim(),
+        residentType: input.residentType,
+        hasPet: input.hasPet,
+      });
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { data: mapped, error: null };
+    } catch (err: any) {
+      return {
+        data: null,
+        error: { message: err?.message || 'Erro ao atualizar unidade no Supabase.' },
+      };
+    }
+  },
+
+  /**
+   * Popula unidades de teste quando acionado explicitamente pelo administrador.
+   */
+  async seedInitialUnits(condominiumId: string): Promise<{
+    count: number;
+    error: { message: string } | null;
+  }> {
+    if (!isSupabaseConfigured || isDemoSessionActive()) {
+      return { count: 0, error: { message: 'Disponível apenas com Supabase conectado.' } };
+    }
+
+    const sampleUnits = [
+      { condominium_id: condominiumId, identifier: '101', block: 'Bloco A', floor: 1, owner_name: 'Morador Fictício 101', resident_type: 'Proprietário', has_pet: true },
+      { condominium_id: condominiumId, identifier: '102', block: 'Bloco A', floor: 1, owner_name: 'Morador Fictício 102', resident_type: 'Inquilino', has_pet: false },
+      { condominium_id: condominiumId, identifier: '201', block: 'Bloco B', floor: 2, owner_name: 'Morador Fictício 201', resident_type: 'Proprietário', has_pet: false },
+    ];
+
+    try {
+      const { data, error } = await (supabase.from('units') as any)
+        .upsert(sampleUnits, { onConflict: 'condominium_id,block,identifier', ignoreDuplicates: true })
+        .select('*');
+
+      if (error) {
+        return { count: 0, error: { message: error.message } };
+      }
+
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { count: data?.length || sampleUnits.length, error: null };
+    } catch (err: any) {
+      return { count: 0, error: { message: err?.message || 'Erro ao popular unidades.' } };
+    }
   },
 };
