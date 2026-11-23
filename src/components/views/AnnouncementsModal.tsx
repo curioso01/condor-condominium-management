@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 import { announcementService, type Announcement } from '../../services/announcementService';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 export type { Announcement };
 
@@ -267,31 +268,35 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
                   <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                     Categoria
                   </label>
-                  <select
+                  <PremiumSelect
+                    ariaLabel="Categoria do comunicado"
+                    size="md"
                     value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="Comunicado">Comunicado Geral</option>
-                    <option value="Urgente">Urgente</option>
-                    <option value="Assembleia">Assembleia</option>
-                    <option value="Manutenção">Manutenção</option>
-                    <option value="Convivência">Convivência</option>
-                  </select>
+                    onChange={(val) => setNewCategory(val as any)}
+                    options={[
+                      { value: 'Comunicado', label: 'Comunicado Geral' },
+                      { value: 'Urgente', label: 'Urgente' },
+                      { value: 'Assembleia', label: 'Assembleia' },
+                      { value: 'Manutenção', label: 'Manutenção' },
+                      { value: 'Convivência', label: 'Convivência' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                     Prioridade
                   </label>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="media">Média</option>
-                    <option value="alta">Alta (Fixar no Topo)</option>
-                  </select>
+                  <PremiumSelect
+                    ariaLabel="Prioridade do comunicado"
+                    size="md"
+                    value={newPriority || 'normal'}
+                    onChange={(val) => setNewPriority(val as any)}
+                    options={[
+                      { value: 'normal', label: 'Normal' },
+                      { value: 'media', label: 'Média' },
+                      { value: 'alta', label: 'Alta (Fixar no Topo)' },
+                    ]}
+                  />
                 </div>
               </div>
 

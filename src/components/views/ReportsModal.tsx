@@ -17,6 +17,7 @@ import { conciergeService } from '../../services/conciergeService';
 import { amenityService } from '../../services/amenityService';
 import { maintenanceService } from '../../services/maintenanceService';
 import { financialDataService } from '../../services/financialDataService';
+import { printHtmlDocument, escapeHtml } from '../../utils/printDocument';
 import type {
   Invoice,
   AccessEntry,
@@ -441,11 +442,46 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+              disabled={reportData.rows.length === 0}
+              onClick={() => {
+                const headersHtml = reportData.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('');
+                const rowsHtml = reportData.rows
+                  .map((r) => `<tr>${r.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`)
+                  .join('');
+                const body = `
+                  <div class="wrap">
+                    <div class="top">
+                      <div>
+                        <div class="kicker">CONDOR • RELATÓRIO OFICIAL</div>
+                        <h1>${escapeHtml(reportData.title)}</h1>
+                        <div class="sub">${escapeHtml(condominiumName)} • Emitido em ${escapeHtml(new Date().toLocaleString('pt-BR'))}</div>
+                      </div>
+                      <div class="count">${reportData.rows.length} registros</div>
+                    </div>
+                    <table>
+                      <thead><tr>${headersHtml}</tr></thead>
+                      <tbody>${rowsHtml}</tbody>
+                    </table>
+                  </div>
+                `;
+                const css = `
+                  .wrap { padding: 4px; }
+                  .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+                  .kicker { font-size: 9px; font-weight: 800; color: #059669; letter-spacing: 0.08em; }
+                  h1 { margin: 2px 0; font-size: 18px; }
+                  .sub { font-size: 11px; color: #475569; }
+                  .count { font-size: 11px; font-weight: 800; background: #f1f5f9; padding: 5px 10px; border-radius: 999px; }
+                  table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+                  th { text-align: left; background: #f1f5f9; padding: 7px 8px; border-bottom: 1.5px solid #cbd5e1; font-weight: 800; text-transform: uppercase; font-size: 9.5px; }
+                  td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+                  tr:nth-child(even) td { background: #f8fafc; }
+                `;
+                printHtmlDocument(`${reportData.title} — ${condominiumName}`, body, css);
+              }}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Imprimir</span>
+              <span>Imprimir / PDF</span>
             </button>
             <button
               type="button"

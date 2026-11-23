@@ -8,32 +8,41 @@ import { OrderDetailModal } from './OrderDetailModal';
 import { Badge } from '../ui/Badge';
 import { EmptyState } from '../ui/EmptyState';
 import { Skeleton } from '../ui/Skeleton';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { DynamicTelemetryChart } from '../common/DynamicTelemetryChart';
 import { 
   CheckCircle2, 
   AlertCircle, 
   Database, 
   RefreshCw, 
-  Sparkles, 
+  Sparkles,
   Plus,
   Wrench,
   ShieldCheck,
   Clock,
   MapPin,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  Loader2,
+  FileCheck2,
+  Check,
+  Activity,
+  CalendarDays,
 } from 'lucide-react';
 
 export const MaintenanceView: React.FC = () => {
-  const { currentCondominium, isSuperAdmin } = useAuth();
+  const { currentCondominium, isSuperAdmin, isSindico } = useAuth();
+  const canDeleteOrders = isSuperAdmin || isSindico;
 
   const [orders, setOrders] = useState<MaintenanceOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMockMode, setIsMockMode] = useState(false);
   const [tableMissing, setTableMissing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<MaintenanceOrder | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<MaintenanceOrder | null>(null);
+  const [isDeletingOrder, setIsDeletingOrder] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Urgentes' | 'Em Andamento' | 'Agendados' | 'Concluídos'>('Todos');
 
@@ -47,10 +56,8 @@ export const MaintenanceView: React.FC = () => {
 
     if (error?.tableMissing) {
       setTableMissing(true);
-      setIsMockMode(true);
     } else {
       setTableMissing(false);
-      setIsMockMode(false);
     }
 
     setOrders(data);
@@ -185,21 +192,29 @@ export const MaintenanceView: React.FC = () => {
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleSeedOrders = async () => {
-    if (!currentCondominium?.id) return;
-    const { count, error } = await maintenanceService.seedInitialMaintenanceOrders(currentCondominium.id);
+  const handleConfirmDeleteOrder = async () => {
+    if (!orderToDelete || !currentCondominium?.id) return;
+    setIsDeletingOrder(true);
+    const { error } = await maintenanceService.deleteOrder(orderToDelete.id, currentCondominium.id);
+    setIsDeletingOrder(false);
 
     if (error) {
-      setNotification({ type: 'error', message: error.message });
+      setNotification({ type: 'error', message: `Não foi possível excluir: ${error.message}` });
       setTimeout(() => setNotification(null), 5000);
-    } else {
-      await loadOrders();
-      setNotification({
-        type: 'success',
-        message: `${count} ordens de serviço iniciais criadas com sucesso!`,
-      });
-      setTimeout(() => setNotification(null), 5000);
+      return;
     }
+
+    setOrders((prev) => prev.filter((o) => o.id !== orderToDelete.id));
+    if (selectedOrder?.id === orderToDelete.id) {
+      setIsDetailModalOpen(false);
+      setSelectedOrder(null);
+    }
+    setNotification({
+      type: 'success',
+      message: `Ordem de Serviço ${orderToDelete.code} removida permanentemente.`,
+    });
+    setOrderToDelete(null);
+    setTimeout(() => setNotification(null), 4000);
   };
 
   return (
@@ -286,24 +301,13 @@ export const MaintenanceView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {orders.length < 4 && !isMockMode && (
-            <button
-              type="button"
-              onClick={handleSeedOrders}
-              className="px-3.5 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs"
-              title={isSuperAdmin ? "Inserir ordens padrão de elevadores, hidráulica e caixas d'água no Supabase" : "Inserir ordens padrão de manutenção"}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Popular Exemplos Reais</span>
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-bold shadow-pill transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Nova Ordem de Serviço</span>
+            <span>Nova Ordem de Serviço</span>
           </button>
         </div>
       </div>
@@ -642,17 +646,44 @@ export const MaintenanceView: React.FC = () => {
                           className="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all bg-white dark:bg-slate-700 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-xs"
                         >
                           {isUpdating ? (
-                            <span className="animate-spin text-xs">⏳</span>
+                            <Loader2 className="w-3 h-3 animate-spin" />
                           ) : isScheduled ? (
-                            <span>Iniciar →</span>
+                            <>
+                              <span>Iniciar</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </>
                           ) : isInProgress ? (
-                            <span>Concluir ✓</span>
+                            <>
+                              <span>Concluir</span>
+                              <Check className="w-3 h-3" />
+                            </>
                           ) : isCompleted && !order.hasCertificate ? (
-                            <span>Laudo 📜</span>
+                            <>
+                              <span>Laudo</span>
+                              <FileCheck2 className="w-3 h-3" />
+                            </>
                           ) : (
-                            <span>OK ✓</span>
+                            <>
+                              <span>Finalizada</span>
+                              <Check className="w-3 h-3" />
+                            </>
                           )}
                         </button>
+
+                        {canDeleteOrders && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOrderToDelete(order);
+                            }}
+                            aria-label={`Excluir ${order.code}`}
+                            title="Excluir ordem de serviço"
+                            className="p-1.5 rounded-lg bg-white dark:bg-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-600 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -681,73 +712,91 @@ export const MaintenanceView: React.FC = () => {
         )}
       </section>
 
-      {/* LINHA 4: Rodapé Técnico - Calendário de Vistorias & Inteligência Predial */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0">
-        {/* Card Marco Obrigatório (lg:col-span-7) */}
-        <article className="col-span-1 lg:col-span-7 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-5">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex flex-col items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-800/60">
-              <span className="text-[10px] font-extrabold uppercase leading-none">NOV</span>
-              <span className="text-xl font-black mt-0.5">18</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Próximo Marco Obrigatório</p>
-              </div>
-              <h4 className="text-base font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">
-                Teste Mensal do Gerador Diesel Stemac
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Teste em carga automática de 30 min sem desabastecer áreas comuns do condomínio.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-slate-900 hover:bg-emerald-600 dark:bg-slate-800 dark:hover:bg-emerald-600 text-white font-bold text-xs tracking-tight transition-all shadow-sm flex items-center justify-center gap-2 shrink-0 cursor-pointer border border-transparent dark:border-slate-700"
-          >
-            <span>+ Agendar Ordem</span>
-          </button>
-        </article>
+      {/* LINHA 4: Rodapé Técnico 100% Real (Próxima OS Agendada + Resumo Real) */}
+      {(() => {
+        const nextScheduled =
+          orders.find((o) => o.statusType === 'scheduled') ||
+          orders.find((o) => o.statusType === 'in_progress') ||
+          null;
+        const openCount = orders.filter(
+          (o) => o.statusType !== 'completed' && o.statusType !== 'certified'
+        ).length;
+        const certifiedCount = orders.filter((o) => o.hasCertificate).length;
 
-        {/* Card Condor AI (lg:col-span-5) */}
-        <article className="col-span-1 lg:col-span-5 w-full min-w-0 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900 rounded-3xl p-5 sm:p-6 border border-emerald-100/80 dark:border-emerald-800/50 shadow-soft flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-sm">
-                ⚡
-              </span>
-              <span className="text-xs font-black tracking-wider text-emerald-900 dark:text-emerald-300 uppercase">
-                Condor AI Insights
-              </span>
-            </div>
-            <span className="text-[10px] font-bold bg-white dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/40 dark:border-emerald-700/50 px-2 py-0.5 rounded-full shadow-xs">
-              Telemetria Ativa
-            </span>
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0">
+            {/* Próxima Manutenção Agendada (Dados Reais) */}
+            <article className="col-span-1 lg:col-span-7 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-5">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-800/60">
+                  <CalendarDays className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Próxima Manutenção Programada
+                    </p>
+                  </div>
+                  {nextScheduled ? (
+                    <>
+                      <h4 className="text-base font-extrabold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
+                        {nextScheduled.code} — {nextScheduled.title}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {nextScheduled.location} • {nextScheduled.scheduledTime}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h4 className="text-base font-extrabold text-slate-900 dark:text-slate-100 mt-0.5">
+                        Nenhuma manutenção pendente agendada
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Agende vistorias preventivas de bombas, elevadores, AVCB ou áreas comuns.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-slate-900 hover:bg-emerald-600 dark:bg-slate-800 dark:hover:bg-emerald-600 text-white font-bold text-xs tracking-tight transition-all shadow-sm flex items-center justify-center gap-2 shrink-0 cursor-pointer border border-transparent dark:border-slate-700"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Agendar Ordem</span>
+              </button>
+            </article>
+
+            {/* Resumo Técnico Real */}
+            <article className="col-span-1 lg:col-span-5 w-full min-w-0 bg-gradient-to-br from-emerald-50 via-teal-50/40 to-white dark:from-emerald-950/40 dark:via-slate-900 dark:to-slate-900 rounded-3xl p-5 sm:p-6 border border-emerald-100/80 dark:border-emerald-800/50 shadow-soft flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                    <Activity className="w-4 h-4" />
+                  </span>
+                  <span className="text-xs font-black tracking-wider text-emerald-900 dark:text-emerald-300 uppercase">
+                    Conformidade Predial Real
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold bg-white dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/40 dark:border-emerald-700/50 px-2.5 py-0.5 rounded-full shadow-xs">
+                  {metrics.resolutionRate}% concluídas
+                </span>
+              </div>
+              <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-relaxed my-2.5">
+                {orders.length === 0
+                  ? 'Nenhuma ordem de serviço registrada neste condomínio até o momento.'
+                  : `${openCount} ordem(ns) em aberto, ${metrics.completedCount} concluída(s) e ${certifiedCount} com laudo/certificado emitido no banco de dados.`}
+              </p>
+              <div className="flex items-center justify-between pt-2 border-t border-emerald-100 dark:border-emerald-800/50 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                <span>Total: {orders.length} OS registradas</span>
+                <span>{metrics.preventiveCount} preventiva(s)</span>
+              </div>
+            </article>
           </div>
-          <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-relaxed my-2.5">
-            "Economia estimada de <strong className="text-emerald-900 dark:text-emerald-400 font-extrabold">18% em manutenção corretiva</strong> através das rotinas preventivas de sensores IoT nas bombas hidráulicas."
-          </p>
-          <div className="flex items-center justify-between pt-2 border-t border-emerald-100 dark:border-emerald-800/50 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
-            <span>Sensores: 12/12 online</span>
-            <button
-              type="button"
-              onClick={() => {
-                setNotification({
-                  type: 'info',
-                  message: 'Telemetria IoT: 12 bombas e elevadores operando em conformidade de vibração e temperatura.',
-                });
-                setTimeout(() => setNotification(null), 4000);
-              }}
-              className="hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              Relatório Completo →
-            </button>
-          </div>
-        </article>
-      </div>
+        );
+      })()}
 
       {/* Modal de Criação de OS */}
       <CreateMaintenanceOrderModal
@@ -763,7 +812,26 @@ export const MaintenanceView: React.FC = () => {
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         onAdvanceStatus={handleAdvanceStatus}
+        onDeleteOrder={
+          canDeleteOrders
+            ? (ord) => {
+                setOrderToDelete(ord);
+              }
+            : undefined
+        }
         isUpdating={updatingOrderId === selectedOrder?.id}
+      />
+
+      {/* Confirmação Acessível de Exclusão de OS */}
+      <ConfirmDialog
+        isOpen={Boolean(orderToDelete)}
+        title={`Excluir ${orderToDelete?.code || 'Ordem de Serviço'}?`}
+        description={`Tem certeza que deseja excluir permanentemente "${orderToDelete?.title || ''}"? Esta ação remove o registro do Supabase e registra a exclusão na trilha de auditoria.`}
+        confirmLabel="Excluir Permanentemente"
+        variant="danger"
+        isLoading={isDeletingOrder}
+        onConfirm={handleConfirmDeleteOrder}
+        onCancel={() => setOrderToDelete(null)}
       />
     </div>
   );

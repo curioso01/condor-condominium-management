@@ -169,6 +169,7 @@ CREATE POLICY delete_amenity_reservations
 
 -- ============================================================================
 -- 4. MANUTENÇÃO: ALINHAMENTO RBAC — PORTEIRO PODE ABRIR NOVAS ORDENS DE SERVIÇO
+--    E SÍNDICO / SUPERADMIN PODEM EXCLUIR ORDENS DE SERVIÇO
 -- ============================================================================
 DROP POLICY IF EXISTS insert_maintenance_orders ON public.maintenance_orders;
 DROP POLICY IF EXISTS "insert_maintenance_orders" ON public.maintenance_orders;
@@ -177,6 +178,15 @@ CREATE POLICY insert_maintenance_orders
   WITH CHECK (
     public.is_superadmin()
     OR public.user_has_condo_role(condominium_id, ARRAY['sindico', 'porteiro']::VARCHAR[])
+  );
+
+DROP POLICY IF EXISTS delete_maintenance_orders ON public.maintenance_orders;
+DROP POLICY IF EXISTS "delete_maintenance_orders" ON public.maintenance_orders;
+CREATE POLICY delete_maintenance_orders
+  ON public.maintenance_orders FOR DELETE TO authenticated
+  USING (
+    public.is_superadmin()
+    OR public.is_condo_admin(condominium_id)
   );
 
 -- ============================================================================

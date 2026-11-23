@@ -380,23 +380,53 @@ export const maintenanceService = {
     return this.updateOrderStatus(orderId, nextStatus, condominiumId);
   },
 
-  async seedInitialMaintenanceOrders(condominiumId: string): Promise<{
-    count: number;
-    error: { message: string } | null;
-  }> {
-    const res = await this.createOrder({
-      condominium_id: condominiumId,
-      title: 'Inspeção Preventiva de Elevadores e Bombas',
-      location: 'Torre A & Casa de Máquinas',
-      category: 'Elevadores',
-      description: 'Manutenção preventiva programada do condomínio.',
-      priority: 'Preventiva',
-      scheduledDateIso: new Date().toISOString().slice(0, 10),
-      scheduledTime: '09:00 às 12:00',
-      technicianName: 'Equipe Técnica',
-      technicianCompany: 'Atlas Manutenção',
-      materialsReserved: true,
-    });
-    return { count: res.error ? 0 : 1, error: res.error };
+  /**
+   * Exclui permanentemente uma Ordem de Serviço no Supabase (apenas síndico/superadmin via RLS).
+   */
+  async deleteOrder(
+    orderId: string,
+    condominiumId: string
+  ): Promise<{ error: { message: string } | null }> {
+    if (!orderId || !condominiumId) {
+      return { error: { message: 'Identificador de ordem ou condomínio inválido.' } };
+    }
+
+    if (isDemoSessionActive()) {
+      const current = loadDemoOrders(condominiumId);
+      saveDemoOrders(
+        condominiumId,
+        current.filter((o) => o.id !== orderId)
+      );
+      return { error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Exclusão de OS bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { error } = await (supabase.from('maintenance_orders') as any)
+        .delete()
+        .eq('id', orderId)
+        .eq('condominium_id', condominiumId);
+
+      if (error) {
+        return { error: { message: error.message } };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'MAINTENANCE_ORDER_DELETED',
+        entityTable: 'maintenance_orders',
+        entityId: orderId,
+        metadata: { orderId },
+      });
+
+      return { error: null };
+    } catch (err: any) {
+      return {
+        error: { message: err?.message || 'Erro ao excluir ordem de serviço no Supabase.' },
+      };
+    }
   },
 };

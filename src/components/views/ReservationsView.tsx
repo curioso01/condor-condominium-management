@@ -12,6 +12,7 @@ import { CreateReservationModal } from './CreateReservationModal';
 import { CommonAreaModal } from './CommonAreaModal';
 import { EmptyState } from '../ui/EmptyState';
 import { Skeleton } from '../ui/Skeleton';
+import { AmenityIconBadge } from '../common/AmenityIconBadge';
 import {
   CalendarDays,
   Plus,
@@ -330,8 +331,8 @@ export const ReservationsView: React.FC = () => {
                     key={r.id}
                     className="p-1.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs hover:border-teal-300 dark:hover:border-teal-600 transition-colors"
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-sm shrink-0">{r.emoji || '🎉'}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AmenityIconBadge spaceName={r.spaceName} emoji={r.emoji} size="xs" />
                       <div className="min-w-0">
                         <p className="text-[11px] font-bold text-slate-900 dark:text-slate-100 truncate">
                           {r.spaceName}
@@ -411,9 +412,18 @@ export const ReservationsView: React.FC = () => {
                 Próximos 60 Dias
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Legenda de cores: 🟢 Verde = Livre • 🟡 Amarelo = Parcialmente Ocupado • 🔴 Vermelho = Totalmente Ocupado
-            </p>
+            <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400 mt-1">
+              <span>Legenda:</span>
+              <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-300 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Livre
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-300 font-medium">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /> Parcialmente Ocupado
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-300 font-medium">
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> Totalmente Ocupado
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
@@ -517,15 +527,7 @@ export const ReservationsView: React.FC = () => {
                   >
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-xl font-bold">
-                          {area.name.includes('Gourmet') || area.name.includes('Churrasco')
-                            ? '🥩'
-                            : area.name.includes('Piscina')
-                            ? '🏊‍♂️'
-                            : area.name.includes('Academia')
-                            ? '🏋️'
-                            : '🎉'}
-                        </div>
+                        <AmenityIconBadge spaceName={area.name} emoji={area.emoji} size="lg" />
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                             {area.requires_approval ? 'Requer Aprovação' : 'Aprovação Imediata'}
@@ -673,9 +675,7 @@ export const ReservationsView: React.FC = () => {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-base shrink-0">
-                          {res.emoji || '🎉'}
-                        </div>
+                        <AmenityIconBadge spaceName={res.spaceName} emoji={res.emoji} size="md" />
                         <div className="min-w-0">
                           <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                             {res.spaceName}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Package } from 'lucide-react';
 import type { Unit } from '../../types/condominium';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 export interface PackageDeliveryModalProps {
   isOpen: boolean;
@@ -167,18 +168,20 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                 Selecionar Unidade Cadastrada
               </label>
-              <select
+              <PremiumSelect
+                ariaLabel="Selecionar unidade cadastrada"
+                size="sm"
                 value={selectedUnitId}
-                onChange={(e) => handleSelectUnit(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="">Informar manualmente...</option>
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    Apto {u.number} • {u.block} — {u.ownerName || u.contactName || 'Morador'}
-                  </option>
-                ))}
-              </select>
+                onChange={handleSelectUnit}
+                options={[
+                  { value: '', label: 'Informar manualmente...' },
+                  ...units.map((u) => ({
+                    value: u.id,
+                    label: `Apto ${u.number} • ${u.block}`,
+                    description: u.ownerName || u.contactName || 'Morador',
+                  })),
+                ]}
+              />
             </div>
           )}
 
@@ -216,33 +219,25 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                 Transportadora
               </label>
-              <select
+              <PremiumSelect
+                ariaLabel="Transportadora"
+                size="sm"
                 value={courier}
-                onChange={(e) => setCourier(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                {COURIER_OPTIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={setCourier}
+                options={COURIER_OPTIONS}
+              />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                 Local / Armário
               </label>
-              <select
+              <PremiumSelect
+                ariaLabel="Local ou armário da encomenda"
+                size="sm"
                 value={lockerCompartment}
-                onChange={(e) => setLockerCompartment(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                {COMPARTMENT_OPTIONS.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
+                onChange={setLockerCompartment}
+                options={COMPARTMENT_OPTIONS}
+              />
             </div>
           </div>
 

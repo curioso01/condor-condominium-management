@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import QRCode from 'qrcode';
 import {
   X,
   Printer,
@@ -18,6 +19,7 @@ import {
   type CondominiumBankSettings,
 } from '../../services/bankAccountService';
 import { QrCodeDisplay } from '../common/QrCodeDisplay';
+import { printHtmlDocument, escapeHtml } from '../../utils/printDocument';
 
 export interface BoletoInvoiceData {
   id: string;
@@ -115,8 +117,144 @@ export const BoletoModal: React.FC<BoletoModalProps> = ({
     setTimeout(() => setCopiedKey(false), 2500);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    let qrDataUrl = '';
+    if (pixConfigured && pixPayload) {
+      try {
+        qrDataUrl = await QRCode.toDataURL(pixPayload, {
+          width: 240,
+          margin: 1,
+          errorCorrectionLevel: 'M',
+          color: { dark: '#0f172a', light: '#ffffff' },
+        });
+      } catch (err) {
+        console.warn('[BoletoModal] Erro ao gerar QR Code para impressão:', err);
+      }
+    }
+
+    const beneficiary = escapeHtml(bank.beneficiaryName || currentCondominium?.name || 'Condomínio');
+    const cnpj = escapeHtml(bank.beneficiaryCnpj || currentCondominium?.cnpj || 'Não informado');
+    const bankLine = escapeHtml(bank.bankName || 'Conta do Condomínio');
+    const unitLine = escapeHtml(`Unidade ${currentInvoice.unitNumber} • ${currentInvoice.block}`);
+    const resident = escapeHtml(currentInvoice.residentName);
+    const desc = escapeHtml(currentInvoice.description);
+    const due = escapeHtml(currentInvoice.dueDate);
+    const docId = escapeHtml(currentInvoice.documentNumber || currentInvoice.id);
+    const issuedAt = escapeHtml(new Date().toLocaleString('pt-BR'));
+
+    const pixSection = pixConfigured
+      ? `
+        <div class="pix-box">
+          <div class="pix-grid">
+            ${qrDataUrl ? `<div class="qr-wrap"><img src="${qrDataUrl}" alt="QR Code Pix Oficial" width="156" height="156" /></div>` : ''}
+            <div class="pix-info">
+              <div class="badge">PIX OFICIAL • BR CODE BACEN (CRC16)</div>
+              <h3>Pague via Pix no aplicativo do seu banco</h3>
+              <p>Escaneie o QR Code ao lado ou utilize a chave Pix oficial cadastrada pela administração deste condomínio:</p>
+              <div class="key-pill"><strong>Chave Pix (${escapeHtml(bank.pixKeyType)}):</strong> ${escapeHtml(bank.pixKey)}</div>
+              <div class="copy-box">
+                <div class="copy-label">Pix Copia e Cola (EMVCo):</div>
+                <div class="copy-code">${escapeHtml(pixPayload)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+      : `
+        <div class="warn-box">
+          <strong>Chave Pix do condomínio ainda não cadastrada.</strong><br/>
+          Cadastre a chave Pix oficial em Configurações &gt; Banco de Recebimento &amp; Boletos para exibir o QR Code neste demonstrativo.
+        </div>
+      `;
+
+    const bodyHtml = `
+      <div class="sheet">
+        <div class="header">
+          <div>
+            <div class="brand">CONDOR • GESTÃO CONDOMINIAL</div>
+            <h1>${beneficiary}</h1>
+            <div class="meta">CNPJ: ${cnpj} &nbsp;•&nbsp; ${bankLine}</div>
+          </div>
+          <div class="amount-box">
+            <div class="amount-label">VALOR A PAGAR</div>
+            <div class="amount-value">${escapeHtml(formattedAmount)}</div>
+            <div class="due-label">Vencimento: <strong>${due}</strong></div>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-card">
+            <div class="label">Pagador / Responsável</div>
+            <div class="val">${resident}</div>
+          </div>
+          <div class="info-card">
+            <div class="label">Unidade / Bloco</div>
+            <div class="val">${unitLine}</div>
+          </div>
+          <div class="info-card">
+            <div class="label">Referência / Descrição</div>
+            <div class="val">${desc}</div>
+          </div>
+          <div class="info-card">
+            <div class="label">Identificador do Documento</div>
+            <div class="val mono">${docId}</div>
+          </div>
+        </div>
+
+        ${pixSection}
+
+        <div class="instructions">
+          <div class="inst-title">Instruções de Pagamento e Baixa</div>
+          <ul>
+            <li>Este demonstrativo utiliza o padrão oficial Pix BR Code (BACEN) direcionado diretamente à conta bancária do condomínio.</li>
+            <li>Após efetuar o pagamento via Pix, guarde o comprovante bancário. A confirmação e baixa no painel financeiro são registradas pela administração.</li>
+            <li>Em caso de dúvidas sobre a cobrança, entre em contato com a administração do condomínio.</li>
+          </ul>
+        </div>
+
+        <div class="footer">
+          <span>Documento emitido eletronicamente via Plataforma Condor em ${issuedAt}</span>
+          <span>Via do Condômino</span>
+        </div>
+      </div>
+    `;
+
+    const css = `
+      .sheet { max-width: 100%; border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 22px 24px; background: #fff; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 14px; margin-bottom: 16px; }
+      .brand { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: #059669; margin-bottom: 4px; }
+      h1 { margin: 0; font-size: 19px; font-weight: 800; color: #0f172a; }
+      .meta { font-size: 11px; color: #475569; margin-top: 4px; }
+      .amount-box { text-align: right; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; min-width: 175px; }
+      .amount-label { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; color: #64748b; }
+      .amount-value { font-size: 22px; font-weight: 900; color: #0f172a; margin-top: 2px; }
+      .due-label { font-size: 11px; color: #334155; margin-top: 2px; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+      .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+      .label { font-size: 9px; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em; }
+      .val { font-size: 12.5px; font-weight: 700; color: #0f172a; margin-top: 3px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+      .pix-box { background: #ecfdf5; border: 1.5px solid #6ee7b7; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+      .pix-grid { display: flex; align-items: flex-start; gap: 16px; }
+      .qr-wrap { background: #ffffff; border: 1px solid #a7f3d0; border-radius: 10px; padding: 8px; flex-shrink: 0; }
+      .qr-wrap img { display: block; }
+      .pix-info { flex: 1; min-width: 0; }
+      .badge { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: 0.06em; color: #065f46; background: #d1fae5; padding: 3px 8px; border-radius: 999px; }
+      .pix-info h3 { margin: 6px 0 4px; font-size: 14px; font-weight: 800; color: #064e3b; }
+      .pix-info p { margin: 0 0 8px; font-size: 11px; color: #065f46; }
+      .key-pill { background: #ffffff; border: 1px solid #a7f3d0; border-radius: 8px; padding: 6px 10px; font-size: 11.5px; color: #0f172a; margin-bottom: 8px; word-break: break-all; }
+      .copy-box { background: #ffffff; border: 1px dashed #6ee7b7; border-radius: 8px; padding: 8px 10px; }
+      .copy-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #047857; margin-bottom: 3px; }
+      .copy-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9.5px; color: #334155; word-break: break-all; line-height: 1.35; }
+      .warn-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 14px; color: #78350f; margin-bottom: 16px; font-size: 11.5px; }
+      .instructions { border-top: 1px solid #e2e8f0; padding-top: 12px; margin-bottom: 14px; }
+      .inst-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #475569; margin-bottom: 6px; }
+      .instructions ul { margin: 0; padding-left: 18px; color: #334155; font-size: 11px; }
+      .instructions li { margin-bottom: 3px; }
+      .footer { border-top: 1px solid #e2e8f0; padding-top: 10px; display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
+    `;
+
+    printHtmlDocument(`Demonstrativo Pix — Unidade ${currentInvoice.unitNumber}`, bodyHtml, css);
   };
 
   const formattedAmount = currentInvoice.amount.toLocaleString('pt-BR', {

@@ -27,6 +27,8 @@ import {
   History,
   FileDown,
   Lock,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { userService, type CondominiumUser } from '../../services/userService';
 import { unitService } from '../../services/unitService';
@@ -35,6 +37,7 @@ import { avatarService } from '../../services/avatarService';
 import { auditService, type AuditLogEntry } from '../../services/auditService';
 import { lgpdService, LGPD_POLICY_VERSION } from '../../services/lgpdService';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { PremiumSelect } from '../ui/PremiumSelect';
 import type { CondominiumRole } from '../../types/database.types';
 import {
   bankAccountService,
@@ -108,6 +111,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const canManageBankSettings = isSuperAdmin || isSindico;
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const tabButtonRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
+
+  // Auto-centraliza suavemente a aba selecionada (revelando automaticamente as próximas abas da barra)
+  useEffect(() => {
+    if (!isOpen) return;
+    const activeBtn = tabButtonRefs.current[activeTab];
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [activeTab, isOpen]);
+
+  const scrollTabsBy = (delta: number) => {
+    tabsContainerRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  };
 
   // Profile editing state
   const [fullName, setFullName] = useState(profile?.full_name || '');
@@ -712,103 +730,160 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         )}
 
-        {/* Tabs Bar */}
-        <div className="flex items-center gap-4 sm:gap-6 px-6 sm:px-8 pt-5 pb-0 border-b border-slate-200 dark:border-slate-800 overflow-x-auto text-xs sm:text-sm font-semibold">
+        {/* Tabs Bar com Auto-Scroll Suave + Controles Laterais */}
+        <div className="relative flex items-center border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 pt-4">
           <button
-            onClick={() => setActiveTab('perfil')}
-            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'perfil'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+            type="button"
+            onClick={() => scrollTabsBy(-220)}
+            aria-label="Rolar abas para a esquerda"
+            className="hidden sm:flex w-7 h-7 mb-2.5 rounded-full items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0 cursor-pointer"
           >
-            <User className="w-4 h-4" />
-            <span>Perfil & Foto</span>
+            <ChevronLeft className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setActiveTab('condominio')}
-            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'condominio'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+
+          <div
+            ref={tabsContainerRef}
+            role="tablist"
+            aria-label="Seções de Configurações"
+            className="flex-1 flex items-center gap-2 sm:gap-4 px-2 sm:px-3 overflow-x-auto scroll-smooth no-scrollbar text-xs sm:text-sm font-semibold"
           >
-            <Building className="w-4 h-4" />
-            <span>Dados do Condomínio</span>
-          </button>
-          {canManageUsers && (
             <button
-              onClick={() => setActiveTab('usuarios')}
-              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'usuarios'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'perfil'}
+              ref={(el) => { tabButtonRefs.current.perfil = el; }}
+              onClick={() => setActiveTab('perfil')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'perfil'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Usuários & Privilégios</span>
+              <User className="w-4 h-4" />
+              <span>Perfil &amp; Foto</span>
             </button>
-          )}
-          {canManageBankSettings && (
             <button
-              onClick={() => setActiveTab('banco')}
-              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'banco'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'condominio'}
+              ref={(el) => { tabButtonRefs.current.condominio = el; }}
+              onClick={() => setActiveTab('condominio')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'condominio'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Landmark className="w-4 h-4" />
-              <span>Banco de Recebimento & Boletos</span>
+              <Building className="w-4 h-4" />
+              <span>Dados do Condomínio</span>
             </button>
-          )}
-          {canManageUsers && (
+            {canManageUsers && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'usuarios'}
+                ref={(el) => { tabButtonRefs.current.usuarios = el; }}
+                onClick={() => setActiveTab('usuarios')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'usuarios'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Usuários &amp; Privilégios</span>
+              </button>
+            )}
+            {canManageBankSettings && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'banco'}
+                ref={(el) => { tabButtonRefs.current.banco = el; }}
+                onClick={() => setActiveTab('banco')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'banco'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Landmark className="w-4 h-4" />
+                <span>Banco de Recebimento &amp; Boletos</span>
+              </button>
+            )}
+            {canManageUsers && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'auditoria'}
+                ref={(el) => { tabButtonRefs.current.auditoria = el; }}
+                onClick={() => setActiveTab('auditoria')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'auditoria'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <History className="w-4 h-4" />
+                <span>Auditoria</span>
+              </button>
+            )}
             <button
-              onClick={() => setActiveTab('auditoria')}
-              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'auditoria'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'privacidade'}
+              ref={(el) => { tabButtonRefs.current.privacidade = el; }}
+              onClick={() => setActiveTab('privacidade')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'privacidade'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <History className="w-4 h-4" />
-              <span>Auditoria</span>
+              <Lock className="w-4 h-4" />
+              <span>Privacidade &amp; LGPD</span>
             </button>
-          )}
-          <button
-            onClick={() => setActiveTab('privacidade')}
-            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'privacidade'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            <Lock className="w-4 h-4" />
-            <span>Privacidade & LGPD</span>
-          </button>
-          {isSuperAdmin && (
+            {isSuperAdmin && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'database'}
+                ref={(el) => { tabButtonRefs.current.database = el; }}
+                onClick={() => setActiveTab('database')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'database'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Database className="w-4 h-4" />
+                <span>Banco de Dados &amp; Supabase</span>
+              </button>
+            )}
             <button
-              onClick={() => setActiveTab('database')}
-              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'database'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'preferencias'}
+              ref={(el) => { tabButtonRefs.current.preferencias = el; }}
+              onClick={() => setActiveTab('preferencias')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'preferencias'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Database className="w-4 h-4" />
-              <span>Banco de Dados & Supabase</span>
+              <Bell className="w-4 h-4" />
+              <span>Preferências &amp; Tema</span>
             </button>
-          )}
+          </div>
+
           <button
-            onClick={() => setActiveTab('preferencias')}
-            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'preferencias'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+            type="button"
+            onClick={() => scrollTabsBy(220)}
+            aria-label="Rolar abas para a direita"
+            className="hidden sm:flex w-7 h-7 mb-2.5 rounded-full items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0 cursor-pointer"
           >
-            <Bell className="w-4 h-4" />
-            <span>Preferências & Tema</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
@@ -1402,17 +1477,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                             Bloco / Torre *
                           </label>
-                          <select
+                          <PremiumSelect
+                            ariaLabel="Selecionar Bloco ou Torre"
+                            size="md"
                             value={newUserBlock}
-                            onChange={(e) => setNewUserBlock(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                          >
-                            <option value="Bloco A">Bloco A (Torre A)</option>
-                            <option value="Bloco B">Bloco B (Torre B)</option>
-                            <option value="Bloco C">Bloco C</option>
-                            <option value="Torre Sul">Torre Sul</option>
-                            <option value="Torre Norte">Torre Norte</option>
-                          </select>
+                            onChange={setNewUserBlock}
+                            options={[
+                              { value: 'Bloco A', label: 'Bloco A (Torre A)' },
+                              { value: 'Bloco B', label: 'Bloco B (Torre B)' },
+                              { value: 'Bloco C', label: 'Bloco C' },
+                              { value: 'Torre Sul', label: 'Torre Sul' },
+                              { value: 'Torre Norte', label: 'Torre Norte' },
+                            ]}
+                          />
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
@@ -1694,27 +1771,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </span>
                               )}
 
-                              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase hidden sm:inline">
                                   Privilégio:
                                 </span>
-                                <select
+                                <PremiumSelect
+                                  size="xs"
+                                  className="w-36"
+                                  ariaLabel={`Alterar privilégio de ${condoUser.full_name}`}
+                                  icon={<Shield className="w-3.5 h-3.5" />}
                                   value={condoUser.role}
                                   disabled={!canModifyTarget}
-                                  onChange={(e) =>
-                                    handleRoleChange(condoUser.id, condoUser.full_name, e.target.value as CondominiumRole)
+                                  onChange={(val) =>
+                                    handleRoleChange(condoUser.id, condoUser.full_name, val as CondominiumRole)
                                   }
-                                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer disabled:opacity-50"
-                                  title="Conceder ou alterar privilégio do usuário"
-                                >
-                                  <option value="morador" className="dark:bg-slate-900">Morador</option>
-                                  <option value="porteiro" className="dark:bg-slate-900">Portaria</option>
-                                  <option value="sindico" className="dark:bg-slate-900">Síndico</option>
-                                  {isSuperAdmin && (
-                                    <option value="superadmin" className="dark:bg-slate-900">Super Admin</option>
-                                  )}
-                                </select>
+                                  options={[
+                                    { value: 'morador', label: 'Morador' },
+                                    { value: 'porteiro', label: 'Portaria' },
+                                    { value: 'sindico', label: 'Síndico' },
+                                    ...(isSuperAdmin ? [{ value: 'superadmin', label: 'Super Admin' }] : []),
+                                  ]}
+                                />
                               </div>
 
                               {canModifyTarget && (
@@ -2003,17 +2080,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <label className="text-slate-700 dark:text-slate-300 font-semibold text-xs">
                       Instituição Bancária
                     </label>
-                    <select
+                    <PremiumSelect
+                      ariaLabel="Instituição Bancária"
+                      size="md"
+                      icon={<Landmark className="w-4 h-4" />}
                       value={bankSettings.bankCode}
-                      onChange={(e) => handleSelectBankPreset(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                    >
-                      {PRESET_BANKS.map((b) => (
-                        <option key={b.code} value={b.code}>
-                          {b.fullName}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={handleSelectBankPreset}
+                      options={PRESET_BANKS.map((b) => ({
+                        value: b.code,
+                        label: b.fullName,
+                      }))}
+                    />
                   </div>
 
                   {/* Nome do Banco */}
@@ -2209,16 +2286,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-slate-700 dark:text-slate-300 font-semibold text-xs">Tipo de Chave PIX</label>
-                    <select
+                    <PremiumSelect
+                      ariaLabel="Tipo de Chave PIX"
+                      size="md"
+                      icon={<QrCode className="w-4 h-4" />}
                       value={bankSettings.pixKeyType}
-                      onChange={(e) => setBankSettings({ ...bankSettings, pixKeyType: e.target.value as any })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                    >
-                      <option value="cnpj">CNPJ do Condomínio</option>
-                      <option value="email">E-mail</option>
-                      <option value="telefone">Telefone Celular</option>
-                      <option value="aleatoria">Chave Aleatória (EVP)</option>
-                    </select>
+                      onChange={(val) => setBankSettings({ ...bankSettings, pixKeyType: val as any })}
+                      options={[
+                        { value: 'cnpj', label: 'CNPJ do Condomínio' },
+                        { value: 'email', label: 'E-mail' },
+                        { value: 'telefone', label: 'Telefone Celular' },
+                        { value: 'aleatoria', label: 'Chave Aleatória (EVP)' },
+                      ]}
+                    />
                   </div>
 
                   <div className="space-y-1.5">

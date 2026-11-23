@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, QrCode, Check, Share2, Shield } from 'lucide-react';
 import { generateSecurePin } from '../../services/packageService';
 import { QrCodeDisplay } from '../common/QrCodeDisplay';
+import { PremiumSelect } from '../ui/PremiumSelect';
 import type { Unit } from '../../types/condominium';
 
 export interface VisitorPassData {
@@ -272,15 +273,17 @@ export const CreateVisitorPassModal: React.FC<CreateVisitorPassModalProps> = ({
                 <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                   Categoria
                 </label>
-                <select
+                <PremiumSelect
+                  ariaLabel="Categoria do visitante"
+                  size="sm"
                   value={visitorType}
-                  onChange={(e) => setVisitorType(e.target.value as any)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="Convidado Social">Convidado Social</option>
-                  <option value="Prestador de Serviço">Prestador de Serviço</option>
-                  <option value="Delivery Autorizado">Delivery Autorizado</option>
-                </select>
+                  onChange={(val) => setVisitorType(val as any)}
+                  options={[
+                    'Convidado Social',
+                    'Prestador de Serviço',
+                    'Delivery Autorizado',
+                  ]}
+                />
               </div>
             </div>
 

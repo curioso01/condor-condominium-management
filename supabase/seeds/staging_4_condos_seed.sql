@@ -44,46 +44,96 @@ BEGIN
   ON CONFLICT (id) DO UPDATE
     SET name = EXCLUDED.name, cnpj = EXCLUDED.cnpj, address = EXCLUDED.address;
 
-  -- 2. Verificar existência ou provisionar usuários fictícios em auth.users
+  -- 2. Verificar existência ou provisionar usuários fictícios em auth.users (com tokens GoTrue e auth.identities)
   -- 2.1 Síndica Piloto (vinculada aos 4 condomínios)
   IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'sindica.piloto@condor-homolog.com.br') THEN
-    SELECT id INTO v_sindica_id FROM auth.users WHERE email = 'sindica.piloto@condor-homolog.com.br' LIMIT 1;
+    UPDATE auth.users
+    SET encrypted_password = v_pw,
+        email_confirmed_at = COALESCE(email_confirmed_at, now()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change = COALESCE(email_change, '')
+    WHERE email = 'sindica.piloto@condor-homolog.com.br'
+    RETURNING id INTO v_sindica_id;
   ELSE
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_sindica_id, '00000000-0000-0000-0000-000000000000', 'sindica.piloto@condor-homolog.com.br', v_pw, now(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Dra. Helena Martins (Síndica Piloto)"}', now(), now());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, confirmation_token, recovery_token, email_change_token_new, email_change, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_sindica_id, '00000000-0000-0000-0000-000000000000', 'sindica.piloto@condor-homolog.com.br', v_pw, now(), '', '', '', '', 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Dra. Helena Martins (Síndica Piloto)"}', now(), now());
   END IF;
 
   -- 2.2 Morador Condomínio 1
   IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'morador.imperial@condor-homolog.com.br') THEN
-    SELECT id INTO v_morador_c1 FROM auth.users WHERE email = 'morador.imperial@condor-homolog.com.br' LIMIT 1;
+    UPDATE auth.users
+    SET encrypted_password = v_pw,
+        email_confirmed_at = COALESCE(email_confirmed_at, now()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change = COALESCE(email_change, '')
+    WHERE email = 'morador.imperial@condor-homolog.com.br'
+    RETURNING id INTO v_morador_c1;
   ELSE
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_morador_c1, '00000000-0000-0000-0000-000000000000', 'morador.imperial@condor-homolog.com.br', v_pw, now(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Morador Fictício 01 (Reserva Imperial)"}', now(), now());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, confirmation_token, recovery_token, email_change_token_new, email_change, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_morador_c1, '00000000-0000-0000-0000-000000000000', 'morador.imperial@condor-homolog.com.br', v_pw, now(), '', '', '', '', 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Morador Fictício 01 (Reserva Imperial)"}', now(), now());
   END IF;
 
   -- 2.3 Moradora Condomínio 2
   IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'morador.ilhas@condor-homolog.com.br') THEN
-    SELECT id INTO v_morador_c2 FROM auth.users WHERE email = 'morador.ilhas@condor-homolog.com.br' LIMIT 1;
+    UPDATE auth.users
+    SET encrypted_password = v_pw,
+        email_confirmed_at = COALESCE(email_confirmed_at, now()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change = COALESCE(email_change, '')
+    WHERE email = 'morador.ilhas@condor-homolog.com.br'
+    RETURNING id INTO v_morador_c2;
   ELSE
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_morador_c2, '00000000-0000-0000-0000-000000000000', 'morador.ilhas@condor-homolog.com.br', v_pw, now(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Moradora Fictícia 02 (Ilhas Gregas)"}', now(), now());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, confirmation_token, recovery_token, email_change_token_new, email_change, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_morador_c2, '00000000-0000-0000-0000-000000000000', 'morador.ilhas@condor-homolog.com.br', v_pw, now(), '', '', '', '', 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Moradora Fictícia 02 (Ilhas Gregas)"}', now(), now());
   END IF;
 
   -- 2.4 Porteiro Condomínio 1
   IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'portaria.imperial@condor-homolog.com.br') THEN
-    SELECT id INTO v_porteiro_c1 FROM auth.users WHERE email = 'portaria.imperial@condor-homolog.com.br' LIMIT 1;
+    UPDATE auth.users
+    SET encrypted_password = v_pw,
+        email_confirmed_at = COALESCE(email_confirmed_at, now()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change = COALESCE(email_change, '')
+    WHERE email = 'portaria.imperial@condor-homolog.com.br'
+    RETURNING id INTO v_porteiro_c1;
   ELSE
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_porteiro_c1, '00000000-0000-0000-0000-000000000000', 'portaria.imperial@condor-homolog.com.br', v_pw, now(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Portaria Turno A (Reserva Imperial)"}', now(), now());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, confirmation_token, recovery_token, email_change_token_new, email_change, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_porteiro_c1, '00000000-0000-0000-0000-000000000000', 'portaria.imperial@condor-homolog.com.br', v_pw, now(), '', '', '', '', 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Portaria Turno A (Reserva Imperial)"}', now(), now());
   END IF;
 
   -- 2.5 Porteiro Condomínio 3
   IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'portaria.jardim@condor-homolog.com.br') THEN
-    SELECT id INTO v_porteiro_c3 FROM auth.users WHERE email = 'portaria.jardim@condor-homolog.com.br' LIMIT 1;
+    UPDATE auth.users
+    SET encrypted_password = v_pw,
+        email_confirmed_at = COALESCE(email_confirmed_at, now()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change = COALESCE(email_change, '')
+    WHERE email = 'portaria.jardim@condor-homolog.com.br'
+    RETURNING id INTO v_porteiro_c3;
   ELSE
-    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
-    VALUES (v_porteiro_c3, '00000000-0000-0000-0000-000000000000', 'portaria.jardim@condor-homolog.com.br', v_pw, now(), 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Portaria Turno B (Jardim Botânico)"}', now(), now());
+    INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, confirmation_token, recovery_token, email_change_token_new, email_change, role, aud, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+    VALUES (v_porteiro_c3, '00000000-0000-0000-0000-000000000000', 'portaria.jardim@condor-homolog.com.br', v_pw, now(), '', '', '', '', 'authenticated', 'authenticated', '{"provider":"email","providers":["email"]}', '{"full_name":"Portaria Turno B (Jardim Botânico)"}', now(), now());
   END IF;
+
+  -- 2.6 Garantir auth.identities para login GoTrue sem erros de schema
+  INSERT INTO auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+  VALUES
+    (gen_random_uuid(), v_sindica_id,  v_sindica_id::text,  jsonb_build_object('sub', v_sindica_id::text,  'email', 'sindica.piloto@condor-homolog.com.br'),    'email', now(), now(), now()),
+    (gen_random_uuid(), v_morador_c1,  v_morador_c1::text,  jsonb_build_object('sub', v_morador_c1::text,  'email', 'morador.imperial@condor-homolog.com.br'),  'email', now(), now(), now()),
+    (gen_random_uuid(), v_morador_c2,  v_morador_c2::text,  jsonb_build_object('sub', v_morador_c2::text,  'email', 'morador.ilhas@condor-homolog.com.br'),     'email', now(), now(), now()),
+    (gen_random_uuid(), v_porteiro_c1, v_porteiro_c1::text, jsonb_build_object('sub', v_porteiro_c1::text, 'email', 'portaria.imperial@condor-homolog.com.br'), 'email', now(), now(), now()),
+    (gen_random_uuid(), v_porteiro_c3, v_porteiro_c3::text, jsonb_build_object('sub', v_porteiro_c3::text, 'email', 'portaria.jardim@condor-homolog.com.br'),   'email', now(), now(), now())
+  ON CONFLICT (provider_id, provider) DO NOTHING;
 
   -- 3. Garantir Perfis em public.user_profiles somente para usuários confirmados em auth.users
   INSERT INTO public.user_profiles (id, full_name, email, phone)

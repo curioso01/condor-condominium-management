@@ -34,43 +34,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
     {
       tab: 'overview',
       label: 'Visão Geral',
-      icon: <LayoutDashboard className="w-5 h-5" />,
+      icon: <LayoutDashboard className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: true,
     },
     {
       tab: 'portfolio',
       label: `Carteira (${memberships.length} condomínios)`,
-      icon: <Briefcase className="w-5 h-5" />,
+      icon: <Briefcase className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: isSindicoOrAdmin && hasMultipleCondos,
     },
     {
       tab: 'finance',
       label: 'Financeiro & Arrecadação',
-      icon: <Wallet className="w-5 h-5" />,
+      icon: <Wallet className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: isSindicoOrAdmin,
     },
     {
       tab: 'units',
       label: 'Unidades & Moradores',
-      icon: <Building2 className="w-5 h-5" />,
+      icon: <Building2 className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: isSindicoOrAdmin,
     },
     {
       tab: 'concierge',
       label: 'Portaria, Acessos & Encomendas',
-      icon: <ShieldCheck className="w-5 h-5" />,
+      icon: <ShieldCheck className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: !isMorador,
     },
     {
       tab: 'reservations',
       label: 'Espaços & Reservas',
-      icon: <CalendarDays className="w-5 h-5" />,
+      icon: <CalendarDays className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: true,
     },
     {
       tab: 'maintenance',
       label: 'Manutenções & Chamados',
-      icon: <Wrench className="w-5 h-5" />,
+      icon: <Wrench className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: !isMorador,
     },
   ];
@@ -79,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
 
   return (
     <aside
-      className="hidden xl:flex w-20 bg-white dark:bg-[#111827] rounded-4xl py-7 flex-col items-center justify-between shadow-floating-sidebar border border-slate-100/80 dark:border-slate-800 shrink-0 sticky top-6 h-[calc(100vh-3rem)] z-30 transition-colors duration-200"
+      className="hidden xl:flex w-20 bg-white dark:bg-[#111827] rounded-4xl py-4 2xl:py-6 px-2 flex-col items-center justify-between gap-2 shadow-floating-sidebar border border-slate-100/80 dark:border-slate-800 shrink-0 sticky top-4 h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden no-scrollbar z-30 transition-colors duration-200"
       data-purpose="primary-sidebar"
     >
       {/* Brand Logo */}
@@ -87,13 +87,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
         type="button"
         onClick={() => onSelectTab('overview')}
         aria-label="Condor — Início e Visão Geral"
-        className="flex flex-col items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-2xl p-0.5 transition-all"
+        className="flex flex-col items-center shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-2xl p-0.5 transition-all cursor-pointer"
       >
-        <Logo size="md" showText={true} />
+        <Logo size="sm" showText={true} />
       </button>
 
       {/* Navigation Icons */}
-      <nav aria-label="Navegação principal" className="flex xl:flex-col items-center gap-2 sm:gap-2.5 my-auto">
+      <nav
+        aria-label="Navegação principal"
+        className="flex flex-col items-center justify-center gap-1.5 2xl:gap-2.5 my-auto py-1 shrink-0 w-full"
+      >
         {visibleNavItems.map((item) => {
           const isActive = activeTab === item.tab;
           return (
@@ -104,51 +107,51 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
               title={item.label}
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 relative cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+              className={`w-10 h-10 2xl:w-11 2xl:h-11 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-200 relative cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                 isActive
-                  ? 'bg-emerald-600 text-white shadow-pill scale-105'
+                  ? 'bg-emerald-600 text-white shadow-pill'
                   : 'text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
               }`}
             >
               {item.icon}
               {isActive && (
-                <span className="hidden xl:block absolute -right-1.5 w-1.5 h-4 bg-emerald-600 rounded-full" />
+                <span className="absolute -right-1 w-1 h-4 bg-emerald-500 rounded-full" />
               )}
             </button>
           );
         })}
       </nav>
 
-      {/* Footer Support / Theme & Settings */}
-      <div className="flex xl:flex-col items-center gap-2.5">
+      {/* Separator + Footer Utilities */}
+      <div className="flex flex-col items-center gap-1.5 2xl:gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 shrink-0 w-full">
         <ThemeToggle
           variant="icon"
-          className="w-10 h-10 border-0 shadow-none bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-amber-300"
+          className="w-9 h-9 2xl:w-10 2xl:h-10 shrink-0 border-0 shadow-none bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-amber-300"
         />
         <button
           type="button"
           aria-label="Instalar App CONDOR no Celular ou Computador"
           title="Instalar App no Celular / Computador (PWA)"
           onClick={() => window.dispatchEvent(new CustomEvent('condor:open-pwa-install'))}
-          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          className="w-9 h-9 2xl:w-10 2xl:h-10 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         >
-          <Smartphone className="w-5 h-5" />
+          <Smartphone className="w-[18px] h-[18px]" />
         </button>
         <button
           type="button"
           aria-label="Configurações"
           title="Configurações"
           onClick={() => onOpenSettings?.()}
-          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          className="w-9 h-9 2xl:w-10 2xl:h-10 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         >
-          <Settings className="w-5 h-5" />
+          <Settings className="w-[18px] h-[18px]" />
         </button>
         <button
           type="button"
           aria-label="Central de Ajuda & Perguntas Frequentes (FAQ)"
           title="Central de Ajuda & FAQ"
           onClick={() => onOpenFaq?.()}
-          className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 flex items-center justify-center transition-colors cursor-pointer"
+          className="w-8 h-8 2xl:w-9 2xl:h-9 shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 flex items-center justify-center transition-colors cursor-pointer"
         >
           <HelpCircle className="w-4 h-4" />
         </button>

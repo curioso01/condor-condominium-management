@@ -80,8 +80,15 @@ export const LoginView: React.FC = () => {
     setIsSubmitting(false);
 
     if (error) {
-      // Security-conscious generic error: avoid leaking which part was invalid
-      setFormError('E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.');
+      const msg = (error.message || '').toLowerCase();
+      if (msg.includes('database error querying schema') || msg.includes('unexpected_failure')) {
+        setFormError(
+          'Erro interno ao validar esta conta no Supabase Auth (tokens de conta criada via SQL antigo ausentes). Reaplique o seed atualizado de staging ou redefina o usuário pelo painel Authentication do Supabase.'
+        );
+      } else {
+        // Security-conscious generic error: avoid leaking which part was invalid
+        setFormError('E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.');
+      }
     }
   };
 

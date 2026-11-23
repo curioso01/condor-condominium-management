@@ -17,6 +17,7 @@ import {
   Key,
 } from 'lucide-react';
 import { BoletoModal, type BoletoInvoiceData } from './BoletoModal';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 export interface UnitDetailsModalProps {
   unit: Unit | null;
@@ -260,17 +261,19 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
                       <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
                         Grau / Papel
                       </label>
-                      <select
+                      <PremiumSelect
+                        ariaLabel="Grau ou papel do residente"
+                        size="sm"
                         value={newResidentRole}
-                        onChange={(e) => setNewResidentRole(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      >
-                        <option value="Residente">Residente</option>
-                        <option value="Filho(a)">Filho(a)</option>
-                        <option value="Cônjuge">Cônjuge</option>
-                        <option value="Familiar">Familiar</option>
-                        <option value="Colaborador Residencial">Colaborador Residencial</option>
-                      </select>
+                        onChange={setNewResidentRole}
+                        options={[
+                          'Residente',
+                          'Filho(a)',
+                          'Cônjuge',
+                          'Familiar',
+                          'Colaborador Residencial',
+                        ]}
+                      />
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-1">

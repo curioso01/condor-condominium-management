@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { userService } from '../../services/userService';
 import { unitService, type CreateUnitInput } from '../../services/unitService';
 import type { CondominiumRole } from '../../types/database.types';
+import { PremiumSelect } from '../ui/PremiumSelect';
 import { 
   X, 
   ShieldCheck, 
@@ -346,17 +347,19 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
               <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
                 Bloco / Torre *
               </label>
-              <select
+              <PremiumSelect
+                ariaLabel="Selecionar Bloco ou Torre"
+                size="md"
                 value={block}
-                onChange={(e) => setBlock(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-              >
-                <option value="Bloco A">Bloco A (Torre A)</option>
-                <option value="Bloco B">Bloco B (Torre B)</option>
-                <option value="Bloco C">Bloco C</option>
-                <option value="Torre Sul">Torre Sul</option>
-                <option value="Torre Norte">Torre Norte</option>
-              </select>
+                onChange={setBlock}
+                options={[
+                  { value: 'Bloco A', label: 'Bloco A (Torre A)' },
+                  { value: 'Bloco B', label: 'Bloco B (Torre B)' },
+                  { value: 'Bloco C', label: 'Bloco C' },
+                  { value: 'Torre Sul', label: 'Torre Sul' },
+                  { value: 'Torre Norte', label: 'Torre Norte' },
+                ]}
+              />
             </div>
 
             {/* Vínculo do Morador */}
