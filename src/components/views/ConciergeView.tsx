@@ -249,6 +249,7 @@ export const ConciergeView: React.FC = () => {
         p.id === pkg.id ? { ...p, status: 'picked_up', picked_up_at: new Date().toISOString() } : p
       )
     );
+    window.dispatchEvent(new CustomEvent('condor:packages-updated'));
     setNotification({
       type: 'success',
       message: `Retirada confirmada para ${pkg.unit_number} (${pkg.courier}).`,

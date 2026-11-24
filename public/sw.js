@@ -106,3 +106,54 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(req))
   );
 });
+
+// Push: recebe payloads de notificação push (comunicados e encomendas)
+self.addEventListener('push', (event) => {
+  let payload = {
+    title: 'CONDOR — Nova Notificação',
+    body: 'Você recebeu uma atualização do seu condomínio.',
+    url: '/?mural=open',
+  };
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      payload = { ...payload, ...parsed };
+    }
+  } catch {
+    if (event.data) {
+      payload.body = event.data.text();
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: '/icons/icon-192x192.png',
+      badge: '/favicon-32x32.png',
+      data: { url: payload.url || '/?mural=open' },
+    })
+  );
+});
+
+// Notification click: foca ou abre a aba do app no módulo correspondente
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsList) => {
+      for (const client of clientsList) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          client.focus();
+          if (typeof client.navigate === 'function' && targetUrl) {
+            return client.navigate(targetUrl).catch(() => client);
+          }
+          return client;
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

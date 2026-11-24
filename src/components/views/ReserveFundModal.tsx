@@ -66,9 +66,9 @@ export const ReserveFundModal: React.FC<ReserveFundModalProps> = ({
   const currentPercent = Math.min(100, Math.round((data.balance / (data.targetAmount || 1)) * 100));
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <Landmark className="w-5 h-5" />
@@ -90,8 +90,9 @@ export const ReserveFundModal: React.FC<ReserveFundModalProps> = ({
           </button>
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         {/* Tab switch */}
-        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl my-4 text-xs font-bold">
+        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4 text-xs font-bold">
           <button
             type="button"
             onClick={() => setActiveTab('aporte')}
@@ -321,6 +322,7 @@ export const ReserveFundModal: React.FC<ReserveFundModalProps> = ({
             </div>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

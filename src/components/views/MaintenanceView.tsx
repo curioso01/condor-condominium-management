@@ -31,8 +31,8 @@ import {
 } from 'lucide-react';
 
 export const MaintenanceView: React.FC = () => {
-  const { currentCondominium, isSuperAdmin, isSindico } = useAuth();
-  const canDeleteOrders = isSuperAdmin || isSindico;
+  const { currentCondominium, isSuperAdmin, canManageMaintenance } = useAuth();
+  const canDeleteOrders = canManageMaintenance;
 
   const [orders, setOrders] = useState<MaintenanceOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);

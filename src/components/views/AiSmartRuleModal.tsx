@@ -39,9 +39,9 @@ export const AiSmartRuleModal: React.FC<AiSmartRuleModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
               <Sparkles className="w-5 h-5" />
@@ -63,7 +63,8 @@ export const AiSmartRuleModal: React.FC<AiSmartRuleModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-4 mt-4">
+        <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-4">
           {/* Toggle Switch */}
           <div className="p-4 rounded-2xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-800/60 flex items-center justify-between">
             <div className="space-y-0.5">
@@ -224,7 +225,9 @@ export const AiSmartRuleModal: React.FC<AiSmartRuleModalProps> = ({
             </div>
           </div>
 
-          <div className="flex gap-2 pt-2">
+          </div>
+
+          <div className="flex gap-2 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
             <button
               type="button"
               onClick={onClose}

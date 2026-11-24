@@ -9,6 +9,9 @@ export interface UpsertCondominiumInput {
   city?: string | null;
   state?: string | null;
   assignSindicoEmail?: string | null;
+  default_reservation_time_limit?: boolean;
+  default_reservation_start_time?: string | null;
+  default_reservation_end_time?: string | null;
 }
 
 export const condominiumService = {
@@ -44,13 +47,23 @@ export const condominiumService = {
       };
     }
 
-    const payload = {
+    const payload: Record<string, any> = {
       name: input.name.trim(),
       cnpj: input.cnpj?.trim() || null,
       address: input.address?.trim() || null,
       city: input.city?.trim() || null,
       state: input.state?.trim().toUpperCase().slice(0, 2) || null,
     };
+
+    if (input.default_reservation_time_limit !== undefined) {
+      payload.default_reservation_time_limit = Boolean(input.default_reservation_time_limit);
+    }
+    if (input.default_reservation_start_time !== undefined) {
+      payload.default_reservation_start_time = input.default_reservation_start_time || '08:00';
+    }
+    if (input.default_reservation_end_time !== undefined) {
+      payload.default_reservation_end_time = input.default_reservation_end_time || '22:00';
+    }
 
     const { data, error } = await (supabase.from('condominiums') as any)
       .insert(payload)
@@ -152,13 +165,23 @@ export const condominiumService = {
       };
     }
 
-    const payload = {
+    const payload: Record<string, any> = {
       name: input.name.trim(),
       cnpj: input.cnpj?.trim() || null,
       address: input.address?.trim() || null,
       city: input.city?.trim() || null,
       state: input.state?.trim().toUpperCase().slice(0, 2) || null,
     };
+
+    if (input.default_reservation_time_limit !== undefined) {
+      payload.default_reservation_time_limit = Boolean(input.default_reservation_time_limit);
+    }
+    if (input.default_reservation_start_time !== undefined) {
+      payload.default_reservation_start_time = input.default_reservation_start_time || '08:00';
+    }
+    if (input.default_reservation_end_time !== undefined) {
+      payload.default_reservation_end_time = input.default_reservation_end_time || '22:00';
+    }
 
     const { data, error } = await (supabase.from('condominiums') as any)
       .update(payload)

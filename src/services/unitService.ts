@@ -457,4 +457,204 @@ export const unitService = {
       return { count: 0, error: { message: err?.message || 'Erro ao popular unidades.' } };
     }
   },
+
+  /**
+   * Retorna lista consolidada de blocos/torres do condomínio (salvos no condomínio + presentes nas unidades).
+   */
+  getConsolidatedBlocks(condoBlocks?: string[] | null, units: UIUnit[] = []): string[] {
+    const set = new Set<string>();
+    (condoBlocks || []).forEach((b) => {
+      const clean = String(b || '').trim();
+      if (clean) set.add(clean);
+    });
+    units.forEach((u) => {
+      const clean = String(u.block || '').trim();
+      if (clean) set.add(clean);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  },
+
+  /**
+   * Adiciona um novo bloco/torre à lista oficial de blocos do condomínio no Supabase.
+   */
+  async addBlock(
+    condominiumId: string,
+    blockName: string,
+    existingBlocks: string[]
+  ): Promise<{ blocks: string[]; error: { message: string } | null }> {
+    const clean = blockName.trim();
+    if (!clean) {
+      return { blocks: existingBlocks, error: { message: 'Informe o nome do bloco ou torre.' } };
+    }
+    if (existingBlocks.some((b) => b.toLowerCase() === clean.toLowerCase())) {
+      return { blocks: existingBlocks, error: { message: `O bloco "${clean}" já está cadastrado.` } };
+    }
+    const nextBlocks = [...existingBlocks, clean].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    if (isDemoSessionActive()) {
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { blocks: nextBlocks, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { blocks: existingBlocks, error: { message: 'Supabase não configurado.' } };
+    }
+
+    try {
+      const { error } = await (supabase.from('condominiums') as any)
+        .update({ blocks: nextBlocks, updated_at: new Date().toISOString() })
+        .eq('id', condominiumId);
+
+      if (error) {
+        return { blocks: existingBlocks, error: { message: error.message } };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'BLOCK_CREATED',
+        entityTable: 'condominiums',
+        entityId: condominiumId,
+        metadata: { block_name: clean },
+      });
+
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { blocks: nextBlocks, error: null };
+    } catch (err: any) {
+      return {
+        blocks: existingBlocks,
+        error: { message: err?.message || 'Erro ao adicionar bloco no Supabase.' },
+      };
+    }
+  },
+
+  /**
+   * Renomeia um bloco do condomínio de forma atômica (atualiza condominiums.blocks, units e condominium_members).
+   */
+  async renameBlock(
+    condominiumId: string,
+    oldName: string,
+    newName: string
+  ): Promise<{ blocks: string[]; unitsUpdated: number; error: { message: string } | null }> {
+    const cleanOld = oldName.trim();
+    const cleanNew = newName.trim();
+    if (!cleanOld || !cleanNew) {
+      return { blocks: [], unitsUpdated: 0, error: { message: 'Informe o novo nome do bloco.' } };
+    }
+
+    if (isDemoSessionActive()) {
+      const current = loadDemoUnits(condominiumId);
+      let count = 0;
+      const updated = current.map((u) => {
+        if (u.block.toLowerCase() === cleanOld.toLowerCase()) {
+          count += 1;
+          return { ...u, block: cleanNew, tower: cleanNew };
+        }
+        return u;
+      });
+      saveDemoUnits(condominiumId, updated);
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return {
+        blocks: this.getConsolidatedBlocks([cleanNew], updated),
+        unitsUpdated: count,
+        error: null,
+      };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { blocks: [], unitsUpdated: 0, error: { message: 'Supabase não configurado.' } };
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('rename_condominium_block', {
+        target_condo_id: condominiumId,
+        old_block: cleanOld,
+        new_block: cleanNew,
+      });
+
+      if (error) {
+        return { blocks: [], unitsUpdated: 0, error: { message: error.message } };
+      }
+
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return {
+        blocks: Array.isArray(data?.blocks) ? data.blocks : [],
+        unitsUpdated: Number(data?.units_updated || 0),
+        error: null,
+      };
+    } catch (err: any) {
+      return {
+        blocks: [],
+        unitsUpdated: 0,
+        error: { message: err?.message || 'Erro ao renomear bloco.' },
+      };
+    }
+  },
+
+  /**
+   * Remove um bloco do condomínio (opcionalmente movendo unidades para outro bloco ou removendo-as).
+   */
+  async deleteBlock(
+    condominiumId: string,
+    blockName: string,
+    options?: { reassignToBlock?: string | null; deleteUnits?: boolean }
+  ): Promise<{ blocks: string[]; affectedUnits: number; error: { message: string } | null }> {
+    const cleanTarget = blockName.trim();
+    if (!cleanTarget) {
+      return { blocks: [], affectedUnits: 0, error: { message: 'Bloco não informado.' } };
+    }
+
+    if (isDemoSessionActive()) {
+      const current = loadDemoUnits(condominiumId);
+      let nextUnits = current;
+      const affected = current.filter((u) => u.block.toLowerCase() === cleanTarget.toLowerCase()).length;
+      if (options?.reassignToBlock) {
+        nextUnits = current.map((u) =>
+          u.block.toLowerCase() === cleanTarget.toLowerCase()
+            ? { ...u, block: options.reassignToBlock!, tower: options.reassignToBlock! }
+            : u
+        );
+      } else if (options?.deleteUnits) {
+        nextUnits = current.filter((u) => u.block.toLowerCase() !== cleanTarget.toLowerCase());
+      } else if (affected > 0) {
+        return {
+          blocks: [],
+          affectedUnits: affected,
+          error: { message: `Este bloco possui ${affected} unidade(s). Escolha outro bloco para mover as unidades.` },
+        };
+      }
+      saveDemoUnits(condominiumId, nextUnits);
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return { blocks: this.getConsolidatedBlocks([], nextUnits), affectedUnits: affected, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { blocks: [], affectedUnits: 0, error: { message: 'Supabase não configurado.' } };
+    }
+
+    try {
+      const { data, error } = await (supabase.rpc as any)('delete_condominium_block', {
+        target_condo_id: condominiumId,
+        target_block: cleanTarget,
+        reassign_to_block: options?.reassignToBlock || null,
+        delete_units: Boolean(options?.deleteUnits),
+      });
+
+      if (error) {
+        return { blocks: [], affectedUnits: 0, error: { message: error.message } };
+      }
+
+      window.dispatchEvent(new CustomEvent('condor:units-updated'));
+      return {
+        blocks: Array.isArray(data?.blocks) ? data.blocks : [],
+        affectedUnits: Number(data?.affected_units || 0),
+        error: null,
+      };
+    } catch (err: any) {
+      return {
+        blocks: [],
+        affectedUnits: 0,
+        error: { message: err?.message || 'Erro ao excluir bloco.' },
+      };
+    }
+  },
 };

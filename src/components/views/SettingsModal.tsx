@@ -29,6 +29,11 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
+  PawPrint,
+  Clock,
+  SlidersHorizontal,
+  FileText,
+  BellRing,
 } from 'lucide-react';
 import { userService, type CondominiumUser } from '../../services/userService';
 import { unitService } from '../../services/unitService';
@@ -36,9 +41,20 @@ import { condominiumService } from '../../services/condominiumService';
 import { avatarService } from '../../services/avatarService';
 import { auditService, type AuditLogEntry } from '../../services/auditService';
 import { lgpdService, LGPD_POLICY_VERSION } from '../../services/lgpdService';
+import {
+  getBrowserNotificationPermission,
+  requestPushPermissionAndRegister,
+} from '../../services/notificationPushService';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { PremiumSelect } from '../ui/PremiumSelect';
-import type { CondominiumRole } from '../../types/database.types';
+import {
+  DEFAULT_SUBSINDICO_PERMISSIONS,
+  SUBSINDICO_PERMISSION_OPTIONS,
+  formatRoleLabel,
+  type CondominiumRole,
+  type SubSindicoPermissionKey,
+  type SubSindicoPermissions,
+} from '../../types/database.types';
 import {
   bankAccountService,
   PRESET_BANKS,
@@ -104,11 +120,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     updatePassword,
     refreshMemberships,
     canManageUsers,
+    canViewAudit,
     isSuperAdmin,
     isSindico,
     isDemoSession,
   } = useAuth();
   const canManageBankSettings = isSuperAdmin || isSindico;
+
+  const TIME_OPTIONS = Array.from({ length: 24 }, (_, h) => {
+    const label = `${String(h).padStart(2, '0')}:00`;
+    return { value: label, label };
+  });
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
@@ -171,6 +193,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [condoAddress, setCondoAddress] = useState(currentCondominium?.address || '');
   const [condoCity, setCondoCity] = useState(currentCondominium?.city || '');
   const [condoState, setCondoState] = useState(currentCondominium?.state || 'SP');
+  const [condoEnforceReservationHours, setCondoEnforceReservationHours] = useState(
+    Boolean(currentCondominium?.default_reservation_time_limit)
+  );
+  const [condoResStartTime, setCondoResStartTime] = useState(
+    (currentCondominium?.default_reservation_start_time || '08:00').slice(0, 5)
+  );
+  const [condoResEndTime, setCondoResEndTime] = useState(
+    (currentCondominium?.default_reservation_end_time || '22:00').slice(0, 5)
+  );
   const [isSavingCondo, setIsSavingCondo] = useState(false);
 
   const [isCreatingCondo, setIsCreatingCondo] = useState(false);
@@ -190,6 +221,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Users & Privileges state
   const [usersList, setUsersList] = useState<CondominiumUser[]>([]);
+  const [availableBlocks, setAvailableBlocks] = useState<string[]>(['Bloco A', 'Bloco B']);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserFullName, setNewUserFullName] = useState('');
   const [newUserCpf, setNewUserCpf] = useState('');
@@ -200,8 +232,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [newUserResidentType, setNewUserResidentType] = useState<'Proprietário' | 'Inquilino'>('Proprietário');
   const [newUserHasPet, setNewUserHasPet] = useState<boolean>(false);
   const [newUserRole, setNewUserRole] = useState<CondominiumRole>('morador');
+  const [newUserPermissions, setNewUserPermissions] = useState<SubSindicoPermissions>({
+    ...DEFAULT_SUBSINDICO_PERMISSIONS,
+  });
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | CondominiumRole>('all');
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+
+  // Sub-Síndico permissions editing popup state
+  const [editingPermsUser, setEditingPermsUser] = useState<CondominiumUser | null>(null);
+  const [editingPermsDraft, setEditingPermsDraft] = useState<SubSindicoPermissions>({
+    ...DEFAULT_SUBSINDICO_PERMISSIONS,
+  });
+  const [isSavingPerms, setIsSavingPerms] = useState(false);
+
+  // Push notification opt-in state
+  const [pushStatus, setPushStatus] = useState(() => getBrowserNotificationPermission());
+  const [isRequestingPush, setIsRequestingPush] = useState(false);
 
   // File upload ref
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -217,6 +263,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     if (defaultTab === 'usuarios' && !canManageUsers) {
       setActiveTab('perfil');
+    } else if (defaultTab === 'auditoria' && !canManageUsers && !canViewAudit) {
+      setActiveTab('perfil');
     } else if (defaultTab === 'database' && !isSuperAdmin) {
       setActiveTab('perfil');
     } else if (defaultTab === 'banco' && !canManageBankSettings) {
@@ -224,7 +272,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } else {
       setActiveTab(defaultTab);
     }
-  }, [defaultTab, canManageUsers, isSuperAdmin, canManageBankSettings]);
+  }, [defaultTab, canManageUsers, canViewAudit, isSuperAdmin, canManageBankSettings]);
 
   useEffect(() => {
     if (currentCondominium) {
@@ -233,8 +281,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setCondoAddress(currentCondominium.address || '');
       setCondoCity(currentCondominium.city || '');
       setCondoState(currentCondominium.state || 'SP');
+      setCondoEnforceReservationHours(Boolean(currentCondominium.default_reservation_time_limit));
+      setCondoResStartTime((currentCondominium.default_reservation_start_time || '08:00').slice(0, 5));
+      setCondoResEndTime((currentCondominium.default_reservation_end_time || '22:00').slice(0, 5));
     }
   }, [currentCondominium]);
+
+  useEffect(() => {
+    if (isOpen && currentCondominium?.id) {
+      setPushStatus(getBrowserNotificationPermission());
+      unitService.getUnitsByCondominium(currentCondominium.id).then((res) => {
+        const blocks = unitService.getConsolidatedBlocks(currentCondominium.blocks, res.data || []);
+        if (blocks.length > 0) {
+          setAvailableBlocks(blocks);
+          setNewUserBlock((prev) => (blocks.includes(prev) ? prev : blocks[0]));
+        }
+      });
+    }
+  }, [isOpen, currentCondominium?.id, currentCondominium?.blocks]);
 
   useEffect(() => {
     if (isOpen && currentCondominium?.id) {
@@ -319,6 +383,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleSaveCondominium = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentCondominium?.id) return;
+    if (condoEnforceReservationHours && condoResStartTime >= condoResEndTime) {
+      setFeedback('O horário de término das reservas precisa ser posterior ao horário de início.');
+      return;
+    }
     setIsSavingCondo(true);
     const { error } = await condominiumService.updateCondominium(
       currentCondominium.id,
@@ -328,6 +396,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         address: condoAddress,
         city: condoCity,
         state: condoState,
+        default_reservation_time_limit: condoEnforceReservationHours,
+        default_reservation_start_time: condoEnforceReservationHours ? condoResStartTime : null,
+        default_reservation_end_time: condoEnforceReservationHours ? condoResEndTime : null,
       },
       currentRole,
       [currentCondominium.id]
@@ -340,7 +411,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
 
     await refreshMemberships();
-    setFeedback('Dados cadastrais do condomínio atualizados com sucesso!');
+    setFeedback('Dados cadastrais e regras de horário do condomínio atualizados com sucesso!');
     setTimeout(() => setFeedback(null), 4000);
   };
 
@@ -391,18 +462,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (isOpen && activeTab === 'usuarios' && canManageUsers) {
       loadUsers();
     }
-    if (isOpen && activeTab === 'auditoria' && canManageUsers && currentCondominium?.id) {
+    if (isOpen && activeTab === 'auditoria' && (canManageUsers || canViewAudit) && currentCondominium?.id) {
       setIsLoadingAudit(true);
       auditService.getRecentLogs(currentCondominium.id, 40).then((res) => {
         setAuditLogs(res.data);
         setIsLoadingAudit(false);
       });
     }
-  }, [isOpen, activeTab, canManageUsers, loadUsers, currentCondominium?.id]);
+  }, [isOpen, activeTab, canManageUsers, canViewAudit, loadUsers, currentCondominium?.id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || !isOpen || confirmState.isOpen) return;
+      if (editingPermsUser) {
+        setEditingPermsUser(null);
+        return;
+      }
       if (isCreatingCondo) {
         setIsCreatingCondo(false);
         return;
@@ -415,7 +490,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, confirmState.isOpen, isCreatingCondo, isAddingUser]);
+  }, [isOpen, onClose, confirmState.isOpen, isCreatingCondo, isAddingUser, editingPermsUser]);
 
   // Upload de avatar via Supabase Storage (com compressão 256x256 WebP < 40 KB)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -507,19 +582,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   // Helper labels for privileges
-  const getRoleLabel = (role: CondominiumRole) => {
-    switch (role) {
-      case 'superadmin':
-        return 'Super Administrador';
-      case 'sindico':
-        return 'Síndico Geral';
-      case 'porteiro':
-        return 'Portaria & Acessos';
-      case 'morador':
-        return 'Morador / Residente';
-      default:
-        return role;
+  const getRoleLabel = (role: CondominiumRole) => formatRoleLabel(role);
+
+  const toggleNewUserPerm = (key: SubSindicoPermissionKey) => {
+    setNewUserPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleEditingPerm = (key: SubSindicoPermissionKey) => {
+    setEditingPermsDraft((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const openEditPermissionsModal = (condoUser: CondominiumUser) => {
+    setEditingPermsUser(condoUser);
+    setEditingPermsDraft({
+      ...DEFAULT_SUBSINDICO_PERMISSIONS,
+      ...(condoUser.permissions || {}),
+    });
+  };
+
+  const handleSaveSubSindicoPermissions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPermsUser || !currentCondominium?.id) return;
+    setIsSavingPerms(true);
+    const res = await userService.updateSubSindicoPermissions(
+      editingPermsUser.id,
+      currentCondominium.id,
+      editingPermsDraft,
+      currentRole
+    );
+    setIsSavingPerms(false);
+    if (res.error) {
+      setFeedback(`Erro ao salvar privilégios do Sub-Síndico: ${res.error.message}`);
+      return;
     }
+    setFeedback(`Privilégios do Sub-Síndico ${editingPermsUser.full_name} atualizados com sucesso!`);
+    setEditingPermsUser(null);
+    loadUsers();
+  };
+
+  const formatAuditActionLabel = (action: string) => {
+    const map: Record<string, string> = {
+      LGPD_DATA_EXPORT: 'Exportação de Dados Pessoais (LGPD)',
+      LGPD_ANONYMIZATION_REQUEST: 'Solicitação de Anonimização / Exclusão (LGPD)',
+      LGPD_CONSENT_ACCEPTED: 'Aceite de Termos & Privacidade (LGPD)',
+      USER_ROLE_UPDATED: 'Alteração de Papel / Privilégio',
+      SUBSINDICO_PERMISSIONS_UPDATED: 'Privilégios do Sub-Síndico Atualizados',
+      USER_LOG_ACCESS_UPDATED: 'Permissão de Log Realtime Alterada',
+      USER_REMOVED: 'Revogação de Acesso de Usuário',
+      CONDO_BLOCK_RENAMED: 'Bloco / Torre Renomeado',
+      CONDO_BLOCK_DELETED: 'Bloco / Torre Excluído',
+      CONDO_UPDATED: 'Dados do Condomínio Atualizados',
+    };
+    return map[action] || action;
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -556,6 +670,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         resident_type: newUserResidentType,
         has_pet: newUserHasPet,
         role: newUserRole,
+        permissions: newUserRole === 'subsindico' ? newUserPermissions : undefined,
       },
       currentRole
     );
@@ -571,7 +686,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       await unitService.registerOrUpdateResidentUnit({
         condominium_id: condoId,
         identifier: newUserApartment.trim() || '101',
-        block: newUserBlock.trim() || 'Bloco A',
+        block: newUserBlock.trim() || availableBlocks[0] || 'Bloco A',
         residentName: newUserFullName.trim(),
         residentType: newUserResidentType,
         hasPet: newUserHasPet,
@@ -590,14 +705,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setNewUserEmail('');
     setNewUserPhone('');
     setNewUserApartment('');
-    setNewUserBlock('Bloco A');
+    setNewUserBlock(availableBlocks[0] || 'Bloco A');
     setNewUserResidentType('Proprietário');
     setNewUserHasPet(false);
     setNewUserRole('morador');
+    setNewUserPermissions({ ...DEFAULT_SUBSINDICO_PERMISSIONS });
     loadUsers();
   };
 
-  const handleRoleChange = async (targetUserId: string, targetUserName: string, newRole: CondominiumRole) => {
+  const handleRoleChange = async (
+    targetUser: CondominiumUser,
+    newRole: CondominiumRole
+  ) => {
     if (!canManageUsers) {
       setFeedback('Acesso negado: apenas o Síndico e o Super Administrador podem conceder ou alterar privilégios.');
       return;
@@ -608,11 +727,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
 
     const res = await userService.updateUserRole(
-      targetUserId,
+      targetUser.id,
       currentCondominium.id,
       newRole,
       currentRole,
-      user?.id
+      user?.id,
+      newRole === 'subsindico'
+        ? { ...DEFAULT_SUBSINDICO_PERMISSIONS, ...(targetUser.permissions || {}) }
+        : undefined
     );
 
     if (res.error) {
@@ -620,8 +742,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
-    setFeedback(`Privilégio de ${targetUserName} atualizado para "${getRoleLabel(newRole)}" com sucesso.`);
-    loadUsers();
+    setFeedback(`Privilégio de ${targetUser.full_name} atualizado para "${getRoleLabel(newRole)}" com sucesso.`);
+    await loadUsers();
+    if (newRole === 'subsindico') {
+      openEditPermissionsModal({
+        ...targetUser,
+        role: 'subsindico',
+        permissions: { ...DEFAULT_SUBSINDICO_PERMISSIONS, ...(targetUser.permissions || {}) },
+      });
+    }
   };
 
   const handleToggleLogAccess = async (targetUserId: string, targetUserName: string, newAccess: boolean) => {
@@ -695,7 +824,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     >
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-4xl w-full max-w-4xl lg:max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60">
+        <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60 shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-lg shadow-sm shrink-0">
               <Settings className="w-6 h-6 animate-spin-slow" />
@@ -740,7 +869,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         )}
 
         {/* Tabs Bar com Auto-Scroll Suave + Controles Laterais */}
-        <div className="relative flex items-center border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 pt-4">
+        <div className="relative flex items-center border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 pt-4 shrink-0">
           <button
             type="button"
             onClick={() => scrollTabsBy(-220)}
@@ -820,7 +949,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span>Banco de Recebimento &amp; Boletos</span>
               </button>
             )}
-            {canManageUsers && (
+            {(canManageUsers || canViewAudit) && (
               <button
                 type="button"
                 role="tab"
@@ -897,7 +1026,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Tab Body */}
-        <div className="p-6 sm:p-8 pt-7 overflow-y-auto space-y-6 text-xs sm:text-sm">
+        <div className="flex-1 min-h-0 p-6 sm:p-8 pt-7 overflow-y-auto space-y-6 text-xs sm:text-sm">
           {/* TAB 1: PERFIL & FOTO */}
           {activeTab === 'perfil' && (
             <>
@@ -1167,9 +1296,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
                 <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Papel do Usuário</span>
-                  <p className="font-bold text-emerald-600 dark:text-emerald-400 capitalize mt-0.5 flex items-center gap-1">
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
                     <Shield className="w-3.5 h-3.5" />
-                    <span>{currentRole || 'sem vínculo'}</span>
+                    <span>{formatRoleLabel(currentRole)}</span>
                   </p>
                 </div>
               </div>
@@ -1187,9 +1316,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   <form
                     onSubmit={handleCreateCondominium}
-                    className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                    className="w-full max-w-xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
                   >
-                    <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900">
+                    <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900 shrink-0">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
                           <Building className="w-5 h-5" />
@@ -1213,7 +1342,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </button>
                     </div>
 
-                    <div className="p-6 max-h-[72vh] overflow-y-auto">
+                    <div className="flex-1 min-h-0 p-6 overflow-y-auto">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         <div>
                           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
@@ -1278,7 +1407,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end gap-2">
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={() => setIsCreatingCondo(false)}
@@ -1373,6 +1502,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Regra Padrão Opcional de Limite de Horário para Reservas */}
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                          <Clock className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h6 className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+                            Limite Padrão de Horário para Reservas de Espaços
+                          </h6>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Opcional. Desativado = horário livre por padrão. Você também pode definir regras individuais por espaço comum.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={condoEnforceReservationHours}
+                        onClick={() => setCondoEnforceReservationHours((prev) => !prev)}
+                        className={`w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 flex items-center ${
+                          condoEnforceReservationHours
+                            ? 'bg-emerald-600 justify-end'
+                            : 'bg-slate-300 dark:bg-slate-700 justify-start'
+                        }`}
+                      >
+                        <span className="w-5 h-5 rounded-full bg-white shadow-sm block" />
+                      </button>
+                    </div>
+
+                    {condoEnforceReservationHours && (
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-800">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            Horário Inicial Permitido
+                          </label>
+                          <PremiumSelect
+                            ariaLabel="Horário inicial padrão de reservas"
+                            size="sm"
+                            icon={<Clock className="w-3.5 h-3.5" />}
+                            value={condoResStartTime}
+                            onChange={setCondoResStartTime}
+                            options={TIME_OPTIONS}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            Horário Limite de Término
+                          </label>
+                          <PremiumSelect
+                            ariaLabel="Horário final padrão de reservas"
+                            size="sm"
+                            icon={<Clock className="w-3.5 h-3.5" />}
+                            value={condoResEndTime}
+                            onChange={setCondoResEndTime}
+                            options={TIME_OPTIONS}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex justify-end">
                     <button
                       type="submit"
@@ -1461,7 +1653,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </button>
                         </div>
 
-                        <div className="p-6 overflow-y-auto space-y-4">
+                        <div className="flex-1 min-h-0 p-6 overflow-y-auto space-y-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                             <div>
                               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
@@ -1534,13 +1726,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 size="md"
                                 value={newUserBlock}
                                 onChange={setNewUserBlock}
-                                options={[
-                                  { value: 'Bloco A', label: 'Bloco A (Torre A)' },
-                                  { value: 'Bloco B', label: 'Bloco B (Torre B)' },
-                                  { value: 'Bloco C', label: 'Bloco C' },
-                                  { value: 'Torre Sul', label: 'Torre Sul' },
-                                  { value: 'Torre Norte', label: 'Torre Norte' },
-                                ]}
+                                options={availableBlocks.map((b) => ({ value: b, label: b }))}
                               />
                             </div>
                             <div>
@@ -1580,13 +1766,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setNewUserHasPet(true)}
-                                  className={`py-2.5 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                  className={`py-2.5 px-3 rounded-2xl text-xs font-semibold border transition flex items-center justify-center gap-1.5 cursor-pointer ${
                                     newUserHasPet
                                       ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
                                       : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                                   }`}
                                 >
-                                  Sim (Tem Pet)
+                                  <PawPrint className="w-3.5 h-3.5" />
+                                  <span>Sim (Tem Pet)</span>
                                 </button>
                                 <button
                                   type="button"
@@ -1603,11 +1790,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             </div>
                           </div>
 
-                          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2">
+                          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
                             <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
                               Privilégio / Papel Concedido *
                             </label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <label
                                 className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
                                   newUserRole === 'morador'
@@ -1626,7 +1813,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   />
                                   <span className="text-xs">Morador</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Reservas, avisos e Pix</span>
+                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Mural, reservas, boletos e encomendas</span>
                               </label>
 
                               <label
@@ -1647,7 +1834,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   />
                                   <span className="text-xs">Portaria &amp; Acessos</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Guarita, encomendas e OS</span>
+                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Guarita, encomendas e abrir OS</span>
+                              </label>
+
+                              <label
+                                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                                  newUserRole === 'subsindico'
+                                    ? 'border-teal-600 bg-teal-50/60 dark:bg-teal-950/40 text-teal-950 dark:text-teal-200 font-bold'
+                                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name="new-user-role"
+                                    value="subsindico"
+                                    checked={newUserRole === 'subsindico'}
+                                    onChange={() => setNewUserRole('subsindico')}
+                                    className="text-teal-600 focus:ring-teal-500"
+                                  />
+                                  <span className="text-xs">Sub-Síndico</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Privilégios personalizados abaixo</span>
                               </label>
 
                               <label
@@ -1673,7 +1881,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                               {isSuperAdmin && (
                                 <label
-                                  className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition sm:col-span-3 ${
+                                  className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition sm:col-span-2 ${
                                     newUserRole === 'superadmin'
                                       ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-950 dark:text-purple-200 font-bold'
                                       : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
@@ -1693,6 +1901,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </label>
                               )}
                             </div>
+
+                            {newUserRole === 'subsindico' && (
+                              <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2.5">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div>
+                                    <p className="text-[11px] font-extrabold text-teal-700 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1.5">
+                                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                                      Privilégios Autorizados ao Sub-Síndico
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                      Marque exatamente o que este Sub-Síndico poderá operar (validado no servidor e banco de dados).
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const all: SubSindicoPermissions = {};
+                                        SUBSINDICO_PERMISSION_OPTIONS.forEach((opt) => {
+                                          all[opt.key] = true;
+                                        });
+                                        setNewUserPermissions(all);
+                                      }}
+                                      className="px-2 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-[10px] font-bold hover:bg-teal-100 transition cursor-pointer"
+                                    >
+                                      Marcar todos
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setNewUserPermissions({})}
+                                      className="px-2 py-1 rounded-lg bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-bold hover:bg-slate-300/70 transition cursor-pointer"
+                                    >
+                                      Limpar
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {SUBSINDICO_PERMISSION_OPTIONS.map((opt) => {
+                                    const checked = Boolean(newUserPermissions[opt.key]);
+                                    return (
+                                      <label
+                                        key={opt.key}
+                                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${
+                                          checked
+                                            ? 'border-teal-500 bg-teal-50/70 dark:bg-teal-950/40'
+                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() => toggleNewUserPerm(opt.key)}
+                                          className="mt-0.5 w-3.5 h-3.5 rounded accent-teal-600 cursor-pointer shrink-0"
+                                        />
+                                        <div className="min-w-0">
+                                          <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 block leading-tight">
+                                            {opt.label}
+                                          </span>
+                                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-snug">
+                                            {opt.description}
+                                          </span>
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1718,13 +1995,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   {/* Role filter pills */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {(['all', 'sindico', 'porteiro', 'morador', 'superadmin'] as const).map((roleKey) => {
+                    {(['all', 'sindico', 'subsindico', 'porteiro', 'morador', 'superadmin'] as const).map((roleKey) => {
                       const isActive = userRoleFilter === roleKey;
                       const label =
                         roleKey === 'all'
                           ? 'Todos os Usuários'
                           : roleKey === 'sindico'
                           ? 'Síndicos'
+                          : roleKey === 'subsindico'
+                          ? 'Sub-Síndicos'
                           : roleKey === 'porteiro'
                           ? 'Portaria'
                           : roleKey === 'morador'
@@ -1825,9 +2104,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 </span>
                               )}
 
+                              {condoUser.role === 'subsindico' && canModifyTarget && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEditPermissionsModal(condoUser)}
+                                  className="px-2.5 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                  title="Configurar privilégios granulares deste Sub-Síndico"
+                                >
+                                  <SlidersHorizontal className="w-3 h-3" />
+                                  <span>
+                                    Privilégios (
+                                    {
+                                      SUBSINDICO_PERMISSION_OPTIONS.filter(
+                                        (opt) => condoUser.permissions?.[opt.key]
+                                      ).length
+                                    }
+                                    /{SUBSINDICO_PERMISSION_OPTIONS.length})
+                                  </span>
+                                </button>
+                              )}
+
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase hidden sm:inline">
-                                  Privilégio:
+                                  Papel:
                                 </span>
                                 <PremiumSelect
                                   size="xs"
@@ -1837,11 +2136,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                   value={condoUser.role}
                                   disabled={!canModifyTarget}
                                   onChange={(val) =>
-                                    handleRoleChange(condoUser.id, condoUser.full_name, val as CondominiumRole)
+                                    handleRoleChange(condoUser, val as CondominiumRole)
                                   }
                                   options={[
                                     { value: 'morador', label: 'Morador' },
                                     { value: 'porteiro', label: 'Portaria' },
+                                    { value: 'subsindico', label: 'Sub-Síndico' },
                                     { value: 'sindico', label: 'Síndico' },
                                     ...(isSuperAdmin ? [{ value: 'superadmin', label: 'Super Admin' }] : []),
                                   ]}
@@ -1941,19 +2241,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
 
           {/* TAB AUDITORIA: TRILHA DE AUDITORIA DO CONDOMÍNIO */}
-          {canManageUsers && activeTab === 'auditoria' && (
+          {(canManageUsers || canViewAudit) && activeTab === 'auditoria' && (
             <div className="space-y-4">
               <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
                 <div>
                   <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                     <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span>Trilha de Auditoria Operacional & LGPD</span>
+                    <span>Trilha de Auditoria Operacional &amp; LGPD</span>
                   </h4>
                   <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                    Histórico imutável das operações críticas realizadas em {currentCondominium?.name || 'este condomínio'}.
+                    Histórico imutável das operações críticas (alterações de papéis, solicitações LGPD e gestão de blocos) em {currentCondominium?.name || 'este condomínio'}.
                   </p>
                 </div>
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
                   {auditLogs.length} eventos
                 </span>
               </div>
@@ -1965,22 +2265,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Nenhum evento de auditoria registrado ainda para este condomínio.
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[380px] overflow-y-auto">
-                  {auditLogs.map((log) => (
-                    <div key={log.id} className="p-3.5 bg-white dark:bg-slate-900 flex items-center justify-between gap-3 text-xs">
-                      <div className="min-w-0">
-                        <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
-                          {log.action}
-                        </span>
-                        <span className="ml-2 text-slate-600 dark:text-slate-300 font-medium">
-                          Tabela: <code className="font-mono">{log.entity_table}</code>
+                <div className="border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[380px] overflow-y-auto">
+                    {auditLogs.map((log) => (
+                      <div key={log.id} className="p-3.5 bg-white dark:bg-slate-900 flex items-center justify-between gap-3 text-xs">
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-800 dark:text-slate-100">
+                              {formatAuditActionLabel(log.action)}
+                            </span>
+                            <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                              {log.action}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                            Registro na tabela <code className="font-mono">{log.entity_table}</code>
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                          {new Date(log.created_at).toLocaleString('pt-BR')}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
-                        {new Date(log.created_at).toLocaleString('pt-BR')}
-                      </span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1990,17 +2297,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'privacidade' && (
             <div className="space-y-4">
               <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
                     <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    <span>Proteção de Dados & LGPD (Lei nº 13.709/2018)</span>
+                    <span>Proteção de Dados &amp; LGPD (Lei nº 13.709/2018)</span>
                   </h4>
                   <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                     Versão {LGPD_POLICY_VERSION}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Seus dados pessoais são isolados por condomínio via Row Level Security (RLS) no banco de dados. O condomínio atua como Controlador e a plataforma Condor como Operadora de Dados.
+                  Seus dados pessoais são isolados por condomínio via Row Level Security (RLS) no banco de dados. O condomínio atua como <strong>Controlador</strong> e a plataforma Condor como <strong>Operadora de Dados</strong>. Toda exportação ou pedido de anonimização fica registrado automaticamente na aba Auditoria para prestação de contas.
                 </p>
               </div>
 
@@ -2011,34 +2318,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       Portabilidade dos Meus Dados (Art. 18, V)
                     </h5>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      Baixe uma cópia estruturada em JSON contendo seu perfil e vínculos condominiais cadastrados.
+                      Exporte um relatório oficial formatado em <strong>PDF</strong> ou em texto legível (<strong>TXT</strong>) contendo seu perfil e vínculos condominiais cadastrados.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={isExportingLgpd || !user?.id}
-                    onClick={async () => {
-                      if (!user?.id) return;
-                      setIsExportingLgpd(true);
-                      const { error } = await lgpdService.exportMyPersonalData({
-                        userId: user.id,
-                        email: user.email,
-                        profile,
-                        memberships,
-                        condominiumId: currentCondominium?.id,
-                      });
-                      setIsExportingLgpd(false);
-                      setFeedback(
-                        error
-                          ? `Erro ao exportar dados: ${error.message}`
-                          : 'Arquivo JSON com seus dados pessoais baixado com sucesso!'
-                      );
-                    }}
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-                  >
-                    <FileDown className="w-3.5 h-3.5" />
-                    <span>{isExportingLgpd ? 'Gerando...' : 'Baixar Meus Dados (JSON)'}</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      disabled={isExportingLgpd || !user?.id}
+                      onClick={async () => {
+                        if (!user?.id) return;
+                        setIsExportingLgpd(true);
+                        const { error } = await lgpdService.exportMyPersonalDataPdf({
+                          userId: user.id,
+                          email: user.email,
+                          profile,
+                          memberships,
+                          condominiumId: currentCondominium?.id,
+                        });
+                        setIsExportingLgpd(false);
+                        setFeedback(
+                          error
+                            ? `Erro ao exportar dados em PDF: ${error.message}`
+                            : 'Relatório oficial em PDF aberto para impressão ou salvamento!'
+                        );
+                      }}
+                      className="flex-1 py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      <span>{isExportingLgpd ? 'Gerando...' : 'Baixar em PDF'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isExportingLgpd || !user?.id}
+                      onClick={async () => {
+                        if (!user?.id) return;
+                        setIsExportingLgpd(true);
+                        const { error } = await lgpdService.exportMyPersonalDataTxt({
+                          userId: user.id,
+                          email: user.email,
+                          profile,
+                          memberships,
+                          condominiumId: currentCondominium?.id,
+                        });
+                        setIsExportingLgpd(false);
+                        setFeedback(
+                          error
+                            ? `Erro ao exportar dados em TXT: ${error.message}`
+                            : 'Arquivo TXT com seus dados pessoais baixado com sucesso!'
+                        );
+                      }}
+                      className="py-2.5 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>TXT</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-3">
@@ -2090,12 +2424,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 4: PREFERÊNCIAS */}
           {activeTab === 'preferencias' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
                 <div>
                   <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Tema da Interface</h4>
                   <p className="text-slate-400 text-xs mt-0.5">Alterne entre o tema Claro e Escuro</p>
                 </div>
                 <ThemeToggle variant="segmented" />
+              </div>
+
+              <div className="p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <BellRing className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      Notificações Push (Comunicados &amp; Encomendas)
+                    </h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 leading-relaxed">
+                      Receba alertas instantâneos neste dispositivo sempre que a síndica publicar um comunicado no mural ou quando uma encomenda chegar na portaria em seu nome.
+                    </p>
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  {pushStatus === 'granted' ? (
+                    <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Push Ativado
+                    </span>
+                  ) : pushStatus === 'denied' ? (
+                    <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs font-bold">
+                      Bloqueado no navegador
+                    </span>
+                  ) : pushStatus === 'unsupported' ? (
+                    <span className="text-xs text-slate-400 font-semibold">Não suportado neste navegador</span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isRequestingPush}
+                      onClick={async () => {
+                        setIsRequestingPush(true);
+                        const res = await requestPushPermissionAndRegister({
+                          userId: user?.id,
+                          condominiumId: currentCondominium?.id,
+                        });
+                        setIsRequestingPush(false);
+                        setPushStatus(getBrowserNotificationPermission());
+                        setFeedback(
+                          res.granted
+                            ? 'Notificações Push ativadas neste dispositivo!'
+                            : res.status === 'denied'
+                            ? 'Notificações bloqueadas nas permissões do navegador.'
+                            : 'Não foi possível ativar as notificações push.'
+                        );
+                      }}
+                      className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer disabled:opacity-50"
+                    >
+                      {isRequestingPush ? 'Ativando...' : 'Ativar Alertas Push'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2495,7 +2883,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end">
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -2505,6 +2893,127 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Popup Modal: Editar Privilégios do Sub-Síndico */}
+      {editingPermsUser && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Editar Privilégios do Sub-Síndico"
+          className="fixed inset-0 z-[75] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingPermsUser(null);
+          }}
+        >
+          <form
+            onSubmit={handleSaveSubSindicoPermissions}
+            className="w-full max-w-xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          >
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
+                    Privilégios do Sub-Síndico
+                  </h5>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {editingPermsUser.full_name} • {editingPermsUser.email}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPermsUser(null)}
+                aria-label="Fechar privilégios do sub-síndico"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Selecione exatamente quais módulos e ações este Sub-Síndico tem autorização para executar neste condomínio.
+                </p>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const all: SubSindicoPermissions = {};
+                      SUBSINDICO_PERMISSION_OPTIONS.forEach((opt) => {
+                        all[opt.key] = true;
+                      });
+                      setEditingPermsDraft(all);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-[10px] font-bold hover:bg-teal-100 transition cursor-pointer"
+                  >
+                    Marcar todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingPermsDraft({})}
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold hover:bg-slate-200 transition cursor-pointer"
+                  >
+                    Limpar
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {SUBSINDICO_PERMISSION_OPTIONS.map((opt) => {
+                  const checked = Boolean(editingPermsDraft[opt.key]);
+                  return (
+                    <label
+                      key={opt.key}
+                      className={`p-3 rounded-2xl border flex items-start gap-2.5 cursor-pointer transition ${
+                        checked
+                          ? 'border-teal-500 bg-teal-50/70 dark:bg-teal-950/40'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleEditingPerm(opt.key)}
+                        className="mt-0.5 w-4 h-4 rounded accent-teal-600 cursor-pointer shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block leading-tight">
+                          {opt.label}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-snug">
+                          {opt.description}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditingPermsUser(null)}
+                className="px-4 py-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800 font-semibold text-xs cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingPerms}
+                className="px-5 py-2 rounded-full bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs shadow-pill cursor-pointer flex items-center gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSavingPerms ? 'Salvando...' : 'Salvar Privilégios'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Modal de Pré-visualização do Boleto Bancário */}
       <BoletoModal

@@ -5,7 +5,9 @@ export type NavigationTab =
   | 'units' 
   | 'concierge' 
   | 'reservations' 
-  | 'maintenance';
+  | 'maintenance'
+  | 'my_invoices'
+  | 'my_packages';
 
 export type InvoiceStatus = 'liquidated' | 'due_today' | 'overdue' | 'advance' | 'upcoming';
 

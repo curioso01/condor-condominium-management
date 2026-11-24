@@ -85,13 +85,13 @@ export const BankConciliationModal: React.FC<BankConciliationModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="conciliation-modal-title"
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <Building2 className="w-5 h-5" />
@@ -118,8 +118,9 @@ export const BankConciliationModal: React.FC<BankConciliationModalProps> = ({
           </button>
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         {/* Status real da conta configurada pela síndica */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
             <span className="text-[10px] font-bold text-slate-400 uppercase block">
               Domicílio Bancário
@@ -240,8 +241,10 @@ export const BankConciliationModal: React.FC<BankConciliationModalProps> = ({
           )}
         </div>
 
+        </div>
+
         {/* Ações */}
-        <div className="flex items-center justify-end gap-2 pt-2">
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 flex items-center justify-end gap-2">
           <button
             type="button"
             disabled={ledgerEntries.length === 0}

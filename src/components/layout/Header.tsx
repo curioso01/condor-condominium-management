@@ -27,6 +27,12 @@ import { amenityService } from '../../services/amenityService';
 import { invoiceService } from '../../services/invoiceService';
 import { packageService } from '../../services/packageService';
 import { maintenanceService } from '../../services/maintenanceService';
+import { formatRoleLabel } from '../../types/database.types';
+import {
+  getBrowserNotificationPermission,
+  requestPushPermissionAndRegister,
+  type NotificationPermissionState,
+} from '../../services/notificationPushService';
 
 interface HeaderProps {
   activeTab: NavigationTab;
@@ -62,6 +68,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<OperationalNotification | null>(null);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermissionState>(() =>
+    getBrowserNotificationPermission()
+  );
 
   const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin';
   const isMorador = currentRole === 'morador';
@@ -75,6 +84,8 @@ export const Header: React.FC<HeaderProps> = ({
     concierge: 'Buscar portaria, encomendas, visitantes...',
     reservations: 'Buscar espaços, reservas, calendário...',
     maintenance: 'Buscar ordens de serviço, equipamentos...',
+    my_invoices: 'Buscar seus boletos e pagamentos Pix...',
+    my_packages: 'Buscar suas encomendas e PINs de retirada...',
   };
 
   // Escuta evento global para abrir o Mural de Comunicados (usado por ?mural=open e CommandPalette)
@@ -223,7 +234,24 @@ export const Header: React.FC<HeaderProps> = ({
   useEffect(() => {
     setDismissedIds([]);
     loadRealAlerts();
+    const handleRefresh = () => {
+      void loadRealAlerts();
+    };
+    window.addEventListener('condor:announcements-updated', handleRefresh);
+    window.addEventListener('condor:packages-updated', handleRefresh);
+    return () => {
+      window.removeEventListener('condor:announcements-updated', handleRefresh);
+      window.removeEventListener('condor:packages-updated', handleRefresh);
+    };
   }, [loadRealAlerts]);
+
+  const handleEnablePushNotifications = async () => {
+    const res = await requestPushPermissionAndRegister({
+      userId: user?.id,
+      condominiumId: currentCondominium?.id,
+    });
+    setPushPermission(res.status);
+  };
 
   const unreadCount = alerts.filter((a) => !dismissedIds.includes(a.id)).length;
 
@@ -480,13 +508,23 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 )}
 
+                {pushPermission !== 'granted' && pushPermission !== 'unsupported' && (
+                  <button
+                    type="button"
+                    onClick={handleEnablePushNotifications}
+                    className="w-full mt-3 py-2 text-center text-[11px] font-bold text-slate-800 dark:text-slate-100 bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-xl transition cursor-pointer border border-amber-200 dark:border-amber-800/60"
+                  >
+                    Ativar alertas push neste dispositivo
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
                     setNotificationsOpen(false);
                     setIsAnnouncementsModalOpen(true);
                   }}
-                  className="w-full mt-3 py-2 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-xl transition cursor-pointer border border-emerald-100 dark:border-emerald-800/60"
+                  className="w-full mt-2 py-2 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-xl transition cursor-pointer border border-emerald-100 dark:border-emerald-800/60"
                 >
                   Ver Mural de Comunicados Oficiais
                 </button>
@@ -525,8 +563,8 @@ export const Header: React.FC<HeaderProps> = ({
               <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight max-w-[120px] truncate">
                 {profile?.full_name || user?.email || 'Usuário Condor'}
               </h4>
-              <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 capitalize">
-                {currentRole || 'sem vínculo'}
+              <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                {formatRoleLabel(currentRole)}
               </p>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />

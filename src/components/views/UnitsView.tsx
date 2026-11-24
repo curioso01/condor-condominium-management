@@ -19,10 +19,16 @@ import {
   PawPrint,
   TrendingUp,
   ExternalLink,
+  Pencil,
+  Trash2,
+  X,
+  Building2,
 } from 'lucide-react';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 export const UnitsView: React.FC = () => {
-  const { currentCondominium, canManageUsers, isSuperAdmin } = useAuth();
+  const { currentCondominium, canManageUsers, canManageUnits, isSuperAdmin, refreshMemberships } = useAuth();
+  const canEditBlocksAndUnits = canManageUsers || canManageUnits;
 
   const [units, setUnits] = useState<Unit[]>([]);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
@@ -34,6 +40,23 @@ export const UnitsView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
+
+  // Gestão de Blocos / Torres
+  const [savedBlocks, setSavedBlocks] = useState<string[]>([]);
+  const [blockModalMode, setBlockModalMode] = useState<'create' | 'rename' | 'delete' | null>(null);
+  const [activeBlockTarget, setActiveBlockTarget] = useState<string>('');
+  const [blockNameInput, setBlockNameInput] = useState<string>('');
+  const [deleteReassignBlock, setDeleteReassignBlock] = useState<string>('');
+  const [deleteWithUnitsConfirmed, setDeleteWithUnitsConfirmed] = useState<boolean>(false);
+  const [isSavingBlock, setIsSavingBlock] = useState(false);
+  const [blockModalError, setBlockModalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromCondo = Array.isArray(currentCondominium?.blocks)
+      ? currentCondominium.blocks.map((b) => String(b).trim()).filter(Boolean)
+      : [];
+    setSavedBlocks(fromCondo);
+  }, [currentCondominium?.id, currentCondominium?.blocks]);
 
   // Fetch real units from Supabase
   const loadUnits = useCallback(async () => {
@@ -118,11 +141,98 @@ export const UnitsView: React.FC = () => {
     }
   };
 
-  // Blocos reais presentes no condomínio
+  // Blocos reais presentes no condomínio (salvos no condomínio + existentes nas unidades)
   const dynamicBlocks = useMemo(
-    () => Array.from(new Set(units.map((u) => u.block).filter(Boolean))).sort(),
-    [units]
+    () => unitService.getConsolidatedBlocks(savedBlocks, units),
+    [savedBlocks, units]
   );
+
+  // Handlers de gestão de blocos (Criar, Renomear, Excluir)
+  const openCreateBlockModal = () => {
+    setBlockModalMode('create');
+    setActiveBlockTarget('');
+    setBlockNameInput('');
+    setBlockModalError(null);
+  };
+
+  const openRenameBlockModal = (blockName: string) => {
+    setBlockModalMode('rename');
+    setActiveBlockTarget(blockName);
+    setBlockNameInput(blockName);
+    setBlockModalError(null);
+  };
+
+  const openDeleteBlockModal = (blockName: string) => {
+    const alternatives = dynamicBlocks.filter((b) => b !== blockName);
+    setBlockModalMode('delete');
+    setActiveBlockTarget(blockName);
+    setDeleteReassignBlock(alternatives[0] || '');
+    setDeleteWithUnitsConfirmed(false);
+    setBlockModalError(null);
+  };
+
+  const handleConfirmBlockAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCondominium?.id || !blockModalMode) return;
+    setBlockModalError(null);
+    setIsSavingBlock(true);
+
+    if (blockModalMode === 'create') {
+      const res = await unitService.addBlock(currentCondominium.id, blockNameInput, dynamicBlocks);
+      setIsSavingBlock(false);
+      if (res.error) {
+        setBlockModalError(res.error.message);
+        return;
+      }
+      setSavedBlocks(res.blocks);
+      setBlockModalMode(null);
+      setNotification({ type: 'success', message: `Bloco "${blockNameInput.trim()}" adicionado com sucesso!` });
+      setTimeout(() => setNotification(null), 4500);
+      await refreshMemberships();
+      return;
+    }
+
+    if (blockModalMode === 'rename') {
+      const res = await unitService.renameBlock(currentCondominium.id, activeBlockTarget, blockNameInput);
+      setIsSavingBlock(false);
+      if (res.error) {
+        setBlockModalError(res.error.message);
+        return;
+      }
+      if (res.blocks.length > 0) setSavedBlocks(res.blocks);
+      if (filter === activeBlockTarget) setFilter(blockNameInput.trim());
+      setBlockModalMode(null);
+      setNotification({
+        type: 'success',
+        message: `Bloco "${activeBlockTarget}" alterado para "${blockNameInput.trim()}" (${res.unitsUpdated} unidade(s) atualizada(s)).`,
+      });
+      setTimeout(() => setNotification(null), 5000);
+      await Promise.all([loadUnits(), refreshMemberships()]);
+      return;
+    }
+
+    if (blockModalMode === 'delete') {
+      const targetCount = units.filter((u) => u.block === activeBlockTarget).length;
+      const res = await unitService.deleteBlock(currentCondominium.id, activeBlockTarget, {
+        reassignToBlock: targetCount > 0 && !deleteWithUnitsConfirmed ? deleteReassignBlock || null : null,
+        deleteUnits: targetCount > 0 && deleteWithUnitsConfirmed,
+      });
+      setIsSavingBlock(false);
+      if (res.error) {
+        setBlockModalError(res.error.message);
+        return;
+      }
+      setSavedBlocks(res.blocks);
+      if (filter === activeBlockTarget) setFilter('Todos');
+      setBlockModalMode(null);
+      setNotification({
+        type: 'success',
+        message: `Bloco "${activeBlockTarget}" excluído com sucesso!`,
+      });
+      setTimeout(() => setNotification(null), 5000);
+      await Promise.all([loadUnits(), refreshMemberships()]);
+    }
+  };
 
   // Filtered units (funciona com qualquer nome de bloco/torre do condomínio)
   const filteredUnits = useMemo(() => {
@@ -201,7 +311,7 @@ export const UnitsView: React.FC = () => {
           </p>
         </div>
 
-        {canManageUsers && (
+        {canEditBlocksAndUnits && (
           <div className="flex items-center gap-2">
             {units.length === 0 && !isLoading && (
               <button
@@ -324,13 +434,13 @@ export const UnitsView: React.FC = () => {
           </div>
         </section>
 
-        {/* CARD 2: Distribuição Real de Blocos & Torres */}
+        {/* CARD 2: Distribuição Real de Blocos & Torres (com Edição, Alteração e Exclusão) */}
         <section
           className="col-span-1 lg:col-span-5 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col justify-between"
           data-purpose="block-distribution-card"
         >
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between gap-2 mb-3">
               <div>
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   Topologia Real do Condomínio
@@ -341,41 +451,87 @@ export const UnitsView: React.FC = () => {
                     : 'Sem Blocos Cadastrados'}
                 </h2>
               </div>
-              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full">
-                {census.total} unid.
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full">
+                  {census.total} unid.
+                </span>
+                {canEditBlocksAndUnits && (
+                  <button
+                    type="button"
+                    onClick={openCreateBlockModal}
+                    className="px-2.5 py-1 rounded-full bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-700 text-white text-[10px] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                    title="Adicionar novo bloco ou torre"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Bloco</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {census.byBlock.length === 0 ? (
               <div className="my-3 p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center text-xs text-slate-500 dark:text-slate-400">
-                Cadastre unidades para visualizar automaticamente a distribuição por bloco ou torre.
+                Cadastre blocos ou unidades para organizar a distribuição por torre.
               </div>
             ) : (
-              <div className="space-y-3 my-3">
+              <div className="space-y-2.5 my-3 max-h-60 overflow-y-auto pr-1">
                 {census.byBlock.map((blk) => (
-                  <button
+                  <div
                     key={blk.name}
-                    type="button"
-                    onClick={() => setFilter(filter === blk.name ? 'Todos' : blk.name)}
-                    className={`w-full text-left p-3 rounded-2xl border transition cursor-pointer ${
+                    className={`w-full p-3 rounded-2xl border transition flex flex-col gap-1.5 ${
                       filter === blk.name
                         ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700'
                         : 'bg-slate-50 dark:bg-slate-800/60 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600'
                     }`}
                   >
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{blk.name}</span>
-                      <span className="font-semibold text-slate-500 dark:text-slate-400 tabular-nums">
-                        {blk.count} {blk.count === 1 ? 'unidade' : 'unidades'} • {blk.residents} morad.
-                      </span>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setFilter(filter === blk.name ? 'Todos' : blk.name)}
+                        className="font-bold text-slate-900 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 text-left truncate cursor-pointer flex-1"
+                      >
+                        {blk.name}
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400 tabular-nums text-[11px]">
+                          {blk.count} {blk.count === 1 ? 'unid.' : 'unid.'} • {blk.residents} morad.
+                        </span>
+                        {canEditBlocksAndUnits && (
+                          <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => openRenameBlockModal(blk.name)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 transition cursor-pointer"
+                              title={`Editar / renomear ${blk.name}`}
+                              aria-label={`Editar bloco ${blk.name}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openDeleteBlockModal(blk.name)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition cursor-pointer"
+                              title={`Excluir ${blk.name}`}
+                              aria-label={`Excluir bloco ${blk.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="w-full h-2 bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setFilter(filter === blk.name ? 'Todos' : blk.name)}
+                      className="w-full h-2 bg-slate-200/70 dark:bg-slate-700 rounded-full overflow-hidden cursor-pointer"
+                      aria-label={`Filtrar por ${blk.name}`}
+                    >
                       <div
                         className="h-full bg-emerald-600 rounded-full transition-all"
-                        style={{ width: `${Math.max(8, blk.share)}%` }}
+                        style={{ width: `${blk.count > 0 ? Math.max(8, blk.share) : 0}%` }}
                       />
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -383,7 +539,15 @@ export const UnitsView: React.FC = () => {
 
           <div className="flex items-center justify-between pt-2 text-[11px] text-slate-400">
             <span>Clique em um bloco para filtrar a tabela</span>
-            <span className="font-semibold text-slate-600 dark:text-slate-300">Dados do Banco</span>
+            {filter !== 'Todos' && (
+              <button
+                type="button"
+                onClick={() => setFilter('Todos')}
+                className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+              >
+                Limpar filtro
+              </button>
+            )}
           </div>
         </section>
 
@@ -731,6 +895,7 @@ export const UnitsView: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         condominiumId={currentCondominium?.id || ''}
         condominiumName={currentCondominium?.name || 'Condomínio'}
+        availableBlocks={dynamicBlocks}
         onUnitCreated={handleUnitCreated}
         onSuccess={(msg) => {
           setNotification({ type: 'success', message: msg });
@@ -738,6 +903,172 @@ export const UnitsView: React.FC = () => {
           loadUnits();
         }}
       />
+
+      {/* Popup Modal: Criar / Renomear / Excluir Bloco do Condomínio */}
+      {blockModalMode && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Gerenciar Bloco do Condomínio"
+          className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/65 backdrop-blur-sm animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSavingBlock) setBlockModalMode(null);
+          }}
+        >
+          <form
+            onSubmit={handleConfirmBlockAction}
+            className="w-full max-w-md max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+          >
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                    blockModalMode === 'delete'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400'
+                      : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                  }`}
+                >
+                  {blockModalMode === 'delete' ? (
+                    <Trash2 className="w-5 h-5" />
+                  ) : (
+                    <Building2 className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {blockModalMode === 'create'
+                      ? 'Adicionar Novo Bloco / Torre'
+                      : blockModalMode === 'rename'
+                      ? `Editar Bloco "${activeBlockTarget}"`
+                      : `Excluir Bloco "${activeBlockTarget}"`}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {currentCondominium?.name || 'Condomínio'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingBlock}
+                onClick={() => setBlockModalMode(null)}
+                aria-label="Fechar modal de bloco"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+              {blockModalError && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-start gap-2"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{blockModalError}</span>
+                </div>
+              )}
+
+              {(blockModalMode === 'create' || blockModalMode === 'rename') && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">
+                    {blockModalMode === 'create' ? 'Nome do Novo Bloco / Torre *' : 'Novo Nome do Bloco / Torre *'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={blockNameInput}
+                    onChange={(e) => setBlockNameInput(e.target.value)}
+                    placeholder="Ex: Bloco C, Torre Esmeralda, Ala Norte..."
+                    className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  {blockModalMode === 'rename' && (
+                    <p className="text-[11px] text-slate-400 mt-1.5">
+                      Todas as unidades e moradores vinculados a <strong>{activeBlockTarget}</strong> serão atualizados automaticamente no banco de dados.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {blockModalMode === 'delete' && (() => {
+                const unitsInBlock = units.filter((u) => u.block === activeBlockTarget).length;
+                const otherBlocks = dynamicBlocks.filter((b) => b !== activeBlockTarget);
+                return (
+                  <div className="space-y-3 text-xs">
+                    {unitsInBlock === 0 ? (
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                        O bloco <strong>{activeBlockTarget}</strong> não possui unidades vinculadas e pode ser removido com segurança.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200">
+                          Este bloco possui <strong>{unitsInBlock} unidade(s)</strong> cadastrada(s). Escolha como tratar essas unidades antes de excluir:
+                        </div>
+
+                        {otherBlocks.length > 0 && !deleteWithUnitsConfirmed && (
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                              Mover unidades deste bloco para:
+                            </label>
+                            <PremiumSelect
+                              ariaLabel="Bloco de destino para mover unidades"
+                              size="md"
+                              value={deleteReassignBlock}
+                              onChange={setDeleteReassignBlock}
+                              options={otherBlocks.map((b) => ({ value: b, label: b }))}
+                            />
+                          </div>
+                        )}
+
+                        <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={deleteWithUnitsConfirmed}
+                            onChange={(e) => setDeleteWithUnitsConfirmed(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 rounded accent-rose-600 cursor-pointer shrink-0"
+                          />
+                          <span className="text-[11px] text-rose-800 dark:text-rose-200 font-semibold leading-snug">
+                            Em vez de mover, excluir permanentemente também as {unitsInBlock} unidade(s) vinculadas a este bloco.
+                          </span>
+                        </label>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={isSavingBlock}
+                onClick={() => setBlockModalMode(null)}
+                className="px-4 py-2 rounded-full text-xs font-semibold text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingBlock}
+                className={`px-5 py-2 rounded-full text-white text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-50 ${
+                  blockModalMode === 'delete'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {isSavingBlock
+                  ? 'Processando...'
+                  : blockModalMode === 'create'
+                  ? 'Adicionar Bloco'
+                  : blockModalMode === 'rename'
+                  ? 'Salvar Alteração'
+                  : 'Confirmar Exclusão'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Modal de Detalhes Completos da Unidade */}
       <UnitDetailsModal

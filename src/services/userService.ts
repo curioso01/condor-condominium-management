@@ -1,5 +1,10 @@
 import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
-import type { CondominiumRole, MembershipStatus } from '../types/database.types';
+import type {
+  CondominiumRole,
+  MembershipStatus,
+  SubSindicoPermissions,
+} from '../types/database.types';
+import { DEFAULT_SUBSINDICO_PERMISSIONS } from '../types/database.types';
 import { auditService } from './auditService';
 
 export interface CondominiumUser {
@@ -14,6 +19,7 @@ export interface CondominiumUser {
   resident_type?: 'Proprietário' | 'Inquilino';
   has_pet?: boolean;
   role: CondominiumRole;
+  permissions?: SubSindicoPermissions;
   status: MembershipStatus;
   avatar_url?: string | null;
   log_access_granted?: boolean;
@@ -32,6 +38,7 @@ export interface CreateCondominiumUserInput {
   resident_type?: 'Proprietário' | 'Inquilino';
   has_pet?: boolean;
   role: CondominiumRole;
+  permissions?: SubSindicoPermissions;
 }
 
 // Cache em memória por condomínio (apenas durante a sessão ativa; limpo no logout)
@@ -55,13 +62,18 @@ function mapMemberRowToUser(row: any): CondominiumUser {
     resident_type: (row.resident_type as 'Proprietário' | 'Inquilino') || 'Proprietário',
     has_pet: Boolean(row.has_pet),
     role: row.role as CondominiumRole,
+    permissions:
+      row.permissions && typeof row.permissions === 'object'
+        ? (row.permissions as SubSindicoPermissions)
+        : {},
     status: (row.status as MembershipStatus) || 'active',
     avatar_url: profile.avatar_url || null,
     log_access_granted:
       row.role === 'superadmin' ||
       row.role === 'sindico' ||
       row.role === 'porteiro' ||
-      Boolean(row.log_access_granted),
+      Boolean(row.log_access_granted) ||
+      Boolean(row.role === 'subsindico' && row.permissions?.manage_concierge),
     created_at: row.created_at || new Date().toISOString(),
   };
 }
@@ -280,7 +292,11 @@ export const userService = {
         };
       }
 
-      // Insere/atualiza o vínculo em public.condominium_members com o UUID real do Auth
+      const resolvedPermissions: SubSindicoPermissions =
+        input.role === 'subsindico'
+          ? { ...DEFAULT_SUBSINDICO_PERMISSIONS, ...(input.permissions || {}) }
+          : {};
+
       const fullPayload = {
         condominium_id: input.condominium_id,
         user_id: targetUserId,
@@ -291,8 +307,12 @@ export const userService = {
         resident_type: input.resident_type || 'Proprietário',
         has_pet: Boolean(input.has_pet),
         cpf: input.cpf?.trim() || null,
+        permissions: resolvedPermissions,
         log_access_granted:
-          input.role === 'superadmin' || input.role === 'sindico' || input.role === 'porteiro',
+          input.role === 'superadmin' ||
+          input.role === 'sindico' ||
+          input.role === 'porteiro' ||
+          Boolean(input.role === 'subsindico' && resolvedPermissions.manage_concierge),
       };
 
       let { data: memberRow, error: insertErr } = await (
@@ -376,7 +396,8 @@ export const userService = {
     condominiumId: string,
     newRole: CondominiumRole,
     callerRole: CondominiumRole | null,
-    callerUserId?: string
+    callerUserId?: string,
+    permissions?: SubSindicoPermissions
   ): Promise<{ error: { message: string } | null }> {
     if (!this.canUserManageRoles(callerRole)) {
       return {
@@ -404,9 +425,16 @@ export const userService = {
       };
     }
 
+    const nextPermissions: SubSindicoPermissions =
+      newRole === 'subsindico'
+        ? { ...DEFAULT_SUBSINDICO_PERMISSIONS, ...(permissions || {}) }
+        : {};
+
     if (isDemoSessionActive()) {
       const current = this.getUsers(condominiumId);
-      const updated = current.map((u) => (u.id === targetUserId ? { ...u, role: newRole } : u));
+      const updated = current.map((u) =>
+        u.id === targetUserId ? { ...u, role: newRole, permissions: nextPermissions } : u
+      );
       localStorage.setItem(`${DEMO_USERS_KEY_PREFIX}${condominiumId}`, JSON.stringify(updated));
       usersMemoryCache.set(condominiumId, updated);
       return { error: null };
@@ -418,7 +446,11 @@ export const userService = {
 
     try {
       const { data, error } = await (supabase.from('condominium_members') as any)
-        .update({ role: newRole, updated_at: new Date().toISOString() })
+        .update({
+          role: newRole,
+          permissions: nextPermissions,
+          updated_at: new Date().toISOString(),
+        })
         .eq('condominium_id', condominiumId)
         .eq('user_id', targetUserId)
         .select('id')
@@ -439,13 +471,86 @@ export const userService = {
         action: 'USER_ROLE_CHANGED',
         entityTable: 'condominium_members',
         entityId: data.id,
-        metadata: { target_user_id: targetUserId, new_role: newRole },
+        metadata: { target_user_id: targetUserId, new_role: newRole, permissions: nextPermissions },
       });
 
       await this.fetchUsersByCondominium(condominiumId);
       return { error: null };
     } catch (err: any) {
       return { error: { message: err?.message || 'Erro ao atualizar papel no Supabase.' } };
+    }
+  },
+
+  /**
+   * Atualiza os privilégios granulares de um Sub-Síndico no condomínio.
+   */
+  async updateSubSindicoPermissions(
+    targetUserId: string,
+    condominiumId: string,
+    permissions: SubSindicoPermissions,
+    callerRole: CondominiumRole | null
+  ): Promise<{ error: { message: string } | null }> {
+    if (!this.canUserManageRoles(callerRole)) {
+      return {
+        error: {
+          message:
+            'Acesso negado: apenas o Síndico e o Super Administrador podem editar privilégios do Sub-Síndico.',
+        },
+      };
+    }
+
+    if (isDemoSessionActive()) {
+      const current = this.getUsers(condominiumId);
+      const updated = current.map((u) =>
+        u.id === targetUserId
+          ? { ...u, permissions, log_access_granted: Boolean(permissions.manage_concierge) }
+          : u
+      );
+      localStorage.setItem(`${DEMO_USERS_KEY_PREFIX}${condominiumId}`, JSON.stringify(updated));
+      usersMemoryCache.set(condominiumId, updated);
+      return { error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Alteração bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { data, error } = await (supabase.from('condominium_members') as any)
+        .update({
+          permissions,
+          log_access_granted: Boolean(permissions.manage_concierge),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('condominium_id', condominiumId)
+        .eq('user_id', targetUserId)
+        .select('id')
+        .single();
+
+      if (error || !data) {
+        return {
+          error: {
+            message:
+              error?.message ||
+              'Não foi possível salvar os privilégios do Sub-Síndico no Supabase.',
+          },
+        };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'SUBSINDICO_PERMISSIONS_UPDATED',
+        entityTable: 'condominium_members',
+        entityId: data.id,
+        metadata: { target_user_id: targetUserId, permissions },
+      });
+
+      await this.fetchUsersByCondominium(condominiumId);
+      return { error: null };
+    } catch (err: any) {
+      return {
+        error: { message: err?.message || 'Erro ao atualizar privilégios do Sub-Síndico.' },
+      };
     }
   },
 

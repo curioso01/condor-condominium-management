@@ -24,12 +24,19 @@ import { PremiumSelect } from '../ui/PremiumSelect';
 import { PremiumDatePicker } from '../ui/PremiumDatePicker';
 
 const TIME_OPTIONS = [
-  '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
-  '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30',
-  '23:00', '23:30', '23:59'
+  '00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
+  '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30',
+  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
+  '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30',
+  '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30',
+  '23:59',
 ];
+
+function timeToMinutes(hhmm: string): number {
+  const [h, m] = (hhmm || '00:00').split(':').map(Number);
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+}
 
 const PRESET_SLOTS = [
   { label: 'Manhã', icon: Sunrise, start: '08:00', end: '12:30' },
@@ -69,7 +76,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
   existingReservations = [],
   onReservationCreated,
 }) => {
-  const { user, profile } = useAuth();
+  const { user, profile, currentCondominium } = useAuth();
   const [spaceName, setSpaceName] = useState('');
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('18:00');
@@ -174,6 +181,30 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
     }
   };
 
+  // Find selected space & effective time-limit policy (configured per space or condo default)
+  const selectedSpaceObj = commonAreas.find(
+    (a) => a.name.trim().toLowerCase() === spaceName.trim().toLowerCase()
+  );
+  const effectiveEnforceTimeLimit = Boolean(
+    selectedSpaceObj?.enforce_time_limit ?? currentCondominium?.default_reservation_time_limit
+  );
+  const effectiveMinTime =
+    selectedSpaceObj?.enforce_time_limit
+      ? selectedSpaceObj.available_start_time || '08:00'
+      : currentCondominium?.default_reservation_start_time || '08:00';
+  const effectiveMaxTime =
+    selectedSpaceObj?.enforce_time_limit
+      ? selectedSpaceObj.available_end_time || '22:00'
+      : currentCondominium?.default_reservation_end_time || '22:00';
+  const effectiveMaxDurationHours =
+    selectedSpaceObj?.enforce_time_limit && selectedSpaceObj.max_duration_hours
+      ? Number(selectedSpaceObj.max_duration_hours)
+      : null;
+
+  const allowedTimeOptions = effectiveEnforceTimeLimit
+    ? TIME_OPTIONS.filter((t) => t >= effectiveMinTime && t <= effectiveMaxTime)
+    : TIME_OPTIONS;
+
   // Find all existing bookings for the selected space and date
   const conflictingReservationsForDate = existingReservations.filter((r) => {
     const sameSpace = r.spaceName.trim().toLowerCase() === spaceName.trim().toLowerCase();
@@ -204,6 +235,25 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
       });
       setFieldErrors(errors);
       return;
+    }
+
+    // Validação de regra de limite de horário definida pelo síndico (quando ativa)
+    if (effectiveEnforceTimeLimit) {
+      if (startTime < effectiveMinTime || endTime > effectiveMaxTime) {
+        setFormError(
+          `Horário fora do limite definido pelo condomínio para "${spaceName}": permitido das ${effectiveMinTime} às ${effectiveMaxTime}.`
+        );
+        return;
+      }
+      if (effectiveMaxDurationHours) {
+        const durationHours = (timeToMinutes(endTime) - timeToMinutes(startTime)) / 60;
+        if (durationHours > effectiveMaxDurationHours) {
+          setFormError(
+            `A duração máxima permitida para "${spaceName}" é de ${effectiveMaxDurationHours} hora(s) por reserva.`
+          );
+          return;
+        }
+      }
     }
 
     // Double-booking prevention check:
@@ -253,11 +303,11 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
     >
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-floating-sidebar border border-slate-200 dark:border-slate-800 p-6 sm:p-7 z-10 overflow-hidden">
+      <div className="relative w-full max-w-lg max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-floating-sidebar border border-slate-200 dark:border-slate-800 z-10 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-4">
+        <div className="flex items-center justify-between px-6 py-4 sm:px-7 sm:py-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
               <CalendarIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
@@ -273,25 +323,25 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fechar modal"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form Error Alert */}
-        {formError && (
-          <div
-            role="alert"
-            className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 text-xs font-medium flex items-start gap-2.5"
-          >
-            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-            <span>{formError}</span>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        {/* Form with scrollable internal body and fixed footer */}
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 sm:px-7 space-y-4">
+            {/* Form Error Alert */}
+            {formError && (
+              <div
+                role="alert"
+                className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 text-xs font-medium flex items-start gap-2.5"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            )}
           {/* 1. Space Selection */}
           <div>
             <label
@@ -369,13 +419,21 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
 
           {/* 3. Time Selection (Interactive Pickers & Presets) */}
           <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-100 dark:border-slate-800">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 Horário do Evento *
               </span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                {startTime} às {endTime}
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  effectiveEnforceTimeLimit
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {effectiveEnforceTimeLimit
+                  ? `Limite: ${effectiveMinTime} às ${effectiveMaxTime}${effectiveMaxDurationHours ? ` • máx. ${effectiveMaxDurationHours}h` : ''}`
+                  : 'Horário livre (sem restrição)'}
               </span>
             </div>
 
@@ -417,7 +475,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                   ariaLabel="Horário de início"
                   value={startTime}
                   onChange={setStartTime}
-                  options={TIME_OPTIONS.slice(0, -1)}
+                  options={allowedTimeOptions.length > 1 ? allowedTimeOptions.slice(0, -1) : TIME_OPTIONS.slice(0, -1)}
                 />
               </div>
 
@@ -437,7 +495,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                     setEndTime(val);
                     if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: '' });
                   }}
-                  options={TIME_OPTIONS.slice(1)}
+                  options={allowedTimeOptions.length > 1 ? allowedTimeOptions.slice(1) : TIME_OPTIONS.slice(1)}
                   buttonClassName={fieldErrors.endTime ? 'border-rose-400' : ''}
                 />
               </div>
@@ -545,8 +603,10 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+          </div>
+
+          {/* Action Buttons (Fixed Footer) */}
+          <div className="px-6 py-4 sm:px-7 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900 flex items-center justify-end gap-2.5 shrink-0">
             <button
               type="button"
               onClick={onClose}

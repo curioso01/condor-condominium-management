@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { NavigationTab } from '../../types/condominium';
 import { useAuth } from '../../contexts/AuthContext';
+import { packageService } from '../../services/packageService';
+import { announcementService } from '../../services/announcementService';
 import { Logo } from '../common/Logo';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import {
@@ -14,6 +16,8 @@ import {
   Settings,
   HelpCircle,
   Smartphone,
+  Package,
+  Megaphone,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -21,16 +25,76 @@ interface SidebarProps {
   onSelectTab: (tab: NavigationTab) => void;
   onOpenSettings?: () => void;
   onOpenFaq?: () => void;
+  onOpenMural?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpenSettings, onOpenFaq }) => {
-  const { currentRole, memberships } = useAuth();
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  onSelectTab,
+  onOpenSettings,
+  onOpenFaq,
+  onOpenMural,
+}) => {
+  const {
+    currentCondominium,
+    currentRole,
+    memberships,
+    isSindico,
+    isSuperAdmin,
+    isMorador,
+    isPorteiro,
+    canAccessFinance,
+    canManageUnits,
+    canAccessConcierge,
+    canManageMaintenance,
+  } = useAuth();
 
-  const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin';
-  const isMorador = currentRole === 'morador';
+  const [pendingPackagesCount, setPendingPackagesCount] = useState(0);
+  const [announcementsCount, setAnnouncementsCount] = useState(0);
+
+  const isSindicoOrAdmin = isSindico || isSuperAdmin;
   const hasMultipleCondos = memberships.length > 1;
+  const canSeeMaintenance =
+    isSindicoOrAdmin || currentRole === 'porteiro' || canManageMaintenance;
 
-  const navItems: { tab: NavigationTab; label: string; icon: React.ReactNode; visible: boolean }[] = [
+  const refreshBadges = useCallback(async () => {
+    if (!currentCondominium?.id) {
+      setPendingPackagesCount(0);
+      setAnnouncementsCount(0);
+      return;
+    }
+    try {
+      const [pkgRes, ancRes] = await Promise.all([
+        packageService.getPackagesByCondominium(currentCondominium.id),
+        announcementService.fetchAnnouncements(currentCondominium.id),
+      ]);
+      setPendingPackagesCount((pkgRes.data || []).filter((p) => p.status === 'awaiting').length);
+      setAnnouncementsCount((ancRes.data || []).length);
+    } catch {
+      // ignore badge fetch errors
+    }
+  }, [currentCondominium?.id]);
+
+  useEffect(() => {
+    refreshBadges();
+    const onRefresh = () => {
+      void refreshBadges();
+    };
+    window.addEventListener('condor:packages-updated', onRefresh);
+    window.addEventListener('condor:announcements-updated', onRefresh);
+    return () => {
+      window.removeEventListener('condor:packages-updated', onRefresh);
+      window.removeEventListener('condor:announcements-updated', onRefresh);
+    };
+  }, [refreshBadges]);
+
+  const navItems: {
+    tab: NavigationTab;
+    label: string;
+    icon: React.ReactNode;
+    visible: boolean;
+    badgeCount?: number;
+  }[] = [
     {
       tab: 'overview',
       label: 'Visão Geral',
@@ -43,23 +107,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
       icon: <Briefcase className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
       visible: isSindicoOrAdmin && hasMultipleCondos,
     },
+    // Atalhos dedicados do Morador
+    {
+      tab: 'my_invoices',
+      label: 'Meus Boletos & Pix',
+      icon: <Wallet className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
+      visible: isMorador,
+    },
+    {
+      tab: 'my_packages',
+      label:
+        pendingPackagesCount > 0
+          ? `Minhas Encomendas (${pendingPackagesCount} aguardando)`
+          : 'Minhas Encomendas',
+      icon: <Package className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
+      visible: isMorador,
+      badgeCount: pendingPackagesCount,
+    },
+    // Módulos administrativos / equipe / sub-síndico autorizado
     {
       tab: 'finance',
       label: 'Financeiro & Arrecadação',
       icon: <Wallet className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
-      visible: isSindicoOrAdmin,
+      visible: !isMorador && canAccessFinance,
     },
     {
       tab: 'units',
       label: 'Unidades & Moradores',
       icon: <Building2 className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
-      visible: isSindicoOrAdmin,
+      visible: !isMorador && canManageUnits,
     },
     {
       tab: 'concierge',
       label: 'Portaria, Acessos & Encomendas',
       icon: <ShieldCheck className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
-      visible: !isMorador,
+      visible: !isMorador && (isPorteiro || canAccessConcierge),
+      badgeCount: !isMorador ? pendingPackagesCount : 0,
     },
     {
       tab: 'reservations',
@@ -71,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
       tab: 'maintenance',
       label: 'Manutenções & Chamados',
       icon: <Wrench className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />,
-      visible: !isMorador,
+      visible: !isMorador && canSeeMaintenance,
     },
   ];
 
@@ -114,12 +197,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab, onOpen
               }`}
             >
               {item.icon}
+              {item.badgeCount && item.badgeCount > 0 ? (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black flex items-center justify-center ring-2 ring-white dark:ring-[#111827] tabular-nums">
+                  {item.badgeCount > 9 ? '9+' : item.badgeCount}
+                </span>
+              ) : null}
               {isActive && (
                 <span className="absolute -right-1 w-1 h-4 bg-emerald-500 rounded-full" />
               )}
             </button>
           );
         })}
+
+        {/* Atalho Rápido: Mural de Comunicados (disponível especialmente para o Morador em modo leitura e para todos) */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onOpenMural) {
+              onOpenMural();
+            } else {
+              window.dispatchEvent(new CustomEvent('condor:open-mural'));
+            }
+          }}
+          aria-label="Mural de Comunicados e Notificações"
+          title={
+            announcementsCount > 0
+              ? `Mural de Comunicados (${announcementsCount} avisos)`
+              : 'Mural de Comunicados'
+          }
+          className="w-10 h-10 2xl:w-11 2xl:h-11 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-200 relative cursor-pointer text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        >
+          <Megaphone className="w-[18px] h-[18px] 2xl:w-5 2xl:h-5" />
+          {announcementsCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-emerald-600 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#111827] tabular-nums">
+              {announcementsCount > 9 ? '9+' : announcementsCount}
+            </span>
+          )}
+        </button>
       </nav>
 
       {/* Separator + Footer Utilities */}

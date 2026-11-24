@@ -79,9 +79,9 @@ export const OperationalExpensesModal: React.FC<OperationalExpensesModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <Receipt className="w-5 h-5" />
@@ -103,8 +103,9 @@ export const OperationalExpensesModal: React.FC<OperationalExpensesModalProps> =
           </button>
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         {/* Top Summary Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
             <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Executado</span>
             <span className="text-base font-extrabold text-slate-900 dark:text-slate-100 block mt-0.5 tabular-nums">
@@ -198,7 +199,8 @@ export const OperationalExpensesModal: React.FC<OperationalExpensesModalProps> =
             </div>
 
             {/* List */}
-            <div className="border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto">
+            <div className="border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto">
               {filtered.map((e) => (
                 <div key={e.id} className="p-3 flex items-center justify-between text-xs hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                   <div className="space-y-0.5">
@@ -231,6 +233,7 @@ export const OperationalExpensesModal: React.FC<OperationalExpensesModalProps> =
                   </div>
                 </div>
               ))}
+              </div>
             </div>
           </div>
         )}
@@ -370,7 +373,9 @@ export const OperationalExpensesModal: React.FC<OperationalExpensesModalProps> =
           </form>
         )}
 
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 mt-4 flex justify-end">
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 flex justify-end">
           <button
             type="button"
             onClick={onClose}
