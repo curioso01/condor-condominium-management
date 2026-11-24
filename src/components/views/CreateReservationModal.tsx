@@ -21,6 +21,7 @@ import type { CommonArea } from '../../types/database.types';
 import type { AmenityReservation } from '../../types/condominium';
 import { AmenityIconBadge, resolveAmenityIconMeta } from '../common/AmenityIconBadge';
 import { PremiumSelect } from '../ui/PremiumSelect';
+import { PremiumDatePicker } from '../ui/PremiumDatePicker';
 
 const TIME_OPTIONS = [
   '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
@@ -99,7 +100,9 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
   // Reset form when modal opens and prefill with logged in user data
   useEffect(() => {
     if (isOpen) {
-      setSpaceName(commonAreas[0]?.name || 'Salão de Festas Principal');
+      const initialSpace = commonAreas[0]?.name || 'Salão de Festas Principal';
+      setSpaceName(initialSpace);
+      setEmoji(resolveAmenityIconMeta(initialSpace, commonAreas[0]?.emoji ?? undefined).key);
       
       // Default to initialDate if provided, or today by default
       if (initialDate) {
@@ -137,7 +140,6 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
       setResponsibleName(defaultName);
       setUnitNumber(defaultUnit);
       setIsAutoFilled(Boolean(defaultName || defaultUnit));
-      setEmoji('party');
       setFieldErrors({});
       setFormError(null);
     }
@@ -349,20 +351,17 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                 </span>
               )}
             </div>
-            <div className="relative">
-              <input
-                id="reservation-date-input"
-                type="date"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                  if (fieldErrors.date) setFieldErrors({ ...fieldErrors, date: '' });
-                }}
-                className={`w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold cursor-pointer ${
-                  fieldErrors.date ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
-                }`}
-              />
-            </div>
+            <PremiumDatePicker
+              id="reservation-date-input"
+              ariaLabel="Data da reserva"
+              size="md"
+              value={date}
+              onChange={(iso) => {
+                setDate(iso);
+                if (fieldErrors.date) setFieldErrors({ ...fieldErrors, date: '' });
+              }}
+              buttonClassName={fieldErrors.date ? 'border-rose-400' : ''}
+            />
             {fieldErrors.date && (
               <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">{fieldErrors.date}</p>
             )}
@@ -470,19 +469,21 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
           </div>
 
           {/* 4. Responsible & Unit */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label
-                htmlFor="reservation-responsible-input"
-                className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
-              >
-                Morador Responsável *
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between gap-1.5 min-h-[20px] mb-1.5">
+                <label
+                  htmlFor="reservation-responsible-input"
+                  className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate"
+                >
+                  Morador Responsável *
+                </label>
                 {isAutoFilled && responsibleName && (
-                  <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold normal-case">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap shrink-0">
                     (preenchido)
                   </span>
                 )}
-              </label>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <User className="w-4 h-4" />
@@ -496,7 +497,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                     if (fieldErrors.responsibleName) setFieldErrors({ ...fieldErrors, responsibleName: '' });
                   }}
                   placeholder="Nome do morador"
-                  className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                  className={`w-full h-11 pl-10 pr-3.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium ${
                     fieldErrors.responsibleName ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
                   }`}
                 />
@@ -506,18 +507,20 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
               )}
             </div>
 
-            <div>
-              <label
-                htmlFor="reservation-unit-input"
-                className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
-              >
-                Unidade / Apartamento *
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between gap-1.5 min-h-[20px] mb-1.5">
+                <label
+                  htmlFor="reservation-unit-input"
+                  className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate"
+                >
+                  Unidade / Apartamento *
+                </label>
                 {isAutoFilled && unitNumber && (
-                  <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold normal-case">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap shrink-0">
                     (sua unidade)
                   </span>
                 )}
-              </label>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <Home className="w-4 h-4" />
@@ -531,7 +534,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                     if (fieldErrors.unitNumber) setFieldErrors({ ...fieldErrors, unitNumber: '' });
                   }}
                   placeholder="Ex: 101, 402"
-                  className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold ${
+                  className={`w-full h-11 pl-10 pr-3.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold ${
                     fieldErrors.unitNumber ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
                   }`}
                 />

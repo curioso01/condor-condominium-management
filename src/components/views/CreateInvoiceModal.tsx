@@ -4,6 +4,7 @@ import { X, Receipt, CheckCircle2, AlertCircle, CalendarDays, Users, Landmark } 
 import type { Unit } from '../../types/condominium';
 import { toLocalIsoDate } from '../../services/invoiceService';
 import { bankAccountService } from '../../services/bankAccountService';
+import { PremiumDatePicker } from '../ui/PremiumDatePicker';
 
 const PRESET_DESCRIPTIONS = ['Condomínio Ordinário', 'Fundo de Reserva', 'Taxa Extra – Obras'];
 
@@ -324,18 +325,17 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
               >
                 Vencimento *
               </label>
-              <div className="relative">
-                <input
-                  id="invoice-due-date"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => {
-                    setDueDate(e.target.value);
-                    clearError('dueDateIso');
-                  }}
-                  className={`${inputBase} cursor-pointer ${fieldErrors.dueDateIso ? errBorder : okBorder}`}
-                />
-              </div>
+              <PremiumDatePicker
+                id="invoice-due-date"
+                ariaLabel="Data de vencimento da cobrança"
+                size="md"
+                value={dueDate}
+                onChange={(iso) => {
+                  setDueDate(iso);
+                  clearError('dueDateIso');
+                }}
+                buttonClassName={fieldErrors.dueDateIso ? 'border-rose-400' : ''}
+              />
               {fieldErrors.dueDateIso && (
                 <p className="mt-1 text-[11px] text-rose-600 font-medium">{fieldErrors.dueDateIso}</p>
               )}

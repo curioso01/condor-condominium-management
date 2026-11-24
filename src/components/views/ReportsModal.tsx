@@ -18,6 +18,7 @@ import { amenityService } from '../../services/amenityService';
 import { maintenanceService } from '../../services/maintenanceService';
 import { financialDataService } from '../../services/financialDataService';
 import { printHtmlDocument, escapeHtml } from '../../utils/printDocument';
+import { PremiumDatePicker } from '../ui/PremiumDatePicker';
 import type {
   Invoice,
   AccessEntry,
@@ -40,7 +41,14 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
 }) => {
   const { currentCondominium } = useAuth();
   const [selectedReport, setSelectedReport] = useState<ReportType>('financeiro');
-  const [period, setPeriod] = useState<'30dias' | 'mesAtual' | 'trimestre' | 'todos'>('mesAtual');
+  const [period, setPeriod] = useState<'30dias' | 'mesAtual' | 'trimestre' | 'todos' | 'personalizado'>('mesAtual');
+  const todayIso = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+  const firstDayMonthIso = useMemo(() => `${todayIso.slice(0, 8)}01`, [todayIso]);
+  const [customStartDate, setCustomStartDate] = useState<string>(firstDayMonthIso);
+  const [customEndDate, setCustomEndDate] = useState<string>(todayIso);
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -85,9 +93,19 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
   }, [isOpen, currentCondominium?.id]);
 
   const filterByDateIso = (isoDate?: string | null): boolean => {
-    if (period === 'todos' || !isoDate) return true;
+    if (period === 'todos') return true;
+    if (!isoDate) return period !== 'personalizado';
+    const dayKey = isoDate.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return true;
+
+    if (period === 'personalizado') {
+      if (customStartDate && dayKey < customStartDate) return false;
+      if (customEndDate && dayKey > customEndDate) return false;
+      return true;
+    }
+
     const now = new Date();
-    const target = new Date(`${isoDate.slice(0, 10)}T12:00:00`);
+    const target = new Date(`${dayKey}T12:00:00`);
     if (Number.isNaN(target.getTime())) return true;
 
     if (period === 'mesAtual') {
@@ -98,6 +116,18 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
     if (period === 'trimestre') return diffDays <= 90 && diffDays >= -90;
     return true;
   };
+
+  const periodDisplayLabel = useMemo(() => {
+    const fmt = (iso: string) =>
+      iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)
+        ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+        : '—';
+    if (period === 'mesAtual') return 'Mês Atual';
+    if (period === '30dias') return 'Últimos 30 Dias';
+    if (period === 'trimestre') return 'Últimos 90 Dias';
+    if (period === 'personalizado') return `${fmt(customStartDate)} a ${fmt(customEndDate)}`;
+    return 'Todo o Período';
+  }, [period, customStartDate, customEndDate]);
 
   const reportData = useMemo(() => {
     const filteredInvoices = invoices.filter((i) => filterByDateIso(i.dueDateIso));
@@ -237,7 +267,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
     };
 
     return configs[selectedReport];
-  }, [invoices, accessLogs, reservations, orders, reserveBalance, selectedReport, period]);
+  }, [invoices, accessLogs, reservations, orders, reserveBalance, selectedReport, period, customStartDate, customEndDate]);
 
   if (!isOpen) return null;
 
@@ -246,7 +276,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
     const csvRows = [
       [`Relatório: ${reportData.title}`],
       [`Condomínio: ${currentCondominium?.name || condominiumName}`],
-      [`Período: ${period}`],
+      [`Período: ${periodDisplayLabel}`],
       [`Emitido em: ${new Date().toLocaleString('pt-BR')}`],
       [],
       reportData.headers,
@@ -326,54 +356,91 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
         )}
 
         {/* Filters */}
-        <div className="px-6 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-semibold">
-            {(
-              [
-                { id: 'financeiro', label: 'Financeiro' },
-                { id: 'portaria', label: 'Portaria' },
-                { id: 'reservas', label: 'Reservas' },
-                { id: 'manutencao', label: 'Manutenção' },
-              ] as const
-            ).map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setSelectedReport(t.id)}
-                className={`px-3 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap ${
-                  selectedReport === t.id
-                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+        <div className="px-6 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-semibold">
+              {(
+                [
+                  { id: 'financeiro', label: 'Financeiro' },
+                  { id: 'portaria', label: 'Portaria' },
+                  { id: 'reservas', label: 'Reservas' },
+                  { id: 'manutencao', label: 'Manutenção' },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelectedReport(t.id)}
+                  className={`px-3 py-1.5 rounded-xl transition cursor-pointer whitespace-nowrap ${
+                    selectedReport === t.id
+                      ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-[11px] self-start sm:self-auto flex-wrap">
+              {(
+                [
+                  { id: 'mesAtual', label: 'Mês Atual' },
+                  { id: '30dias', label: '30 Dias' },
+                  { id: 'trimestre', label: '90 Dias' },
+                  { id: 'todos', label: 'Todos' },
+                  { id: 'personalizado', label: 'Personalizado' },
+                ] as const
+              ).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPeriod(p.id)}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer whitespace-nowrap ${
+                    period === p.id
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-[11px] self-start sm:self-auto">
-            {(
-              [
-                { id: 'mesAtual', label: 'Mês Atual' },
-                { id: '30dias', label: '30 Dias' },
-                { id: 'trimestre', label: '90 Dias' },
-                { id: 'todos', label: 'Todos' },
-              ] as const
-            ).map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPeriod(p.id)}
-                className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                  period === p.id
-                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                    : 'text-slate-500 dark:text-slate-400'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          {period === 'personalizado' && (
+            <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/60 flex flex-col sm:flex-row sm:items-center gap-3 animate-fadeIn">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 shrink-0">
+                Período Personalizado:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-7 shrink-0">De</span>
+                  <PremiumDatePicker
+                    ariaLabel="Data inicial do relatório"
+                    size="sm"
+                    className="flex-1"
+                    value={customStartDate}
+                    max={customEndDate || undefined}
+                    onChange={setCustomStartDate}
+                    clearable
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 w-7 shrink-0">Até</span>
+                  <PremiumDatePicker
+                    ariaLabel="Data final do relatório"
+                    size="sm"
+                    className="flex-1"
+                    value={customEndDate}
+                    min={customStartDate || undefined}
+                    onChange={setCustomEndDate}
+                    clearable
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Body */}
@@ -454,7 +521,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
                       <div>
                         <div class="kicker">CONDOR • RELATÓRIO OFICIAL</div>
                         <h1>${escapeHtml(reportData.title)}</h1>
-                        <div class="sub">${escapeHtml(condominiumName)} • Emitido em ${escapeHtml(new Date().toLocaleString('pt-BR'))}</div>
+                        <div class="sub">${escapeHtml(condominiumName)} • Período: ${escapeHtml(periodDisplayLabel)} • Emitido em ${escapeHtml(new Date().toLocaleString('pt-BR'))}</div>
                       </div>
                       <div class="count">${reportData.rows.length} registros</div>
                     </div>

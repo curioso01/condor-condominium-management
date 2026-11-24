@@ -236,101 +236,130 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
 
         {/* Modal Content / Form */}
         <div className="p-6 overflow-y-auto space-y-4">
-          {/* New Announcement Form (Apenas Administradores) */}
+          {/* Popup Modal: Criar Novo Comunicado Oficial (Apenas Administradores) */}
           {canManageAnnouncements && isCreating && (
-            <form
-              onSubmit={handleCreateAnnouncement}
-              className="p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-3.5 animate-fadeIn"
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Criar Novo Comunicado Oficial"
+              className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/65 backdrop-blur-sm animate-fadeIn"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setIsCreating(false);
+              }}
             >
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Criar Novo Comunicado Oficial</h4>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  Notificação Push Automática
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                  Título do Comunicado
-                </label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Ex: Interrupção Programada de Energia Elétrica na Torre 2"
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                    Categoria
-                  </label>
-                  <PremiumSelect
-                    ariaLabel="Categoria do comunicado"
-                    size="md"
-                    value={newCategory}
-                    onChange={(val) => setNewCategory(val as any)}
-                    options={[
-                      { value: 'Comunicado', label: 'Comunicado Geral' },
-                      { value: 'Urgente', label: 'Urgente' },
-                      { value: 'Assembleia', label: 'Assembleia' },
-                      { value: 'Manutenção', label: 'Manutenção' },
-                      { value: 'Convivência', label: 'Convivência' },
-                    ]}
-                  />
+              <form
+                onSubmit={handleCreateAnnouncement}
+                className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                      <Megaphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
+                        Criar Novo Comunicado Oficial
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Publicado instantaneamente no mural do condomínio
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreating(false)}
+                    aria-label="Fechar novo comunicado"
+                    className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                    Prioridade
-                  </label>
-                  <PremiumSelect
-                    ariaLabel="Prioridade do comunicado"
-                    size="md"
-                    value={newPriority || 'normal'}
-                    onChange={(val) => setNewPriority(val as any)}
-                    options={[
-                      { value: 'normal', label: 'Normal' },
-                      { value: 'media', label: 'Média' },
-                      { value: 'alta', label: 'Alta (Fixar no Topo)' },
-                    ]}
-                  />
+
+                <div className="p-6 space-y-4 max-h-[72vh] overflow-y-auto">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                      Título do Comunicado *
+                    </label>
+                    <input
+                      type="text"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="Ex: Interrupção Programada de Energia Elétrica na Torre 2"
+                      className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                        Categoria
+                      </label>
+                      <PremiumSelect
+                        ariaLabel="Categoria do comunicado"
+                        size="md"
+                        value={newCategory}
+                        onChange={(val) => setNewCategory(val as any)}
+                        options={[
+                          { value: 'Comunicado', label: 'Comunicado Geral' },
+                          { value: 'Urgente', label: 'Urgente' },
+                          { value: 'Assembleia', label: 'Assembleia' },
+                          { value: 'Manutenção', label: 'Manutenção' },
+                          { value: 'Convivência', label: 'Convivência' },
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                        Prioridade
+                      </label>
+                      <PremiumSelect
+                        ariaLabel="Prioridade do comunicado"
+                        size="md"
+                        value={newPriority || 'normal'}
+                        onChange={(val) => setNewPriority(val as any)}
+                        options={[
+                          { value: 'normal', label: 'Normal' },
+                          { value: 'media', label: 'Média' },
+                          { value: 'alta', label: 'Alta (Fixar no Topo)' },
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                      Texto Completo do Comunicado *
+                    </label>
+                    <textarea
+                      value={newContent}
+                      onChange={(e) => setNewContent(e.target.value)}
+                      placeholder="Descreva detalhes, datas, recomendações e canais de contato com a administração..."
+                      rows={4}
+                      className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                  Texto Completo do Comunicado
-                </label>
-                <textarea
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="Descreva detalhes, datas, recomendações e canais de contato com a administração..."
-                  rows={4}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(false)}
-                  className="px-4 py-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Publicar e Disparar Push</span>
-                </button>
-              </div>
-            </form>
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreating(false)}
+                    className="px-4 py-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-pill cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Publicar Comunicado</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
 
           {/* Announcements Feed */}
