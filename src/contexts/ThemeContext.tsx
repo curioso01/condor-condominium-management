@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -12,6 +13,47 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'condor_theme_preference';
+
+const applyThemeToDom = (resolved: 'light' | 'dark') => {
+  const root = document.documentElement;
+  root.classList.toggle('dark', resolved === 'dark');
+  root.style.colorScheme = resolved;
+};
+
+/**
+ * Troca de tema instantânea e fluida:
+ * - Desliga temporariamente as transições de cor de todos os elementos (evita o efeito "arrastado"
+ *   de centenas de componentes animando em velocidades diferentes).
+ * - Aplica a classe `dark` de forma síncrona no <html>, sem esperar o ciclo de render do React.
+ * - Quando suportado, usa a View Transition API para um cross-fade curto (180ms) e uniforme.
+ */
+const runThemeSwitch = (nextResolved: 'light' | 'dark', commit: () => void) => {
+  const root = document.documentElement;
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  const swap = () => {
+    root.classList.add('theme-switching');
+    applyThemeToDom(nextResolved);
+    flushSync(commit);
+    // Força o cálculo dos estilos finais antes de reativar as transições
+    void window.getComputedStyle(root).backgroundColor;
+    requestAnimationFrame(() => {
+      root.classList.remove('theme-switching');
+    });
+  };
+
+  const doc = document as Document & {
+    startViewTransition?: (cb: () => void) => unknown;
+  };
+
+  if (!prefersReducedMotion && typeof doc.startViewTransition === 'function') {
+    doc.startViewTransition(swap);
+  } else {
+    swap();
+  }
+};
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -54,25 +96,27 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return theme;
   }, [theme, systemIsDark]);
 
-  // Apply to document.documentElement
+  // Apply to document.documentElement (carga inicial e mudanças do tema do sistema)
   useEffect(() => {
-    const root = document.documentElement;
-    if (resolvedTheme === 'dark') {
-      root.classList.add('dark');
-      root.style.colorScheme = 'dark';
-    } else {
-      root.classList.remove('dark');
-      root.style.colorScheme = 'light';
-    }
+    applyThemeToDom(resolvedTheme);
   }, [resolvedTheme]);
 
   const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
     try {
       localStorage.setItem(THEME_STORAGE_KEY, newTheme);
     } catch {
       // ignore
     }
+
+    const nextResolved: 'light' | 'dark' =
+      newTheme === 'system' ? (systemIsDark ? 'dark' : 'light') : newTheme;
+
+    if (nextResolved === resolvedTheme || typeof document === 'undefined') {
+      setThemeState(newTheme);
+      return;
+    }
+
+    runThemeSwitch(nextResolved, () => setThemeState(newTheme));
   };
 
   const toggleTheme = () => {
