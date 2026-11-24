@@ -61,7 +61,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onOpenSettings,
   initialOpenMural = false,
 }) => {
-  const { profile, user, currentCondominium, currentRole } = useAuth();
+  const {
+    profile,
+    user,
+    currentCondominium,
+    currentRole,
+    canManageAnnouncements,
+    canAccessFinance,
+    canManageUnits,
+    canAccessConcierge,
+  } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
   const [realUnitsCount, setRealUnitsCount] = useState<number>(0);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -134,15 +143,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       ] = await Promise.all([
         unitService.getUnitsByCondominium(condoId),
         announcementService.fetchAnnouncements(condoId),
-        isSindicoOrAdmin
+        canAccessFinance
           ? financialDataService.loadCondominiumFinancials(condoId)
           : Promise.resolve(null),
-        isSindicoOrAdmin || isMorador
+        canAccessFinance || isMorador
           ? invoiceService.getInvoicesByCondominium(condoId)
           : Promise.resolve({ data: [], error: null }),
         maintenanceService.getOrdersByCondominium(condoId),
         amenityService.getReservations(condoId),
-        !isMorador
+        canAccessConcierge
           ? conciergeService.getAccessLogs(condoId)
           : Promise.resolve({ data: [], error: null }),
         packageService.getPackagesByCondominium(condoId),
@@ -173,12 +182,14 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     fetchOverviewData();
     window.addEventListener('condor:units-updated', fetchOverviewData);
     window.addEventListener('condor:announcements-updated', fetchOverviewData);
+    window.addEventListener('condor:packages-updated', fetchOverviewData);
     return () => {
       cancelled = true;
       window.removeEventListener('condor:units-updated', fetchOverviewData);
       window.removeEventListener('condor:announcements-updated', fetchOverviewData);
+      window.removeEventListener('condor:packages-updated', fetchOverviewData);
     };
-  }, [currentCondominium?.id, currentCondominium?.name, currentCondominium?.cnpj, isSindicoOrAdmin, isMorador]);
+  }, [currentCondominium?.id, currentCondominium?.name, currentCondominium?.cnpj, canAccessFinance, canAccessConcierge, isMorador]);
 
   const handleSaveChannels = async (updated: ChannelMetricsData) => {
     await financialDataService.updateChannelsAsync(updated, currentCondominium?.id);
@@ -280,7 +291,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
   const userName =
     profile?.full_name ||
-    (isMorador ? 'Morador Residente' : isPorteiro ? 'Portaria' : 'Síndico(a)');
+    (isMorador
+      ? 'Morador Residente'
+      : isPorteiro
+      ? 'Portaria'
+      : currentRole === 'subsindico'
+      ? 'Sub-Síndico(a)'
+      : 'Síndico(a)');
   const condoName = currentCondominium?.name || 'Condomínio';
 
   // =========================================================================
@@ -315,8 +332,24 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
+              onClick={() => onNavigateTab('my_invoices')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold text-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+            >
+              <QrCode className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Meus Boletos</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('my_packages')}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold text-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+            >
+              <Package className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Encomendas ({myAwaitingPackages.length})</span>
+            </button>
+            <button
+              type="button"
               onClick={() => onOpenSettings?.()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold text-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold text-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer"
             >
               <Camera className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Perfil &amp; Privacidade</span>
@@ -331,6 +364,38 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Alerta imediato de encomenda registrada no nome/unidade do morador */}
+        {myAwaitingPackages.length > 0 && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="p-4 rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                <Package className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-extrabold">
+                  Você tem {myAwaitingPackages.length}{' '}
+                  {myAwaitingPackages.length === 1 ? 'encomenda registrada' : 'encomendas registradas'} na portaria em seu nome!
+                </p>
+                <p className="text-[11px] text-emerald-50">
+                  {myAwaitingPackages[0].courier} • {myAwaitingPackages[0].locker_compartment} • PIN de retirada:{' '}
+                  <strong className="font-mono tracking-wider">{myAwaitingPackages[0].pickup_pin}</strong>
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('my_packages')}
+              className="px-4 py-2 rounded-xl bg-white text-emerald-700 hover:bg-emerald-50 font-extrabold text-xs shrink-0 transition cursor-pointer self-start sm:self-center"
+            >
+              Ver Minhas Encomendas →
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0">
           {/* CARD 1: Minha Unidade (Real) */}
@@ -704,7 +769,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {isSindicoOrAdmin && (
+          {canAccessFinance && (
             <button
               type="button"
               onClick={() => onNavigateTab('finance')}
@@ -764,7 +829,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
           </div>
 
-          {isSindicoOrAdmin && (
+          {canManageUnits && (
             <button
               type="button"
               onClick={() => onNavigateTab('units')}
@@ -789,19 +854,21 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             dataPoints={accessChartData}
             emptyMessage="Cadastre unidades, acessos, reservas ou chamados para visualizar os indicadores reais deste condomínio."
           />
-          <div className="pt-3 mt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-            <button
-              type="button"
-              onClick={() => onNavigateTab('concierge')}
-              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              Abrir Portaria &amp; Acessos →
-            </button>
-          </div>
+          {canAccessConcierge && (
+            <div className="pt-3 mt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => onNavigateTab('concierge')}
+                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                Abrir Portaria &amp; Acessos →
+              </button>
+            </div>
+          )}
         </article>
 
         {/* CARD 3: Próxima Arrecadação & Fundo de Reserva (Real) */}
-        {isSindicoOrAdmin ? (
+        {canAccessFinance ? (
           <article className="col-span-1 lg:col-span-3 w-full min-w-0 bg-slate-900 dark:bg-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-soft flex flex-col justify-between border border-slate-800">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
@@ -898,7 +965,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              {isSindicoOrAdmin && (
+              {canManageAnnouncements && (
                 <button
                   type="button"
                   onClick={() => setIsAnnouncementsOpen(true)}

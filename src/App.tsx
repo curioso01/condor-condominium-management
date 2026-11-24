@@ -7,6 +7,8 @@ import {
   ShieldCheck,
   CalendarDays,
   Wrench,
+  Package,
+  Megaphone,
 } from 'lucide-react';
 import type { NavigationTab } from './types/condominium';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -18,6 +20,7 @@ import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommandPalette } from './components/common/CommandPalette';
 import type { SettingsTab } from './components/views/SettingsModal';
+import { subscribeToCondoRealtimePush } from './services/notificationPushService';
 
 // Code-splitting por rota/módulo (reduz drasticamente o bundle inicial)
 const OverviewView = lazy(() =>
@@ -41,6 +44,9 @@ const ReservationsView = lazy(() =>
 const MaintenanceView = lazy(() =>
   import('./components/views/MaintenanceView').then((m) => ({ default: m.MaintenanceView }))
 );
+const ResidentPortalView = lazy(() =>
+  import('./components/views/ResidentPortalView').then((m) => ({ default: m.ResidentPortalView }))
+);
 const SettingsModal = lazy(() =>
   import('./components/views/SettingsModal').then((m) => ({ default: m.SettingsModal }))
 );
@@ -56,6 +62,8 @@ const VALID_TABS: NavigationTab[] = [
   'concierge',
   'reservations',
   'maintenance',
+  'my_invoices',
+  'my_packages',
 ];
 
 function getInitialTabFromUrl(): NavigationTab {
@@ -81,10 +89,26 @@ const ViewLoadingFallback: React.FC = () => (
 );
 
 const CondorAppShell: React.FC = () => {
-  const { currentRole, isDemoSession, setCurrentCondominiumId } = useAuth();
-  const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin';
-  const isPorteiro = currentRole === 'porteiro';
-  const isMorador = currentRole === 'morador';
+  const {
+    user,
+    profile,
+    currentCondominium,
+    currentMembership,
+    currentRole,
+    isDemoSession,
+    setCurrentCondominiumId,
+    isSindico,
+    isSuperAdmin,
+    isMorador,
+    canAccessFinance,
+    canManageUnits,
+    canAccessConcierge,
+    canManageMaintenance,
+  } = useAuth();
+
+  const isSindicoOrAdmin = isSindico || isSuperAdmin;
+  const isPorteiroOnly = currentRole === 'porteiro';
+  const canSeeMaintenance = isSindicoOrAdmin || isPorteiroOnly || canManageMaintenance;
 
   const [activeTab, setActiveTab] = useState<NavigationTab>(getInitialTabFromUrl);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -118,6 +142,30 @@ const CondorAppShell: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Assinatura Supabase Realtime + Push Nativo (Comunicados no Mural e Encomendas da Portaria)
+  useEffect(() => {
+    if (!currentCondominium?.id || !user?.id) return;
+    return subscribeToCondoRealtimePush({
+      condominiumId: currentCondominium.id,
+      condominiumName: currentCondominium.name || 'Condomínio',
+      userId: user.id,
+      userUnitId: currentMembership?.unit_id,
+      userUnitNumber: currentMembership?.unit_number,
+      userFullName: profile?.full_name,
+      isMorador,
+      onNavigateTab: (targetTab) => navigateToTab(targetTab),
+    });
+  }, [
+    currentCondominium?.id,
+    currentCondominium?.name,
+    user?.id,
+    currentMembership?.unit_id,
+    currentMembership?.unit_number,
+    profile?.full_name,
+    isMorador,
+    navigateToTab,
+  ]);
 
   // Atalho PWA /?mural=open (manifest.json)
   useEffect(() => {
@@ -171,14 +219,34 @@ const CondorAppShell: React.FC = () => {
 
   const renderActiveView = () => {
     // RBAC Route Guarding:
-    // 1. Morador só acessa overview e reservations
-    if (isMorador && activeTab !== 'overview' && activeTab !== 'reservations') {
+    // 1. Morador acessa overview, my_invoices, my_packages e reservations
+    if (
+      isMorador &&
+      activeTab !== 'overview' &&
+      activeTab !== 'my_invoices' &&
+      activeTab !== 'my_packages' &&
+      activeTab !== 'reservations'
+    ) {
       return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
     }
 
-    // 2. Porteiro não acessa finance, units nem portfolio
-    if (isPorteiro && (activeTab === 'finance' || activeTab === 'units' || activeTab === 'portfolio')) {
-      return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
+    // 2. Módulos restritos para Porteiro / Sub-Síndico sem permissão específica
+    if (!isMorador) {
+      if (activeTab === 'portfolio' && !isSindicoOrAdmin) {
+        return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
+      }
+      if (activeTab === 'finance' && !canAccessFinance) {
+        return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
+      }
+      if (activeTab === 'units' && !canManageUnits) {
+        return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
+      }
+      if (activeTab === 'concierge' && !canAccessConcierge) {
+        return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
+      }
+      if (activeTab === 'maintenance' && !canSeeMaintenance) {
+        return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
+      }
     }
 
     switch (activeTab) {
@@ -186,6 +254,10 @@ const CondorAppShell: React.FC = () => {
         return <PortfolioView onOpenCondominium={handleOpenCondominiumFromPortfolio} />;
       case 'overview':
         return <OverviewView onNavigateTab={navigateToTab} onOpenSettings={() => handleOpenSettings('perfil')} />;
+      case 'my_invoices':
+        return <ResidentPortalView mode="invoices" />;
+      case 'my_packages':
+        return <ResidentPortalView mode="packages" />;
       case 'finance':
         return <FinancialView onOpenSettings={(tab) => handleOpenSettings(tab)} />;
       case 'units':
@@ -212,7 +284,7 @@ const CondorAppShell: React.FC = () => {
           className="max-w-[1600px] mx-auto mb-3 px-4 py-2.5 rounded-2xl bg-amber-500 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center justify-between gap-3 shadow-md border border-amber-600"
         >
           <span>
-            ⚠️ MODO DEMONSTRAÇÃO ATIVO — SESSÃO SIMULADA (Alterações salvas apenas localmente neste navegador; sem persistência no Supabase)
+            MODO DEMONSTRAÇÃO ATIVO — SESSÃO SIMULADA (Alterações salvas apenas localmente neste navegador; sem persistência no Supabase)
           </span>
           <span className="px-2.5 py-0.5 rounded-full bg-slate-950 text-amber-300 text-[10px] uppercase tracking-wider shrink-0">
             DEMO PREVIEW
@@ -228,6 +300,7 @@ const CondorAppShell: React.FC = () => {
           onSelectTab={navigateToTab}
           onOpenSettings={() => handleOpenSettings('perfil')}
           onOpenFaq={() => setIsFaqModalOpen(true)}
+          onOpenMural={() => window.dispatchEvent(new CustomEvent('condor:open-mural'))}
         />
 
         {/* Main Content Zone */}
@@ -305,7 +378,43 @@ const CondorAppShell: React.FC = () => {
           </span>
         </button>
 
-        {isSindicoOrAdmin && (
+        {isMorador && (
+          <>
+            <button
+              type="button"
+              onClick={() => navigateToTab('my_invoices')}
+              aria-current={activeTab === 'my_invoices' ? 'page' : undefined}
+              className={`flex-1 min-w-0 py-1.5 px-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                activeTab === 'my_invoices'
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50'
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              <Wallet className="w-5 h-5 shrink-0" />
+              <span className="text-[9px] sm:text-[10px] font-bold truncate max-w-full text-center leading-tight tracking-tight">
+                Boletos
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigateToTab('my_packages')}
+              aria-current={activeTab === 'my_packages' ? 'page' : undefined}
+              className={`flex-1 min-w-0 py-1.5 px-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                activeTab === 'my_packages'
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50'
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              <Package className="w-5 h-5 shrink-0" />
+              <span className="text-[9px] sm:text-[10px] font-bold truncate max-w-full text-center leading-tight tracking-tight">
+                Encomendas
+              </span>
+            </button>
+          </>
+        )}
+
+        {!isMorador && canAccessFinance && (
           <button
             type="button"
             onClick={() => navigateToTab('finance')}
@@ -324,7 +433,7 @@ const CondorAppShell: React.FC = () => {
           </button>
         )}
 
-        {isSindicoOrAdmin && (
+        {!isMorador && canManageUnits && (
           <button
             type="button"
             onClick={() => navigateToTab('units')}
@@ -342,7 +451,7 @@ const CondorAppShell: React.FC = () => {
           </button>
         )}
 
-        {!isMorador && (
+        {!isMorador && canAccessConcierge && (
           <button
             type="button"
             onClick={() => navigateToTab('concierge')}
@@ -376,7 +485,20 @@ const CondorAppShell: React.FC = () => {
           </span>
         </button>
 
-        {!isMorador && (
+        {isMorador && (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('condor:open-mural'))}
+            className="flex-1 min-w-0 py-1.5 px-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+          >
+            <Megaphone className="w-5 h-5 shrink-0" />
+            <span className="text-[9px] sm:text-[10px] font-bold truncate max-w-full text-center leading-tight tracking-tight">
+              Mural
+            </span>
+          </button>
+        )}
+
+        {!isMorador && canSeeMaintenance && (
           <button
             type="button"
             onClick={() => navigateToTab('maintenance')}

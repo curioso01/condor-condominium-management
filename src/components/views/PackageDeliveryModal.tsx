@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Package } from 'lucide-react';
+import { X, Package, Truck } from 'lucide-react';
 import type { Unit } from '../../types/condominium';
 import { PremiumSelect } from '../ui/PremiumSelect';
 
@@ -18,6 +18,8 @@ export interface PackageDeliveryModalProps {
   }) => Promise<{ success: boolean; error?: string }> | void;
 }
 
+const OTHER_COURIER_OPTION = 'Outra Transportadora';
+
 const COURIER_OPTIONS = [
   'Mercado Livre',
   'Amazon Prime',
@@ -25,7 +27,7 @@ const COURIER_OPTIONS = [
   'Shopee Xpress',
   'Loggi',
   'iFood / Rappi',
-  'Outra Transportadora',
+  OTHER_COURIER_OPTION,
 ];
 
 const COMPARTMENT_OPTIONS = [
@@ -48,6 +50,7 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
   const [unitNumber, setUnitNumber] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [courier, setCourier] = useState('Mercado Livre');
+  const [customCourier, setCustomCourier] = useState('');
   const [trackingCode, setTrackingCode] = useState('');
   const [lockerCompartment, setLockerCompartment] = useState('Portaria Principal');
   const [size, setSize] = useState<'Pequeno' | 'Médio' | 'Grande'>('Médio');
@@ -57,6 +60,7 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setError(null);
+      setCustomCourier('');
       if (units.length > 0 && !unitNumber) {
         const first = units[0];
         setSelectedUnitId(first.id);
@@ -67,6 +71,8 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
   }, [isOpen, units]);
 
   if (!isOpen) return null;
+
+  const isOtherCourier = courier === OTHER_COURIER_OPTION;
 
   const handleSelectUnit = (uId: string) => {
     setSelectedUnitId(uId);
@@ -89,6 +95,12 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
       setError('Informe o nome do destinatário.');
       return;
     }
+    if (isOtherCourier && !customCourier.trim()) {
+      setError('Informe o nome da transportadora.');
+      return;
+    }
+
+    const finalCourier = isOtherCourier ? customCourier.trim() : courier;
 
     setIsSubmitting(true);
     setError(null);
@@ -97,7 +109,7 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
       unitId: selectedUnitId || null,
       unitNumber: unitNumber.trim(),
       recipientName: recipientName.trim(),
-      courier,
+      courier: finalCourier,
       trackingCode: trackingCode.trim() || 'Sem código',
       lockerCompartment,
       size,
@@ -111,12 +123,14 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
     }
 
     setTrackingCode('');
+    setCustomCourier('');
+    window.dispatchEvent(new CustomEvent('condor:packages-updated'));
     onClose();
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="package-modal-title"
@@ -124,10 +138,11 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
         if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl p-6 sm:p-7 relative">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col border border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden relative">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between px-6 py-4 sm:px-7 sm:py-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <Package className="w-6 h-6" />
             </div>
             <div>
@@ -138,7 +153,7 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
                 Registrar Recebimento de Encomenda
               </h3>
               <p className="text-xs text-slate-400 font-medium">
-                Gera PIN de retirada único e vincula diretamente ao painel do morador
+                Gera PIN único e notifica imediatamente o morador no app
               </p>
             </div>
           </div>
@@ -146,143 +161,173 @@ export const PackageDeliveryModal: React.FC<PackageDeliveryModalProps> = ({
             type="button"
             disabled={isSubmitting}
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+            className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer shrink-0"
             aria-label="Fechar"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-semibold"
-          >
-            {error}
-          </div>
-        )}
+        {/* Form with internal scroll and fixed footer */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 sm:px-7 space-y-4">
+            {error && (
+              <div
+                role="alert"
+                className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-semibold"
+              >
+                {error}
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {units.length > 0 && (
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Selecionar Unidade Cadastrada
-              </label>
-              <PremiumSelect
-                ariaLabel="Selecionar unidade cadastrada"
-                size="sm"
-                value={selectedUnitId}
-                onChange={handleSelectUnit}
-                options={[
-                  { value: '', label: 'Informar manualmente...' },
-                  ...units.map((u) => ({
-                    value: u.id,
-                    label: `Apto ${u.number} • ${u.block}`,
-                    description: u.ownerName || u.contactName || 'Morador',
-                  })),
-                ]}
-              />
-            </div>
-          )}
+            {units.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Selecionar Unidade Cadastrada
+                </label>
+                <PremiumSelect
+                  ariaLabel="Selecionar unidade cadastrada"
+                  size="sm"
+                  value={selectedUnitId}
+                  onChange={handleSelectUnit}
+                  options={[
+                    { value: '', label: 'Informar manualmente...' },
+                    ...units.map((u) => ({
+                      value: u.id,
+                      label: `Apto ${u.number} • ${u.block}`,
+                      description: u.ownerName || u.contactName || 'Morador',
+                    })),
+                  ]}
+                />
+              </div>
+            )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Unidade de Destino *
-              </label>
-              <input
-                type="text"
-                value={unitNumber}
-                onChange={(e) => setUnitNumber(e.target.value)}
-                placeholder="Ex: Apto 101 • Bloco A"
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Unidade de Destino *
+                </label>
+                <input
+                  type="text"
+                  value={unitNumber}
+                  onChange={(e) => setUnitNumber(e.target.value)}
+                  placeholder="Ex: Apto 101 • Bloco A"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Destinatário *
+                </label>
+                <input
+                  type="text"
+                  value={recipientName}
+                  onChange={(e) => setRecipientName(e.target.value)}
+                  placeholder="Nome do morador"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Destinatário *
-              </label>
-              <input
-                type="text"
-                value={recipientName}
-                onChange={(e) => setRecipientName(e.target.value)}
-                placeholder="Nome do morador"
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Transportadora
-              </label>
-              <PremiumSelect
-                ariaLabel="Transportadora"
-                size="sm"
-                value={courier}
-                onChange={setCourier}
-                options={COURIER_OPTIONS}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Transportadora
+                </label>
+                <PremiumSelect
+                  ariaLabel="Transportadora"
+                  size="sm"
+                  value={courier}
+                  onChange={(val) => {
+                    setCourier(val);
+                    if (val !== OTHER_COURIER_OPTION) setCustomCourier('');
+                  }}
+                  options={COURIER_OPTIONS}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Local / Armário
+                </label>
+                <PremiumSelect
+                  ariaLabel="Local ou armário da encomenda"
+                  size="sm"
+                  value={lockerCompartment}
+                  onChange={setLockerCompartment}
+                  options={COMPARTMENT_OPTIONS}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Local / Armário
-              </label>
-              <PremiumSelect
-                ariaLabel="Local ou armário da encomenda"
-                size="sm"
-                value={lockerCompartment}
-                onChange={setLockerCompartment}
-                options={COMPARTMENT_OPTIONS}
-              />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Código de Rastreio (Opcional)
-              </label>
-              <input
-                type="text"
-                value={trackingCode}
-                onChange={(e) => setTrackingCode(e.target.value)}
-                placeholder="Ex: BR123456789"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                Porte do Volume
-              </label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(['Pequeno', 'Médio', 'Grande'] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSize(s)}
-                    className={`py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                      size === s
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+            {/* Campo obrigatório quando "Outra Transportadora" é selecionada */}
+            {isOtherCourier && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/70 space-y-1.5 animate-fadeIn">
+                <label
+                  htmlFor="custom-courier-input"
+                  className="block text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase flex items-center gap-1.5"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Nome da Transportadora *</span>
+                </label>
+                <input
+                  id="custom-courier-input"
+                  type="text"
+                  value={customCourier}
+                  onChange={(e) => setCustomCourier(e.target.value)}
+                  placeholder="Ex: Jadlog, Azul Cargo, Total Express, FedEx..."
+                  required
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Código de Rastreio (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={trackingCode}
+                  onChange={(e) => setTrackingCode(e.target.value)}
+                  placeholder="Ex: BR123456789"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                  Porte do Volume
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['Pequeno', 'Médio', 'Grande'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSize(s)}
+                      className={`py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                        size === s
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-end gap-2">
+          {/* Fixed Footer */}
+          <div className="px-6 py-4 sm:px-7 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900 flex items-center justify-end gap-2 shrink-0">
             <button
               type="button"
               disabled={isSubmitting}
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
             >
               Cancelar
             </button>

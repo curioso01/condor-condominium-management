@@ -52,6 +52,10 @@ export interface UpsertCommonAreaInput {
   requiresApproval?: boolean;
   emoji?: string;
   hours?: string;
+  enforce_time_limit?: boolean;
+  available_start_time?: string;
+  available_end_time?: string;
+  max_duration_hours?: number | null;
   active?: boolean;
 }
 
@@ -63,6 +67,10 @@ export type ExtendedCommonArea = CommonArea & {
   rules?: string;
   requires_approval?: boolean;
   requiresApproval?: boolean;
+  enforce_time_limit?: boolean;
+  available_start_time?: string;
+  available_end_time?: string;
+  max_duration_hours?: number | null;
 };
 
 const DEMO_SPACES_KEY_PREFIX = 'condor_demo_spaces_';
@@ -85,6 +93,17 @@ export const SPACE_METADATA: Record<
 function enrichCommonArea(row: any): ExtendedCommonArea {
   const preset = SPACE_METADATA[row.name];
   const reqApproval = Boolean(row.requires_approval ?? row.requiresApproval);
+  const enforceTimeLimit = Boolean(row.enforce_time_limit);
+  const availStart = row.available_start_time || '08:00';
+  const availEnd = row.available_end_time || '22:00';
+  const maxDur =
+    row.max_duration_hours !== undefined && row.max_duration_hours !== null
+      ? Number(row.max_duration_hours)
+      : null;
+  const computedHours = enforceTimeLimit
+    ? `${availStart} às ${availEnd}${maxDur ? ` (máx. ${maxDur}h)` : ''}`
+    : row.hours || 'Horário livre (sem limite)';
+
   return {
     ...row,
     capacity: row.capacity !== undefined && row.capacity !== null ? Number(row.capacity) : preset?.capacity ?? 30,
@@ -92,8 +111,12 @@ function enrichCommonArea(row: any): ExtendedCommonArea {
     rules: row.rules || row.description || 'Sujeito ao regimento interno do condomínio.',
     requires_approval: reqApproval,
     requiresApproval: reqApproval,
+    enforce_time_limit: enforceTimeLimit,
+    available_start_time: availStart,
+    available_end_time: availEnd,
+    max_duration_hours: maxDur,
     emoji: row.emoji || preset?.emoji || '🏢',
-    hours: row.hours || preset?.hours || '08:00 às 22:00',
+    hours: computedHours,
   };
 }
 
@@ -249,7 +272,16 @@ export const amenityService = {
         rules: input.rules?.trim() || input.description?.trim() || 'Sujeito ao regimento interno.',
         requires_approval: Boolean(input.requires_approval),
         emoji: input.emoji || SPACE_METADATA[input.name.trim()]?.emoji || '🏢',
-        hours: input.hours || '08:00 às 22:00',
+        hours:
+          input.hours ||
+          (input.enforce_time_limit
+            ? `${input.available_start_time || '08:00'} às ${input.available_end_time || '22:00'}`
+            : 'Horário livre (sem limite)'),
+        enforce_time_limit: Boolean(input.enforce_time_limit),
+        available_start_time: input.available_start_time || '08:00',
+        available_end_time: input.available_end_time || '22:00',
+        max_duration_hours:
+          input.enforce_time_limit && input.max_duration_hours ? Number(input.max_duration_hours) : null,
         active: input.active ?? true,
       };
 
@@ -363,7 +395,16 @@ export const amenityService = {
         rules: input.rules?.trim() || input.description?.trim() || 'Sujeito ao regimento interno.',
         requires_approval: Boolean(input.requires_approval),
         emoji: input.emoji || SPACE_METADATA[input.name.trim()]?.emoji || '🏢',
-        hours: input.hours || '08:00 às 22:00',
+        hours:
+          input.hours ||
+          (input.enforce_time_limit
+            ? `${input.available_start_time || '08:00'} às ${input.available_end_time || '22:00'}`
+            : 'Horário livre (sem limite)'),
+        enforce_time_limit: Boolean(input.enforce_time_limit),
+        available_start_time: input.available_start_time || '08:00',
+        available_end_time: input.available_end_time || '22:00',
+        max_duration_hours:
+          input.enforce_time_limit && input.max_duration_hours ? Number(input.max_duration_hours) : null,
         active: input.active ?? true,
       };
 

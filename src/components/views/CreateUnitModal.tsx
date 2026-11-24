@@ -2,15 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { userService } from '../../services/userService';
 import { unitService, type CreateUnitInput } from '../../services/unitService';
-import type { CondominiumRole } from '../../types/database.types';
+import {
+  DEFAULT_SUBSINDICO_PERMISSIONS,
+  SUBSINDICO_PERMISSION_OPTIONS,
+  type CondominiumRole,
+  type SubSindicoPermissionKey,
+  type SubSindicoPermissions,
+} from '../../types/database.types';
 import { PremiumSelect } from '../ui/PremiumSelect';
-import { 
-  X, 
-  ShieldCheck, 
-  UserPlus, 
-  AlertCircle, 
-  CheckCircle2, 
-  Lock 
+import {
+  X,
+  ShieldCheck,
+  UserPlus,
+  AlertCircle,
+  CheckCircle2,
+  Lock,
+  PawPrint,
 } from 'lucide-react';
 
 export interface CreateUnitModalProps {
@@ -18,6 +25,7 @@ export interface CreateUnitModalProps {
   onClose: () => void;
   condominiumId: string;
   condominiumName: string;
+  availableBlocks?: string[];
   onUnitCreated?: (unitData: CreateUnitInput) => Promise<{ success: boolean; error?: string }>;
   onSuccess?: (message: string) => void;
 }
@@ -27,20 +35,35 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
   onClose,
   condominiumId,
   condominiumName,
+  availableBlocks,
   onUnitCreated,
   onSuccess,
 }) => {
-  const { canManageUsers, isSuperAdmin, currentRole } = useAuth();
+  const { canManageUsers, canManageUnits, isSuperAdmin, currentRole, currentCondominium } = useAuth();
+  const canCreate = canManageUsers || canManageUnits;
+
+  const blockOptions = React.useMemo(() => {
+    const base =
+      availableBlocks && availableBlocks.length > 0
+        ? availableBlocks
+        : Array.isArray(currentCondominium?.blocks) && currentCondominium.blocks.length > 0
+        ? currentCondominium.blocks
+        : ['Bloco A', 'Bloco B', 'Bloco C'];
+    return Array.from(new Set(base.map((b) => String(b).trim()).filter(Boolean)));
+  }, [availableBlocks, currentCondominium?.blocks]);
 
   const [fullName, setFullName] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [apartment, setApartment] = useState('');
-  const [block, setBlock] = useState('Bloco A');
+  const [block, setBlock] = useState(blockOptions[0] || 'Bloco A');
   const [residentType, setResidentType] = useState<'Proprietário' | 'Inquilino'>('Proprietário');
   const [hasPet, setHasPet] = useState(false);
   const [role, setRole] = useState<CondominiumRole>('morador');
+  const [subPermissions, setSubPermissions] = useState<SubSindicoPermissions>({
+    ...DEFAULT_SUBSINDICO_PERMISSIONS,
+  });
 
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +71,6 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
   const modalRef = useRef<HTMLDivElement>(null);
   const initialFocusRef = useRef<HTMLInputElement>(null);
 
-  // Esc key dismiss
   useEffect(() => {
     if (!isOpen) return;
 
@@ -66,7 +88,6 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setFullName('');
@@ -74,23 +95,23 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
       setEmail('');
       setPhone('');
       setApartment('');
-      setBlock('Bloco A');
+      setBlock(blockOptions[0] || 'Bloco A');
       setResidentType('Proprietário');
       setHasPet(false);
       setRole('morador');
+      setSubPermissions({ ...DEFAULT_SUBSINDICO_PERMISSIONS });
       setFormError(null);
       setIsSubmitting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, blockOptions]);
 
   if (!isOpen) return null;
 
-  // Apenas o Síndico e o Superadmin podem fazer cadastro
-  if (!canManageUsers) {
+  if (!canCreate) {
     return (
-      <div 
-        role="dialog" 
-        aria-modal="true" 
+      <div
+        role="dialog"
+        aria-modal="true"
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn"
       >
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 max-w-md w-full text-center space-y-4 shadow-2xl">
@@ -102,7 +123,7 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
               Acesso Restrito
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-              Apenas o <strong>Síndico Geral</strong> e o <strong>Super Administrador</strong> possuem permissão para cadastrar novos moradores, colaboradores ou unidades no sistema.
+              Apenas o <strong>Síndico Geral</strong>, o <strong>Super Administrador</strong> ou um <strong>Sub-Síndico autorizado</strong> possuem permissão para cadastrar novos moradores ou unidades.
             </p>
           </div>
           <button
@@ -117,10 +138,14 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
     );
   }
 
+  const toggleSubPermission = (key: SubSindicoPermissionKey) => {
+    setSubPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageUsers) {
-      setFormError('Acesso negado: apenas o Síndico e o Super Administrador podem cadastrar novos usuários e unidades.');
+    if (!canCreate) {
+      setFormError('Acesso negado para cadastrar novos usuários e unidades.');
       return;
     }
 
@@ -140,27 +165,30 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
     const condoId = condominiumId || 'condo-imperial-001';
     const formattedUnit = `${apartment.trim()} (${block})`;
 
-    // 1. Cadastrar usuário no controle RBAC de usuários
-    const resUser = await userService.createUser(
-      {
-        condominium_id: condoId,
-        full_name: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim() || undefined,
-        cpf: cpf.trim() || undefined,
-        unit_number: formattedUnit,
-        block: block.trim(),
-        resident_type: residentType,
-        has_pet: hasPet,
-        role: role,
-      },
-      currentRole
-    );
+    // 1. Cadastrar usuário no controle RBAC de usuários (quando quem chama tem permissão de gestão de usuários)
+    if (canManageUsers) {
+      const resUser = await userService.createUser(
+        {
+          condominium_id: condoId,
+          full_name: fullName.trim(),
+          email: email.trim(),
+          phone: phone.trim() || undefined,
+          cpf: cpf.trim() || undefined,
+          unit_number: formattedUnit,
+          block: block.trim(),
+          resident_type: residentType,
+          has_pet: hasPet,
+          role: role,
+          permissions: role === 'subsindico' ? subPermissions : undefined,
+        },
+        currentRole
+      );
 
-    if (resUser.error) {
-      setIsSubmitting(false);
-      setFormError(resUser.error.message);
-      return;
+      if (resUser.error) {
+        setIsSubmitting(false);
+        setFormError(resUser.error.message);
+        return;
+      }
     }
 
     // 2. Registrar ou atualizar a unidade no Censo e no diretório de unidades
@@ -176,7 +204,6 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
       email: email.trim(),
     });
 
-    // Se houver callback legado para compatibilidade
     if (onUnitCreated) {
       await onUnitCreated({
         condominium_id: condoId,
@@ -196,7 +223,6 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
       return;
     }
 
-    // Dispara evento para atualização imediata do Censo e da lista de unidades
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('condor:units-updated'));
     }
@@ -210,21 +236,20 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-resident-modal-title"
     >
-      {/* Click outside backdrop */}
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-      {/* Modal Dialog Card */}
+      {/* Golden Modal Card: flex-col + max-h + overflow-hidden so scrollbar stays strictly inside body */}
       <div
         ref={modalRef}
-        className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 sm:p-7 z-10 max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-2xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 z-10 overflow-hidden"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between px-6 py-4 sm:px-7 sm:py-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold border border-emerald-200 dark:border-emerald-800 shrink-0">
               <UserPlus className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -248,285 +273,340 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fechar modal"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none cursor-pointer"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Form Error Alert */}
-        {formError && (
-          <div
-            role="alert"
-            className="mb-4 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-medium flex items-start gap-2.5"
-          >
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span>{formError}</span>
-          </div>
-        )}
-
-        {/* Form - Exactly matching Usuarios e Privilégios */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Nome Completo */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                Nome Completo *
-              </label>
-              <input
-                ref={initialFocusRef}
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Ex: Beatriz Lima Duarte"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                required
-              />
-            </div>
-
-            {/* CPF */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                CPF
-              </label>
-              <input
-                type="text"
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
-                placeholder="000.000.000-00"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            {/* E-mail */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                E-mail de Acesso *
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Ex: beatriz@condor.com.br"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                required
-              />
-            </div>
-
-            {/* Telefone */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                Telefone / WhatsApp
-              </label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(11) 98765-4321"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            {/* Apartamento / Unidade */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                Apartamento / Unidade *
-              </label>
-              <input
-                type="text"
-                value={apartment}
-                onChange={(e) => setApartment(e.target.value)}
-                placeholder="Ex: 402 ou 104"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                required
-              />
-            </div>
-
-            {/* Bloco / Torre */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                Bloco / Torre *
-              </label>
-              <PremiumSelect
-                ariaLabel="Selecionar Bloco ou Torre"
-                size="md"
-                value={block}
-                onChange={setBlock}
-                options={[
-                  { value: 'Bloco A', label: 'Bloco A (Torre A)' },
-                  { value: 'Bloco B', label: 'Bloco B (Torre B)' },
-                  { value: 'Bloco C', label: 'Bloco C' },
-                  { value: 'Torre Sul', label: 'Torre Sul' },
-                  { value: 'Torre Norte', label: 'Torre Norte' },
-                ]}
-              />
-            </div>
-
-            {/* Vínculo do Morador */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                Vínculo do Morador *
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setResidentType('Proprietário')}
-                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                    residentType === 'Proprietário'
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  Proprietário
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResidentType('Inquilino')}
-                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                    residentType === 'Inquilino'
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  Inquilino
-                </button>
+        {/* Form with scrollable body and fixed footer */}
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 sm:px-7 space-y-4">
+            {formError && (
+              <div
+                role="alert"
+                className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-medium flex items-start gap-2.5"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{formError}</span>
               </div>
-            </div>
+            )}
 
-            {/* Possui Pet */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
-                Possui Pet / Animal de Estimação? *
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setHasPet(true)}
-                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                    hasPet
-                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  🐾 Sim (Tem Pet)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHasPet(false)}
-                  className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                    !hasPet
-                      ? 'border-slate-800 dark:border-slate-300 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-bold'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  Não possui
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Privilégio / Papel Concedido (RBAC) */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2 mt-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                Privilégio / Papel Concedido *
-              </label>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Avaliação de permissões pelo Síndico
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <label
-                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
-                  role === 'morador'
-                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="create-unit-user-role"
-                    value="morador"
-                    checked={role === 'morador'}
-                    onChange={() => setRole('morador')}
-                    className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <span className="text-xs">Morador</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1 pl-5">Reservas, avisos e boletos</span>
-              </label>
-
-              <label
-                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
-                  role === 'porteiro'
-                    ? 'border-sky-600 bg-sky-50/60 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-bold'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="create-unit-user-role"
-                    value="porteiro"
-                    checked={role === 'porteiro'}
-                    onChange={() => setRole('porteiro')}
-                    className="text-sky-600 focus:ring-sky-500 cursor-pointer"
-                  />
-                  <span className="text-xs">Portaria & Acessos</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1 pl-5">Guarita, encomendas e lockers</span>
-              </label>
-
-              <label
-                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
-                  role === 'sindico'
-                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
-                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="create-unit-user-role"
-                    value="sindico"
-                    checked={role === 'sindico'}
-                    onChange={() => setRole('sindico')}
-                    className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <span className="text-xs">Síndico Geral</span>
-                </div>
-                <span className="text-[10px] text-slate-400 mt-1 pl-5">Gestão total e novos cadastros</span>
-              </label>
-
-              {isSuperAdmin && (
-                <label
-                  className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition sm:col-span-3 ${
-                    role === 'superadmin'
-                      ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-950 dark:text-purple-200 font-bold'
-                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="create-unit-user-role"
-                      value="superadmin"
-                      checked={role === 'superadmin'}
-                      onChange={() => setRole('superadmin')}
-                      className="text-purple-600 focus:ring-purple-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                      Super Administrador (Acesso Geral Multi-Condomínios)
-                    </span>
-                  </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Nome Completo */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Nome Completo *
                 </label>
-              )}
+                <input
+                  ref={initialFocusRef}
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Ex: Beatriz Lima Duarte"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+
+              {/* CPF */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  CPF
+                </label>
+                <input
+                  type="text"
+                  value={cpf}
+                  onChange={(e) => setCpf(e.target.value)}
+                  placeholder="000.000.000-00"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* E-mail */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  E-mail de Acesso *
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Ex: beatriz@condor.com.br"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+
+              {/* Telefone */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Telefone / WhatsApp
+                </label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="(11) 98765-4321"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Apartamento / Unidade */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Apartamento / Unidade *
+                </label>
+                <input
+                  type="text"
+                  value={apartment}
+                  onChange={(e) => setApartment(e.target.value)}
+                  placeholder="Ex: 402 ou 104"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+
+              {/* Bloco / Torre Dinâmico */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Bloco / Torre *
+                </label>
+                <PremiumSelect
+                  ariaLabel="Selecionar Bloco ou Torre"
+                  size="md"
+                  value={block}
+                  onChange={setBlock}
+                  options={blockOptions.map((b) => ({ value: b, label: b }))}
+                />
+              </div>
+
+              {/* Vínculo do Morador */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Vínculo do Morador *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setResidentType('Proprietário')}
+                    className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                      residentType === 'Proprietário'
+                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Proprietário
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResidentType('Inquilino')}
+                    className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                      residentType === 'Inquilino'
+                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Inquilino
+                  </button>
+                </div>
+              </div>
+
+              {/* Possui Pet (Ícone Premium PawPrint — sem emoji) */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Possui Pet / Animal de Estimação? *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHasPet(true)}
+                    className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition inline-flex items-center justify-center gap-1.5 cursor-pointer ${
+                      hasPet
+                        ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <PawPrint className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>Sim (Tem Pet)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHasPet(false)}
+                    className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                      !hasPet
+                        ? 'border-slate-800 dark:border-slate-300 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Não possui
+                  </button>
+                </div>
+              </div>
             </div>
+
+            {/* Privilégio / Papel Concedido (RBAC) */}
+            {canManageUsers && (
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-3 mt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
+                    Privilégio / Papel Concedido *
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Avaliação de permissões pelo Síndico
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label
+                    className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                      role === 'morador'
+                        ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="create-unit-user-role"
+                        value="morador"
+                        checked={role === 'morador'}
+                        onChange={() => setRole('morador')}
+                        className="accent-emerald-600 cursor-pointer"
+                      />
+                      <span className="text-xs">Morador</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 pl-5">Reservas, avisos, encomendas e boletos</span>
+                  </label>
+
+                  <label
+                    className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                      role === 'porteiro'
+                        ? 'border-sky-600 bg-sky-50/60 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="create-unit-user-role"
+                        value="porteiro"
+                        checked={role === 'porteiro'}
+                        onChange={() => setRole('porteiro')}
+                        className="accent-sky-600 cursor-pointer"
+                      />
+                      <span className="text-xs">Portaria &amp; Acessos</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 pl-5">Guarita, encomendas, lockers e OS</span>
+                  </label>
+
+                  <label
+                    className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                      role === 'subsindico'
+                        ? 'border-teal-600 bg-teal-50/60 dark:bg-teal-950/40 text-teal-950 dark:text-teal-200 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="create-unit-user-role"
+                        value="subsindico"
+                        checked={role === 'subsindico'}
+                        onChange={() => setRole('subsindico')}
+                        className="accent-teal-600 cursor-pointer"
+                      />
+                      <span className="text-xs">Sub-Síndico</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 pl-5">Privilégios personalizados pela síndica</span>
+                  </label>
+
+                  <label
+                    className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                      role === 'sindico'
+                        ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="create-unit-user-role"
+                        value="sindico"
+                        checked={role === 'sindico'}
+                        onChange={() => setRole('sindico')}
+                        className="accent-emerald-600 cursor-pointer"
+                      />
+                      <span className="text-xs">Síndico Geral</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-1 pl-5">Gestão total e novos cadastros</span>
+                  </label>
+
+                  {isSuperAdmin && (
+                    <label
+                      className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition sm:col-span-2 ${
+                        role === 'superadmin'
+                          ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-950 dark:text-purple-200 font-bold'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="create-unit-user-role"
+                          value="superadmin"
+                          checked={role === 'superadmin'}
+                          onChange={() => setRole('superadmin')}
+                          className="accent-purple-600 cursor-pointer"
+                        />
+                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
+                          Super Administrador (Acesso Geral Multi-Condomínios)
+                        </span>
+                      </div>
+                    </label>
+                  )}
+                </div>
+
+                {/* Checklist de Privilégios do Sub-Síndico */}
+                {role === 'subsindico' && (
+                  <div className="pt-3 border-t border-slate-200/80 dark:border-slate-700 space-y-2">
+                    <p className="text-[11px] font-bold text-teal-700 dark:text-teal-300 uppercase tracking-wider">
+                      Selecione os privilégios concedidos ao Sub-Síndico:
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {SUBSINDICO_PERMISSION_OPTIONS.map((opt) => (
+                        <label
+                          key={opt.key}
+                          className={`p-2.5 rounded-xl border flex items-start gap-2 cursor-pointer transition ${
+                            subPermissions[opt.key]
+                              ? 'border-emerald-500/70 bg-emerald-50/70 dark:bg-emerald-950/30'
+                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(subPermissions[opt.key])}
+                            onChange={() => toggleSubPermission(opt.key)}
+                            className="mt-0.5 w-3.5 h-3.5 rounded accent-emerald-600 cursor-pointer shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 block leading-tight">
+                              {opt.label}
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-snug">
+                              {opt.description}
+                            </span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+          {/* Fixed Footer */}
+          <div className="px-6 py-4 sm:px-7 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900 flex items-center justify-end gap-2.5 shrink-0">
             <button
               type="button"
               onClick={onClose}

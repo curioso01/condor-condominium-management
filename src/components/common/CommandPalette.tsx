@@ -14,9 +14,11 @@ import {
   Briefcase,
   X,
   CornerDownLeft,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import type { NavigationTab } from '../../types/condominium';
+import { formatRoleLabel } from '../../types/database.types';
 import { unitService } from '../../services/unitService';
 import { maintenanceService } from '../../services/maintenanceService';
 import { announcementService } from '../../services/announcementService';
@@ -47,13 +49,24 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenFaq,
   onOpenMural,
 }) => {
-  const { currentRole, currentCondominium, memberships, setCurrentCondominiumId } = useAuth();
+  const {
+    currentRole,
+    currentCondominium,
+    memberships,
+    setCurrentCondominiumId,
+    canAccessFinance,
+    canManageUnits,
+    canAccessConcierge,
+    canManageMaintenance,
+  } = useAuth();
   const [query, setQuery] = useState('');
   const [liveItems, setLiveItems] = useState<CommandItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin';
   const isMorador = currentRole === 'morador';
+  const isPorteiro = currentRole === 'porteiro';
+  const canOpenMaintenance = canManageMaintenance || isPorteiro;
 
   useEffect(() => {
     if (!isOpen) {
@@ -75,10 +88,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     let cancelled = false;
 
     Promise.all([
-      isSindicoOrAdmin
+      canManageUnits
         ? unitService.getUnitsByCondominium(currentCondominium.id)
         : Promise.resolve({ data: [] }),
-      !isMorador
+      canOpenMaintenance
         ? maintenanceService.getOrdersByCondominium(currentCondominium.id)
         : Promise.resolve({ data: [] }),
       announcementService.fetchAnnouncements(currentCondominium.id),
@@ -134,7 +147,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, currentCondominium?.id, isSindicoOrAdmin, isMorador, onSelectTab, onOpenMural, onClose]);
+  }, [isOpen, currentCondominium?.id, canManageUnits, canOpenMaintenance, onSelectTab, onOpenMural, onClose]);
 
   const allItems: CommandItem[] = useMemo(() => {
     const nav: CommandItem[] = [
@@ -165,58 +178,87 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       });
     }
 
-    if (isSindicoOrAdmin) {
+    if (canAccessFinance) {
+      nav.push({
+        id: 'nav-finance',
+        group: 'Navegação',
+        title: 'Financeiro & Cobranças Pix',
+        subtitle: 'Emitir cobranças, baixar pagamentos e conciliar caixa',
+        icon: <Wallet className="w-4 h-4 text-emerald-600" />,
+        onSelect: () => {
+          onSelectTab('finance');
+          onClose();
+        },
+      });
+    }
+
+    if (canManageUnits) {
+      nav.push({
+        id: 'nav-units',
+        group: 'Navegação',
+        title: 'Unidades & Moradores',
+        subtitle: 'Censo predial, blocos, veículos, vagas e moradores',
+        icon: <Home className="w-4 h-4 text-emerald-600" />,
+        onSelect: () => {
+          onSelectTab('units');
+          onClose();
+        },
+      });
+    }
+
+    if (isMorador) {
       nav.push(
         {
-          id: 'nav-finance',
+          id: 'nav-my-invoices',
           group: 'Navegação',
-          title: 'Financeiro & Cobranças Pix',
-          subtitle: 'Emitir cobranças, baixar pagamentos e conciliar caixa',
+          title: 'Meus Boletos & Pix',
+          subtitle: 'Consultar cotas condominiais e pagar via QR Code Pix',
           icon: <Wallet className="w-4 h-4 text-emerald-600" />,
           onSelect: () => {
-            onSelectTab('finance');
+            onSelectTab('my_invoices');
             onClose();
           },
         },
         {
-          id: 'nav-units',
+          id: 'nav-my-packages',
           group: 'Navegação',
-          title: 'Unidades & Moradores',
-          subtitle: 'Censo predial, veículos, vagas e moradores',
-          icon: <Home className="w-4 h-4 text-emerald-600" />,
+          title: 'Minhas Encomendas',
+          subtitle: 'Acompanhar entregas recebidas na portaria e código PIN',
+          icon: <Package className="w-4 h-4 text-emerald-600" />,
           onSelect: () => {
-            onSelectTab('units');
+            onSelectTab('my_packages');
             onClose();
           },
         }
       );
     }
 
-    if (!isMorador) {
-      nav.push(
-        {
-          id: 'nav-concierge',
-          group: 'Navegação',
-          title: 'Portaria, Acessos & Encomendas',
-          subtitle: 'Passes QR, encomendas com PIN e logs auditados',
-          icon: <ShieldCheck className="w-4 h-4 text-emerald-600" />,
-          onSelect: () => {
-            onSelectTab('concierge');
-            onClose();
-          },
+    if (canAccessConcierge) {
+      nav.push({
+        id: 'nav-concierge',
+        group: 'Navegação',
+        title: 'Portaria, Acessos & Encomendas',
+        subtitle: 'Passes QR, encomendas com PIN e logs auditados',
+        icon: <ShieldCheck className="w-4 h-4 text-emerald-600" />,
+        onSelect: () => {
+          onSelectTab('concierge');
+          onClose();
         },
-        {
-          id: 'nav-maintenance',
-          group: 'Navegação',
-          title: 'Manutenções & Ordens de Serviço',
-          subtitle: 'Abrir e acompanhar OS do condomínio',
-          icon: <Wrench className="w-4 h-4 text-emerald-600" />,
-          onSelect: () => {
-            onSelectTab('maintenance');
-            onClose();
-          },
-        }
-      );
+      });
+    }
+
+    if (canOpenMaintenance) {
+      nav.push({
+        id: 'nav-maintenance',
+        group: 'Navegação',
+        title: 'Manutenções & Ordens de Serviço',
+        subtitle: 'Abrir e acompanhar OS do condomínio',
+        icon: <Wrench className="w-4 h-4 text-emerald-600" />,
+        onSelect: () => {
+          onSelectTab('maintenance');
+          onClose();
+        },
+      });
     }
 
     nav.push(
@@ -272,7 +314,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             id: `condo-${m.condominium.id}`,
             group: 'Trocar Condomínio',
             title: m.condominium.name,
-            subtitle: `${m.membership.role} • ${m.condominium.cnpj || 'Trocar contexto ativo'}`,
+            subtitle: `${formatRoleLabel(m.membership.role)} • ${m.condominium.cnpj || 'Trocar contexto ativo'}`,
             icon: <Building2 className="w-4 h-4 text-emerald-600" />,
             onSelect: () => {
               setCurrentCondominiumId(m.condominium.id);
@@ -286,6 +328,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     currentCondominium?.name,
     isSindicoOrAdmin,
     isMorador,
+    canAccessFinance,
+    canManageUnits,
+    canAccessConcierge,
+    canOpenMaintenance,
     memberships,
     liveItems,
     onSelectTab,

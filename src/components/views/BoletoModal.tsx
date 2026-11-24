@@ -266,7 +266,7 @@ export const BoletoModal: React.FC<BoletoModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/70 backdrop-blur-sm overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/70 backdrop-blur-sm animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="boleto-modal-title"
@@ -291,9 +291,9 @@ export const BoletoModal: React.FC<BoletoModalProps> = ({
         }
       `}</style>
 
-      <div className="relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 my-auto overflow-hidden">
+      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {/* Barra superior */}
-        <div className="no-print flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+        <div className="no-print shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <QrCode className="w-5 h-5" />
@@ -335,7 +335,7 @@ export const BoletoModal: React.FC<BoletoModalProps> = ({
         </div>
 
         {/* Área imprimível */}
-        <div id="condor-printable-boleto" className="p-6 sm:p-8 space-y-6 text-slate-900 bg-white">
+        <div id="condor-printable-boleto" className="flex-1 min-h-0 overflow-y-auto p-6 sm:p-8 space-y-6 text-slate-900 bg-white">
           {/* Cabeçalho do Beneficiário */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b-2 border-slate-900">
             <div className="flex items-center gap-3">

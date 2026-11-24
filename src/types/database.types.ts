@@ -6,11 +6,98 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type CondominiumRole = 'superadmin' | 'sindico' | 'morador' | 'porteiro';
+export type CondominiumRole = 'superadmin' | 'sindico' | 'subsindico' | 'morador' | 'porteiro';
 export type MembershipStatus = 'active' | 'inactive' | 'pending';
 export type InvoiceDbStatus = 'pending' | 'paid' | 'cancelled';
 export type MaintenanceOrderDbStatus = 'scheduled' | 'in_progress' | 'completed' | 'certified';
 export type MaintenanceOrderDbPriority = 'Prioridade Máxima' | 'Média' | 'Normal' | 'Preventiva';
+
+export type SubSindicoPermissionKey =
+  | 'manage_common_areas'
+  | 'manage_reservations'
+  | 'manage_announcements'
+  | 'manage_maintenance'
+  | 'manage_units'
+  | 'view_finance'
+  | 'manage_concierge'
+  | 'view_audit';
+
+export type SubSindicoPermissions = Partial<Record<SubSindicoPermissionKey, boolean>>;
+
+export const SUBSINDICO_PERMISSION_OPTIONS: {
+  key: SubSindicoPermissionKey;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: 'manage_common_areas',
+    label: 'Cadastrar e editar Espaços Comuns',
+    description: 'Permite criar, editar, definir horários e excluir áreas de lazer',
+  },
+  {
+    key: 'manage_reservations',
+    label: 'Aprovar e gerenciar Reservas',
+    description: 'Permite aprovar, recusar e cancelar agendamentos dos moradores',
+  },
+  {
+    key: 'manage_announcements',
+    label: 'Publicar no Mural de Comunicados',
+    description: 'Permite criar, fixar e excluir avisos oficiais com notificação push',
+  },
+  {
+    key: 'manage_maintenance',
+    label: 'Gerenciar Ordens de Serviço (Manutenção)',
+    description: 'Permite abrir, atualizar progresso e excluir chamados prediais',
+  },
+  {
+    key: 'manage_units',
+    label: 'Gerenciar Unidades e Blocos',
+    description: 'Permite cadastrar unidades, editar dados do censo e gerenciar blocos',
+  },
+  {
+    key: 'view_finance',
+    label: 'Acessar Financeiro & Cobranças',
+    description: 'Permite consultar boletos, despesas operacionais e registrar baixas',
+  },
+  {
+    key: 'manage_concierge',
+    label: 'Acessar Portaria, Logs & Encomendas',
+    description: 'Permite monitorar acessos em tempo real e registrar/entregar encomendas',
+  },
+  {
+    key: 'view_audit',
+    label: 'Consultar Trilha de Auditoria',
+    description: 'Permite visualizar o histórico de operações críticas e solicitações LGPD',
+  },
+];
+
+export const DEFAULT_SUBSINDICO_PERMISSIONS: SubSindicoPermissions = {
+  manage_common_areas: false,
+  manage_reservations: true,
+  manage_announcements: true,
+  manage_maintenance: true,
+  manage_units: false,
+  view_finance: false,
+  manage_concierge: true,
+  view_audit: false,
+};
+
+export function formatRoleLabel(role: CondominiumRole | null | undefined): string {
+  switch (role) {
+    case 'superadmin':
+      return 'Super Admin';
+    case 'sindico':
+      return 'Síndico';
+    case 'subsindico':
+      return 'Sub-Síndico';
+    case 'porteiro':
+      return 'Portaria';
+    case 'morador':
+      return 'Morador';
+    default:
+      return 'Sem vínculo';
+  }
+}
 
 export interface Database {
   public: {
@@ -23,6 +110,10 @@ export interface Database {
           address: string | null
           city: string | null
           state: string | null
+          blocks?: string[] | null
+          default_reservation_time_limit?: boolean
+          default_reservation_start_time?: string | null
+          default_reservation_end_time?: string | null
           created_at: string
           updated_at: string
         }
@@ -33,6 +124,10 @@ export interface Database {
           address?: string | null
           city?: string | null
           state?: string | null
+          blocks?: string[] | null
+          default_reservation_time_limit?: boolean
+          default_reservation_start_time?: string | null
+          default_reservation_end_time?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -43,6 +138,10 @@ export interface Database {
           address?: string | null
           city?: string | null
           state?: string | null
+          blocks?: string[] | null
+          default_reservation_time_limit?: boolean
+          default_reservation_start_time?: string | null
+          default_reservation_end_time?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -91,6 +190,7 @@ export interface Database {
           resident_type?: string | null
           has_pet?: boolean
           cpf?: string | null
+          permissions?: SubSindicoPermissions | null
           log_access_granted?: boolean
           created_at: string
           updated_at: string
@@ -107,6 +207,7 @@ export interface Database {
           resident_type?: string | null
           has_pet?: boolean
           cpf?: string | null
+          permissions?: SubSindicoPermissions | null
           log_access_granted?: boolean
           created_at?: string
           updated_at?: string
@@ -123,6 +224,7 @@ export interface Database {
           resident_type?: string | null
           has_pet?: boolean
           cpf?: string | null
+          permissions?: SubSindicoPermissions | null
           log_access_granted?: boolean
           created_at?: string
           updated_at?: string
@@ -214,6 +316,10 @@ export interface Database {
           requires_approval?: boolean
           emoji?: string | null
           hours?: string | null
+          enforce_time_limit?: boolean
+          available_start_time?: string | null
+          available_end_time?: string | null
+          max_duration_hours?: number | null
           active: boolean
           created_at: string
           updated_at: string
@@ -229,6 +335,10 @@ export interface Database {
           requires_approval?: boolean
           emoji?: string | null
           hours?: string | null
+          enforce_time_limit?: boolean
+          available_start_time?: string | null
+          available_end_time?: string | null
+          max_duration_hours?: number | null
           active?: boolean
           created_at?: string
           updated_at?: string
@@ -244,6 +354,10 @@ export interface Database {
           requires_approval?: boolean
           emoji?: string | null
           hours?: string | null
+          enforce_time_limit?: boolean
+          available_start_time?: string | null
+          available_end_time?: string | null
+          max_duration_hours?: number | null
           active?: boolean
           created_at?: string
           updated_at?: string

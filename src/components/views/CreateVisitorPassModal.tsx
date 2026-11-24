@@ -120,7 +120,7 @@ export const CreateVisitorPassModal: React.FC<CreateVisitorPassModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="visitor-modal-title"
@@ -128,8 +128,8 @@ export const CreateVisitorPassModal: React.FC<CreateVisitorPassModalProps> = ({
         if (e.target === e.currentTarget && !isSubmitting) handleReset();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl p-6 sm:p-7 relative">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 mb-5">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-100 dark:border-slate-800 shadow-2xl relative">
+        <div className="flex items-center justify-between px-6 sm:px-7 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <QrCode className="w-6 h-6" />
@@ -157,16 +157,17 @@ export const CreateVisitorPassModal: React.FC<CreateVisitorPassModalProps> = ({
           </button>
         </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-semibold"
-          >
-            {error}
-          </div>
-        )}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 sm:px-7 py-5">
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300 text-xs font-semibold"
+            >
+              {error}
+            </div>
+          )}
 
-        {createdPass ? (
+          {createdPass ? (
           <div className="space-y-5 animate-fadeIn">
             <div className="text-center p-5 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800 rounded-3xl">
               <div className="inline-flex p-3 bg-white rounded-2xl shadow-sm border border-emerald-100 mb-3">
@@ -333,6 +334,7 @@ export const CreateVisitorPassModal: React.FC<CreateVisitorPassModalProps> = ({
             </div>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

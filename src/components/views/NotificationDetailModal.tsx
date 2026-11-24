@@ -112,9 +112,9 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-4xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-4xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header with category colors */}
-        <div className={`p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between ${headerTone}`}>
+        <div className={`p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between shrink-0 ${headerTone}`}>
           <div className="flex items-center gap-3.5 min-w-0">
             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold shadow-sm shrink-0 ${iconTone}`}>
               {notification.type === 'manutencao' ? (
@@ -150,7 +150,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         </div>
 
         {/* Body */}
-        <div className="p-6 space-y-4 text-xs">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4 text-xs">
           <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed font-medium">
             {notification.detail}
           </p>
@@ -259,7 +259,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex items-center justify-between gap-2">
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 shrink-0 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={onClose}
@@ -296,30 +296,30 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
             </button>
           )}
 
-          {notification.type === 'financeiro' && canAccessFinance && (
+          {notification.type === 'financeiro' && (
             <button
               type="button"
               onClick={() => {
                 onClose();
-                onNavigateTab?.('finance');
+                onNavigateTab?.(canAccessFinance ? 'finance' : 'my_invoices');
               }}
               className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
-              <span>Abrir Financeiro</span>
+              <span>{canAccessFinance ? 'Abrir Financeiro' : 'Ver Meus Boletos'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
 
-          {notification.type === 'locker' && canAccessConcierge && (
+          {notification.type === 'locker' && (
             <button
               type="button"
               onClick={() => {
                 onClose();
-                onNavigateTab?.('concierge');
+                onNavigateTab?.(canAccessConcierge ? 'concierge' : 'my_packages');
               }}
               className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
-              <span>Abrir Portaria</span>
+              <span>{canAccessConcierge ? 'Abrir Portaria' : 'Ver Minhas Encomendas'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}

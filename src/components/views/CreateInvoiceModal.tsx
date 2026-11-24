@@ -186,14 +186,14 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
     >
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative w-full max-w-lg max-h-[92vh] overflow-y-auto bg-white rounded-3xl shadow-floating-sidebar border border-slate-200 p-6 sm:p-7 z-10">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+      <div className="relative w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden bg-white dark:bg-slate-900 rounded-3xl shadow-floating-sidebar border border-slate-200 dark:border-slate-800 z-10">
+        <div className="flex items-center justify-between px-6 sm:px-7 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-              <Receipt className="w-5 h-5 text-emerald-600" />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
+              <Receipt className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
-              <h2 id="create-invoice-modal-title" className="text-base font-bold text-slate-900">
+              <h2 id="create-invoice-modal-title" className="text-base font-bold text-slate-900 dark:text-slate-100">
                 {initialSelection === 'all' ? 'Emitir Boletos em Lote' : 'Nova Cobrança Extra'}
               </h2>
               <p className="text-xs text-slate-400 font-medium">
@@ -205,43 +205,43 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fechar modal"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {formError && (
-          <div
-            role="alert"
-            className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2.5"
-          >
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <span>{formError}</span>
-          </div>
-        )}
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 sm:px-7 py-5 space-y-4">
+            {formError && (
+              <div
+                role="alert"
+                className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-start gap-2.5"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            )}
 
-        {/* Banner do Banco Emissor Cadastrado */}
-        <div className="mb-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-              <Landmark className="w-4 h-4" />
+            {/* Banner do Banco Emissor Cadastrado */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Landmark className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">
+                    Banco Emissor: {bankSettings.bankName}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Agência {bankSettings.agency} • Conta {bankSettings.accountNumber}-{bankSettings.accountDigit} • Carteira {bankSettings.walletCode} • Pix: {bankSettings.pixKey}
+                  </p>
+                </div>
+              </div>
+              <span className="hidden sm:inline text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                QR Code Pix + Código FEBRABAN
+              </span>
             </div>
-            <div>
-              <p className="font-bold text-slate-800">
-                Banco Emissor: {bankSettings.bankName}
-              </p>
-              <p className="text-[11px] text-slate-500">
-                Agência {bankSettings.agency} • Conta {bankSettings.accountNumber}-{bankSettings.accountDigit} • Carteira {bankSettings.walletCode} • Pix: {bankSettings.pixKey}
-              </p>
-            </div>
-          </div>
-          <span className="hidden sm:inline text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-            QR Code Pix + Código FEBRABAN
-          </span>
-        </div>
-
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           {/* Descrição */}
           <div>
             <label
@@ -418,7 +418,9 @@ export const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
             <span className="font-bold text-emerald-800">Total: {formatBRL(totalPreview)}</span>
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          </div>
+
+          <div className="px-6 sm:px-7 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}

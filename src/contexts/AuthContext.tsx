@@ -12,6 +12,8 @@ import type {
   Condominium,
   CondominiumMember,
   CondominiumRole,
+  SubSindicoPermissionKey,
+  SubSindicoPermissions,
 } from '../types/database.types';
 
 export interface CondominiumWithRole {
@@ -25,7 +27,9 @@ export interface AuthContextType {
   profile: UserProfile | null;
   memberships: CondominiumWithRole[];
   currentCondominium: Condominium | null;
+  currentMembership: CondominiumMember | null;
   currentRole: CondominiumRole | null;
+  currentPermissions: SubSindicoPermissions;
   setCurrentCondominiumId: (condoId: string) => void;
   refreshMemberships: () => Promise<void>;
   isLoading: boolean;
@@ -41,9 +45,19 @@ export interface AuthContextType {
   updateAvatar: (newAvatarUrl: string) => Promise<{ error: Error | null }>;
   isSuperAdmin: boolean;
   isSindico: boolean;
+  isSubSindico: boolean;
   isPorteiro: boolean;
   isMorador: boolean;
   canManageUsers: boolean;
+  hasPermission: (perm: SubSindicoPermissionKey) => boolean;
+  canManageCommonAreas: boolean;
+  canManageAnnouncements: boolean;
+  canManageReservations: boolean;
+  canManageMaintenance: boolean;
+  canManageUnits: boolean;
+  canAccessFinance: boolean;
+  canAccessConcierge: boolean;
+  canViewAudit: boolean;
 }
 
 const DEMO_CONDOMINIUMS: Condominium[] = [
@@ -273,6 +287,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user_id,
           role,
           status,
+          unit_id,
+          unit_number,
+          block,
+          permissions,
           log_access_granted,
           created_at,
           updated_at,
@@ -283,6 +301,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             address,
             city,
             state,
+            blocks,
+            default_reservation_time_limit,
+            default_reservation_start_time,
+            default_reservation_end_time,
             created_at,
             updated_at
           )
@@ -309,6 +331,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               user_id: item.user_id,
               role: item.role as CondominiumRole,
               status: item.status,
+              unit_id: item.unit_id ?? null,
+              unit_number: item.unit_number ?? null,
+              block: item.block ?? null,
+              permissions: (item.permissions && typeof item.permissions === 'object' ? item.permissions : {}) as SubSindicoPermissions,
               log_access_granted: Boolean(item.log_access_granted),
               created_at: item.created_at,
               updated_at: item.updated_at,
@@ -672,12 +698,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [updateProfile]
   );
 
+  // Vínculo e permissões ativas no condomínio selecionado
+  const currentMembership = useMemo(() => {
+    if (!currentCondominium?.id) return null;
+    return memberships.find((m) => m.condominium.id === currentCondominium.id)?.membership || null;
+  }, [memberships, currentCondominium?.id]);
+
+  const currentPermissions = useMemo<SubSindicoPermissions>(
+    () => (currentMembership?.permissions && typeof currentMembership.permissions === 'object' ? currentMembership.permissions : {}),
+    [currentMembership]
+  );
+
   // Regra estrita: Papel nulo JAMAIS concede qualquer permissão administrativa
   const isSuperAdmin = useMemo(() => currentRole === 'superadmin', [currentRole]);
   const isSindico = useMemo(
     () => currentRole === 'sindico' || currentRole === 'superadmin',
     [currentRole]
   );
+  const isSubSindico = useMemo(() => currentRole === 'subsindico', [currentRole]);
   const isPorteiro = useMemo(
     () =>
       currentRole === 'porteiro' ||
@@ -691,6 +729,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [currentRole]
   );
 
+  const hasPermission = useCallback(
+    (perm: SubSindicoPermissionKey): boolean => {
+      if (currentRole === 'superadmin' || currentRole === 'sindico') return true;
+      if (currentRole === 'subsindico') {
+        return Boolean(currentPermissions[perm]);
+      }
+      return false;
+    },
+    [currentRole, currentPermissions]
+  );
+
+  const canManageCommonAreas = useMemo(() => hasPermission('manage_common_areas'), [hasPermission]);
+  const canManageAnnouncements = useMemo(() => hasPermission('manage_announcements'), [hasPermission]);
+  const canManageReservations = useMemo(() => hasPermission('manage_reservations'), [hasPermission]);
+  const canManageMaintenance = useMemo(() => hasPermission('manage_maintenance'), [hasPermission]);
+  const canManageUnits = useMemo(() => hasPermission('manage_units'), [hasPermission]);
+  const canAccessFinance = useMemo(() => hasPermission('view_finance'), [hasPermission]);
+  const canAccessConcierge = useMemo(
+    () =>
+      currentRole === 'superadmin' ||
+      currentRole === 'sindico' ||
+      currentRole === 'porteiro' ||
+      hasPermission('manage_concierge'),
+    [currentRole, hasPermission]
+  );
+  const canViewAudit = useMemo(() => hasPermission('view_audit'), [hasPermission]);
+
   const value = useMemo<AuthContextType>(
     () => ({
       user,
@@ -698,7 +763,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profile,
       memberships,
       currentCondominium,
+      currentMembership,
       currentRole,
+      currentPermissions,
       setCurrentCondominiumId,
       refreshMemberships,
       isLoading,
@@ -714,9 +781,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateAvatar,
       isSuperAdmin,
       isSindico,
+      isSubSindico,
       isPorteiro,
       isMorador,
       canManageUsers,
+      hasPermission,
+      canManageCommonAreas,
+      canManageAnnouncements,
+      canManageReservations,
+      canManageMaintenance,
+      canManageUnits,
+      canAccessFinance,
+      canAccessConcierge,
+      canViewAudit,
     }),
     [
       user,
@@ -724,7 +801,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profile,
       memberships,
       currentCondominium,
+      currentMembership,
       currentRole,
+      currentPermissions,
       setCurrentCondominiumId,
       refreshMemberships,
       isLoading,
@@ -738,9 +817,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateAvatar,
       isSuperAdmin,
       isSindico,
+      isSubSindico,
       isPorteiro,
       isMorador,
       canManageUsers,
+      hasPermission,
+      canManageCommonAreas,
+      canManageAnnouncements,
+      canManageReservations,
+      canManageMaintenance,
+      canManageUnits,
+      canAccessFinance,
+      canAccessConcierge,
+      canViewAudit,
     ]
   );
 

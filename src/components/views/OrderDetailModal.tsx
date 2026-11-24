@@ -61,10 +61,10 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
       <div
         ref={modalRef}
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl shadow-floating-sidebar border border-slate-200 dark:border-slate-800 p-6 sm:p-7 z-10 animate-scaleUp"
+        className="relative w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden bg-white dark:bg-slate-900 rounded-3xl shadow-floating-sidebar border border-slate-200 dark:border-slate-800 z-10 animate-scaleUp"
       >
         {/* Header */}
-        <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-start justify-between px-6 sm:px-7 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
               <Wrench className="w-5 h-5" />
@@ -102,7 +102,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="py-5 space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 sm:px-7 py-5 space-y-5">
           {/* Progress Bar (if in progress or completed) */}
           <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
             <div className="flex items-center justify-between text-xs font-bold">
@@ -209,7 +209,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="px-6 sm:px-7 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="w-full sm:w-auto flex items-center gap-2">
             <button
               type="button"

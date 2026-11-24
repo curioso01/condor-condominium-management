@@ -29,8 +29,7 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
   onClose,
   condominiumName = 'Condomínio Residencial',
 }) => {
-  const { currentRole, profile, currentCondominium } = useAuth();
-  const canManageAnnouncements = currentRole === 'sindico' || currentRole === 'superadmin';
+  const { profile, currentCondominium, canManageAnnouncements } = useAuth();
 
   const [announcements, setAnnouncements] = useState<Announcement[]>(() =>
     announcementService.getAnnouncements(currentCondominium?.id)
@@ -38,6 +37,7 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<'Todos' | 'Urgente' | 'Assembleia' | 'Manutenção' | 'Convivência'>('Todos');
   const [isCreating, setIsCreating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   // Form states
   const [newTitle, setNewTitle] = useState('');
@@ -113,11 +113,9 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
     setIsCreating(false);
     setNewTitle('');
     setNewContent('');
-    setFeedback('Comunicado oficial publicado no Mural e confirmado no banco de dados!');
-    setTimeout(() => setFeedback(null), 4000);
+    setFeedback('Comunicado oficial publicado no Mural e notificação push disparada para todos os membros!');
+    setTimeout(() => setFeedback(null), 4500);
   };
-
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   const handleDeleteAnnouncement = (id: string, title: string) => {
     if (!canManageAnnouncements) return;

@@ -33,10 +33,13 @@ import {
 export type { ExtendedCommonArea };
 
 export const ReservationsView: React.FC = () => {
-  const { currentCondominium, isSuperAdmin, isSindico, canManageUsers, currentRole } = useAuth();
-  const isSindicoOrAdmin = Boolean(
-    isSindico || isSuperAdmin || canManageUsers || currentRole === 'sindico' || currentRole === 'superadmin'
-  );
+  const {
+    currentCondominium,
+    isSuperAdmin,
+    canManageCommonAreas,
+    canManageReservations,
+  } = useAuth();
+  const isSindicoOrAdmin = canManageCommonAreas;
 
   const [commonAreas, setCommonAreas] = useState<ExtendedCommonArea[]>([]);
   const [reservations, setReservations] = useState<AmenityReservation[]>([]);
@@ -55,10 +58,11 @@ export const ReservationsView: React.FC = () => {
 
   // Open modal to create a new space
   const handleOpenNewSpaceModal = () => {
-    if (!isSindicoOrAdmin && currentRole === 'morador') {
+    if (!canManageCommonAreas) {
       setNotification({
         type: 'error',
-        message: 'Apenas o Síndico e o Super Administrador têm permissão para cadastrar ou gerenciar espaços comuns.',
+        message:
+          'Apenas o Síndico, Super Administrador ou Sub-Síndico autorizado podem cadastrar ou gerenciar espaços comuns.',
       });
       setTimeout(() => setNotification(null), 5000);
       return;
@@ -300,14 +304,16 @@ export const ReservationsView: React.FC = () => {
             >
               Ver todos ({commonAreas.length}) →
             </button>
-            <button
-              type="button"
-              onClick={handleOpenNewSpaceModal}
-              className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold text-[10px] transition cursor-pointer flex items-center gap-1"
-            >
-              <Plus className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-              <span>Novo Espaço</span>
-            </button>
+            {canManageCommonAreas && (
+              <button
+                type="button"
+                onClick={handleOpenNewSpaceModal}
+                className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold text-[10px] transition cursor-pointer flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span>Novo Espaço</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -476,7 +482,7 @@ export const ReservationsView: React.FC = () => {
                 setSelectedDateForModal(dateIso);
                 setIsModalOpen(true);
               }}
-              onOpenNewSpace={handleOpenNewSpaceModal}
+              onOpenNewSpace={canManageCommonAreas ? handleOpenNewSpaceModal : undefined}
             />
           </div>
         )}
@@ -484,27 +490,29 @@ export const ReservationsView: React.FC = () => {
         {/* TAB 2: Vitrine dos Espaços Comuns */}
         {viewTab === 'spaces' && (
           <div className="space-y-4">
-            {/* Header / Ações de Administração para Síndico e Superadmin */}
+            {/* Header / Ações de Administração para Síndico, Superadmin e Sub-Síndico autorizado */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                   Espaços Comuns do Condomínio ({commonAreas.length})
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {isSindicoOrAdmin 
-                    ? 'Você tem permissão para incluir novos espaços, editar capacidade e regras, ou excluir.' 
-                    : 'Consulte as regras e capacidades de cada ambiente de lazer do condomínio.'}
+                  {canManageCommonAreas 
+                    ? 'Você tem permissão para incluir novos espaços, definir limites de horário, editar capacidade e regras, ou excluir.' 
+                    : 'Consulte as regras, horários e capacidades de cada ambiente de lazer do condomínio.'}
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleOpenNewSpaceModal}
-                className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-pill transition duration-150 flex items-center gap-1.5 cursor-pointer shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Cadastrar Novo Espaço</span>
-              </button>
+              {canManageCommonAreas && (
+                <button
+                  type="button"
+                  onClick={handleOpenNewSpaceModal}
+                  className="px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-pill transition duration-150 flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Cadastrar Novo Espaço</span>
+                </button>
+              )}
             </div>
 
             {commonAreas.length === 0 ? (
@@ -584,7 +592,9 @@ export const ReservationsView: React.FC = () => {
                             <Clock className="w-3.5 h-3.5" /> Horário
                           </span>
                           <span className="font-bold text-slate-800 dark:text-slate-200">
-                            08:00 às 23:30
+                            {area.enforce_time_limit
+                              ? `${area.available_start_time || '08:00'} às ${area.available_end_time || '22:00'}${area.max_duration_hours ? ` (máx. ${area.max_duration_hours}h)` : ''}`
+                              : 'Horário livre'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -698,7 +708,7 @@ export const ReservationsView: React.FC = () => {
                       </span>
                     </div>
 
-                    {isSindicoOrAdmin && (
+                    {canManageReservations && (
                       <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
                         {res.statusType === 'warning' && (
                           <>
