@@ -17,6 +17,7 @@ import {
   Key,
 } from 'lucide-react';
 import { BoletoModal, type BoletoInvoiceData } from './BoletoModal';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 export interface UnitDetailsModalProps {
   unit: Unit | null;
@@ -235,60 +236,96 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
                 )}
               </div>
 
-              {/* Add resident inline form */}
+              {/* Popup Modal: Adicionar Morador ou Dependente */}
               {canManageUsers && isAddingResident && (
-                <form
-                  onSubmit={handleAddResident}
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-3 animate-fadeIn"
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Adicionar Morador ou Dependente"
+                  className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/65 backdrop-blur-sm animate-fadeIn"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) setIsAddingResident(false);
+                  }}
                 >
-                  <p className="font-bold text-slate-800 dark:text-slate-200 text-xs">Novo Morador ou Dependente</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                        Nome Completo
-                      </label>
-                      <input
-                        type="text"
-                        value={newResidentName}
-                        onChange={(e) => setNewResidentName(e.target.value)}
-                        placeholder="Ex: Beatriz Lima Duarte"
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                        Grau / Papel
-                      </label>
-                      <select
-                        value={newResidentRole}
-                        onChange={(e) => setNewResidentRole(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  <form
+                    onSubmit={handleAddResident}
+                    className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                            Novo Morador ou Dependente
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            Unidade {unit.number} • {unit.block}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingResident(false)}
+                        aria-label="Fechar cadastro de morador"
+                        className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 cursor-pointer"
                       >
-                        <option value="Residente">Residente</option>
-                        <option value="Filho(a)">Filho(a)</option>
-                        <option value="Cônjuge">Cônjuge</option>
-                        <option value="Familiar">Familiar</option>
-                        <option value="Colaborador Residencial">Colaborador Residencial</option>
-                      </select>
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingResident(false)}
-                      className="px-3 py-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm cursor-pointer"
-                    >
-                      Salvar e Cadastrar Biometria
-                    </button>
-                  </div>
-                </form>
+
+                    <div className="p-5 space-y-3.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                          Nome Completo *
+                        </label>
+                        <input
+                          type="text"
+                          value={newResidentName}
+                          onChange={(e) => setNewResidentName(e.target.value)}
+                          placeholder="Ex: Beatriz Lima Duarte"
+                          className="w-full h-10 px-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                          Grau / Papel
+                        </label>
+                        <PremiumSelect
+                          ariaLabel="Grau ou papel do residente"
+                          size="sm"
+                          value={newResidentRole}
+                          onChange={setNewResidentRole}
+                          options={[
+                            'Residente',
+                            'Filho(a)',
+                            'Cônjuge',
+                            'Familiar',
+                            'Colaborador Residencial',
+                          ]}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingResident(false)}
+                        className="px-4 py-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-pill cursor-pointer"
+                      >
+                        Salvar Morador
+                      </button>
+                    </div>
+                  </form>
+                </div>
               )}
 
               {/* Members List */}
@@ -366,17 +403,19 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 uppercase font-bold block">Modelo / Marca</span>
-                    <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">{unit.vehicleModel || 'Jeep Compass Branco'}</p>
+                    <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">{unit.vehicleModel || 'Não informado'}</p>
                   </div>
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 uppercase font-bold block">Placa Mercosul</span>
                     <p className="font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
-                      {unit.vehiclePlate || 'BRA-2E19'}
+                      {unit.vehiclePlate || 'Sem placa'}
                     </p>
                   </div>
                   <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">TAG Cancelas</span>
-                    <p className="font-bold text-slate-700 dark:text-slate-300 font-mono mt-0.5">RFID #84920 (Ativo)</p>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Controle de Garagem</span>
+                    <p className="font-bold text-slate-700 dark:text-slate-300 mt-0.5">
+                      {unit.vehiclePlate ? 'Autorizado pela Portaria' : 'Sem veículo cadastrado'}
+                    </p>
                   </div>
                 </div>
               </div>

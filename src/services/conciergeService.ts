@@ -1,64 +1,98 @@
-import { supabase } from '../lib/supabase';
-import type { AccessLogRow } from '../types/database.types';
-import type { AccessEntry } from '../types/condominium';
+import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
+import type { AccessEntry, AccessAuthType } from '../types/condominium';
 import { mockAccessEntries } from './mockData';
-
-const MISSING_TABLE_CODES = new Set(['42P01', 'PGRST205']);
-
-export interface ConciergeServiceError extends Error {
-  tableMissing?: boolean;
-}
-
-function toError(message: string, code?: string): ConciergeServiceError {
-  const err: ConciergeServiceError = new Error(message);
-  if (code && MISSING_TABLE_CODES.has(code)) err.tableMissing = true;
-  return err;
-}
+import { auditService } from './auditService';
 
 export interface CreateAccessLogInput {
   condominium_id: string;
   personName: string;
   photoUrl?: string;
-  authType: 'facial' | 'qr_code' | 'delivery' | 'manual' | 'tag';
+  authType: AccessAuthType;
   authDetail: string;
   accessPoint: string;
   destination: string;
-  entryType: 'Morador Residente' | 'Convidado QR Válido' | 'Liberação Temp. (15 min)' | 'Abertura Remota Emergencial';
+  entryType: string;
 }
 
-function mapRowToAccessEntry(row: AccessLogRow): AccessEntry {
-  const createdAtDate = new Date(row.created_at);
-  const timeStr = createdAtDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const DEMO_ACCESS_KEY_PREFIX = 'condor_demo_access_logs_';
+
+function formatLogTimestamp(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    const today = new Date();
+    const isToday =
+      d.getDate() === today.getDate() &&
+      d.getMonth() === today.getMonth() &&
+      d.getFullYear() === today.getFullYear();
+
+    const timeStr = d.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    if (isToday) {
+      return `${timeStr} (Hoje)`;
+    }
+
+    const dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    return `${dateStr} • ${timeStr}`;
+  } catch {
+    return 'Agora';
+  }
+}
+
+export function mapDbAccessLogToUI(row: any): AccessEntry {
+  const defaultPhotos = [
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
+  ];
+  const hash = (row.person_name || 'A').charCodeAt(0) % defaultPhotos.length;
 
   return {
     id: row.id,
     personName: row.person_name,
-    photoUrl: row.photo_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-    authType: row.auth_type as any,
-    authDetail: row.auth_detail,
-    timestamp: timeStr,
-    accessPoint: row.access_point,
-    destination: row.destination,
-    type: row.entry_type as any,
+    photoUrl: row.photo_url || defaultPhotos[hash],
+    authType: (row.auth_type as AccessAuthType) || 'facial',
+    authDetail: row.auth_detail || 'BioSync Facial • Aprovado',
+    timestamp: formatLogTimestamp(row.created_at),
+    accessPoint: row.access_point || 'Portaria Principal',
+    destination: row.destination || 'Acesso Geral',
+    type: row.entry_type || 'Morador Residente',
   };
-}
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function isUuid(val?: string | null): boolean {
-  return typeof val === 'string' && UUID_REGEX.test(val);
 }
 
 export const conciergeService = {
   /**
-   * Fetches access logs from Supabase with fallback to mock data.
+   * Busca os últimos 50 registros de acesso da portaria do condomínio.
+   * Quando conectado ao Supabase, retorna [] se o condomínio não tiver logs (sem mockAccessEntries).
    */
-  async getAccessLogs(condominiumId: string): Promise<{ data: AccessEntry[]; isMock: boolean; error: ConciergeServiceError | null }> {
-    if (!isUuid(condominiumId)) {
+  async getAccessLogs(condominiumId: string): Promise<{
+    data: AccessEntry[];
+    error: { message: string; tableMissing?: boolean } | null;
+  }> {
+    if (!condominiumId) {
+      return { data: [], error: null };
+    }
+
+    if (isDemoSessionActive()) {
+      try {
+        const raw = localStorage.getItem(`${DEMO_ACCESS_KEY_PREFIX}${condominiumId}`);
+        if (raw) {
+          return { data: JSON.parse(raw), error: null };
+        }
+      } catch {
+        // ignore
+      }
       return {
-        data: [...mockAccessEntries],
-        isMock: true,
+        data: condominiumId === 'condo-imperial-001' ? [...mockAccessEntries] : [],
         error: null,
       };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: [], error: { message: 'Supabase não configurado.' } };
     }
 
     try {
@@ -70,42 +104,65 @@ export const conciergeService = {
         .limit(50);
 
       if (error) {
+        const isMissing =
+          error.code === '42P01' ||
+          error.code === 'PGRST205' ||
+          error.message?.includes('access_logs');
         return {
-          data: [...mockAccessEntries],
-          isMock: true,
-          error: toError(error.message, error.code),
+          data: [],
+          error: { message: error.message, tableMissing: isMissing },
         };
       }
 
-      if (data && data.length > 0) {
-        return {
-          data: data.map(mapRowToAccessEntry),
-          isMock: false,
-          error: null,
-        };
-      }
-
-      return {
-        data: [...mockAccessEntries],
-        isMock: true,
-        error: null,
-      };
+      const mapped = ((data as any[]) || []).map(mapDbAccessLogToUI);
+      return { data: mapped, error: null };
     } catch (err: any) {
       return {
-        data: [...mockAccessEntries],
-        isMock: true,
-        error: err instanceof Error ? err : toError('Falha ao buscar logs de acesso'),
+        data: [],
+        error: { message: err?.message || 'Erro ao consultar logs da portaria no Supabase.' },
       };
     }
   },
 
   /**
-   * Inserts a new access entry into Supabase.
+   * Registra um novo evento de portaria/acesso ou convite QR no Supabase.
+   * Só retorna sucesso se o banco confirmar a inserção.
    */
-  async createAccessEntry(input: CreateAccessLogInput): Promise<{ data: AccessEntry; error: ConciergeServiceError | null }> {
+  async createAccessEntry(input: CreateAccessLogInput): Promise<{
+    data: AccessEntry | null;
+    error: { message: string } | null;
+  }> {
+    if (isDemoSessionActive()) {
+      const demoEntry = mapDbAccessLogToUI({
+        id: `demo-log-${Date.now()}`,
+        person_name: input.personName,
+        photo_url: input.photoUrl || null,
+        auth_type: input.authType,
+        auth_detail: input.authDetail,
+        access_point: input.accessPoint,
+        destination: input.destination,
+        entry_type: input.entryType,
+        created_at: new Date().toISOString(),
+      });
+      const existing = (await this.getAccessLogs(input.condominium_id)).data;
+      localStorage.setItem(
+        `${DEMO_ACCESS_KEY_PREFIX}${input.condominium_id}`,
+        JSON.stringify([demoEntry, ...existing.slice(0, 49)])
+      );
+      return { data: demoEntry, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return {
+        data: null,
+        error: {
+          message: 'Registro de portaria bloqueado: banco de dados Supabase não configurado.',
+        },
+      };
+    }
+
     try {
-      const { data, error } = await supabase
-        .from('access_logs')
+      const { data, error } = await (supabase.from('access_logs') as any)
         .insert({
           condominium_id: input.condominium_id,
           person_name: input.personName,
@@ -116,77 +173,41 @@ export const conciergeService = {
           destination: input.destination,
           entry_type: input.entryType,
         })
-        .select()
+        .select('*')
         .single();
 
-      if (!error && data) {
-        return { data: mapRowToAccessEntry(data), error: null };
+      if (error || !data) {
+        return {
+          data: null,
+          error: {
+            message:
+              error?.message ||
+              'Não foi possível confirmar o registro de acesso da portaria no Supabase.',
+          },
+        };
       }
 
-      // Fallback
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      const localEntry: AccessEntry = {
-        id: `access-${Date.now()}`,
-        personName: input.personName,
-        photoUrl: input.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-        authType: input.authType as any,
-        authDetail: input.authDetail,
-        timestamp: `${timeStr} (Agora)`,
-        accessPoint: input.accessPoint,
-        destination: input.destination,
-        type: input.entryType as any,
-      };
+      const created = mapDbAccessLogToUI(data);
 
-      return { data: localEntry, error: error ? toError(error.message, error.code) : null };
-    } catch (err: any) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      return {
-        data: {
-          id: `access-${Date.now()}`,
-          personName: input.personName,
-          photoUrl: input.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-          authType: input.authType as any,
-          authDetail: input.authDetail,
-          timestamp: `${timeStr} (Agora)`,
-          accessPoint: input.accessPoint,
+      await auditService.log({
+        condominiumId: input.condominium_id,
+        action: 'CONCIERGE_ACCESS_RECORDED',
+        entityTable: 'access_logs',
+        entityId: created.id,
+        metadata: {
+          auth_type: input.authType,
+          entry_type: input.entryType,
+          access_point: input.accessPoint,
           destination: input.destination,
-          type: input.entryType as any,
         },
-        error: err instanceof Error ? err : toError('Falha ao registrar acesso'),
-      };
-    }
-  },
+      });
 
-  /**
-   * Seeds demo access entries into Supabase if table is created.
-   */
-  async seedInitialAccessLogs(condominiumId: string): Promise<{ count: number; error: ConciergeServiceError | null }> {
-    try {
-      const rows = mockAccessEntries.map((e) => ({
-        condominium_id: condominiumId,
-        person_name: e.personName,
-        photo_url: e.photoUrl,
-        auth_type: e.authType,
-        auth_detail: e.authDetail,
-        access_point: e.accessPoint,
-        destination: e.destination,
-        entry_type: e.type,
-      }));
-
-      const { data, error } = await supabase
-        .from('access_logs')
-        .insert(rows)
-        .select();
-
-      if (error) {
-        return { count: 0, error: toError(error.message, error.code) };
-      }
-
-      return { count: data?.length || 0, error: null };
+      return { data: created, error: null };
     } catch (err: any) {
-      return { count: 0, error: err instanceof Error ? err : toError('Falha ao popular logs de acesso') };
+      return {
+        data: null,
+        error: { message: err?.message || 'Falha ao gravar registro de portaria no Supabase.' },
+      };
     }
   },
 };

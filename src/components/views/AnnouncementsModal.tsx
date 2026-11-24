@@ -13,6 +13,8 @@ import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
 
 import { announcementService, type Announcement } from '../../services/announcementService';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 export type { Announcement };
 
@@ -39,19 +41,24 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
 
   // Form states
   const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState<Announcement['category']>('Geral');
+  const [newCategory, setNewCategory] = useState<Announcement['category']>('Comunicado');
   const [newPriority, setNewPriority] = useState<Announcement['priority']>('normal');
   const [newContent, setNewContent] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setAnnouncements(announcementService.getAnnouncements(currentCondominium?.id));
+      setAnnouncements([]);
+      announcementService.fetchAnnouncements(currentCondominium?.id).then((res) => {
+        setAnnouncements(res.data);
+      });
     }
   }, [isOpen, currentCondominium?.id]);
 
   useEffect(() => {
     const handleUpdate = () => {
-      setAnnouncements(announcementService.getAnnouncements(currentCondominium?.id));
+      announcementService.fetchAnnouncements(currentCondominium?.id).then((res) => {
+        setAnnouncements(res.data);
+      });
     };
     window.addEventListener('condor:announcements-updated', handleUpdate);
     return () => window.removeEventListener('condor:announcements-updated', handleUpdate);
@@ -73,7 +80,7 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
     return a.category === categoryFilter;
   });
 
-  const handleCreateAnnouncement = (e: React.FormEvent) => {
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageAnnouncements) {
       setFeedback('Acesso negado: apenas o Síndico e o Super Administrador podem criar comunicados.');
@@ -84,7 +91,7 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
     const now = new Date();
     const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
 
-    const created = announcementService.createAnnouncement(
+    const { data: created, error } = await announcementService.createAnnouncementAsync(
       {
         title: newTitle.trim(),
         category: newCategory,
@@ -97,27 +104,47 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
       currentCondominium?.id
     );
 
+    if (error || !created) {
+      setFeedback(`Erro ao publicar comunicado: ${error?.message || 'Falha na persistência remota.'}`);
+      return;
+    }
+
     setAnnouncements((prev) => [created, ...prev]);
     setIsCreating(false);
     setNewTitle('');
     setNewContent('');
-    setFeedback('Comunicado oficial publicado no Mural e notificado aos moradores via push!');
+    setFeedback('Comunicado oficial publicado no Mural e confirmado no banco de dados!');
     setTimeout(() => setFeedback(null), 4000);
   };
 
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+
   const handleDeleteAnnouncement = (id: string, title: string) => {
     if (!canManageAnnouncements) return;
-    if (window.confirm(`Tem certeza de que deseja excluir o comunicado "${title}"?`)) {
-      announcementService.deleteAnnouncement(id, currentCondominium?.id);
-      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
-      setFeedback('Comunicado excluído com sucesso do mural.');
-      setTimeout(() => setFeedback(null), 3000);
-    }
+    setDeleteTarget({ id, title });
   };
 
-  const handleTogglePin = (id: string) => {
+  const confirmDeleteAnnouncement = async () => {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
+    setDeleteTarget(null);
+    const { error } = await announcementService.deleteAnnouncementAsync(id, currentCondominium?.id);
+    if (error) {
+      setFeedback(`Erro ao excluir comunicado: ${error.message}`);
+      return;
+    }
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+    setFeedback('Comunicado excluído com sucesso do mural.');
+    setTimeout(() => setFeedback(null), 3000);
+  };
+
+  const handleTogglePin = async (id: string) => {
     if (!canManageAnnouncements) return;
-    announcementService.togglePin(id, currentCondominium?.id);
+    const { error } = await announcementService.togglePinAsync(id, currentCondominium?.id);
+    if (error) {
+      setFeedback(`Erro ao atualizar fixação: ${error.message}`);
+      return;
+    }
     setAnnouncements((prev) =>
       prev.map((a) => (a.id === id ? { ...a, isPinned: !a.isPinned } : a))
     );
@@ -209,97 +236,130 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
 
         {/* Modal Content / Form */}
         <div className="p-6 overflow-y-auto space-y-4">
-          {/* New Announcement Form (Apenas Administradores) */}
+          {/* Popup Modal: Criar Novo Comunicado Oficial (Apenas Administradores) */}
           {canManageAnnouncements && isCreating && (
-            <form
-              onSubmit={handleCreateAnnouncement}
-              className="p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-3.5 animate-fadeIn"
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Criar Novo Comunicado Oficial"
+              className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/65 backdrop-blur-sm animate-fadeIn"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) setIsCreating(false);
+              }}
             >
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Criar Novo Comunicado Oficial</h4>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  Notificação Push Automática
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                  Título do Comunicado
-                </label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Ex: Interrupção Programada de Energia Elétrica na Torre 2"
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                    Categoria
-                  </label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              <form
+                onSubmit={handleCreateAnnouncement}
+                className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                      <Megaphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
+                        Criar Novo Comunicado Oficial
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Publicado instantaneamente no mural do condomínio
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreating(false)}
+                    aria-label="Fechar novo comunicado"
+                    className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 cursor-pointer"
                   >
-                    <option value="Geral">Geral</option>
-                    <option value="Urgente">Urgente</option>
-                    <option value="Assembleia">Assembleia</option>
-                    <option value="Manutenção">Manutenção</option>
-                    <option value="Convivência">Convivência</option>
-                  </select>
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                    Prioridade
-                  </label>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+
+                <div className="p-6 space-y-4 max-h-[72vh] overflow-y-auto">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                      Título do Comunicado *
+                    </label>
+                    <input
+                      type="text"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="Ex: Interrupção Programada de Energia Elétrica na Torre 2"
+                      className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                        Categoria
+                      </label>
+                      <PremiumSelect
+                        ariaLabel="Categoria do comunicado"
+                        size="md"
+                        value={newCategory}
+                        onChange={(val) => setNewCategory(val as any)}
+                        options={[
+                          { value: 'Comunicado', label: 'Comunicado Geral' },
+                          { value: 'Urgente', label: 'Urgente' },
+                          { value: 'Assembleia', label: 'Assembleia' },
+                          { value: 'Manutenção', label: 'Manutenção' },
+                          { value: 'Convivência', label: 'Convivência' },
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                        Prioridade
+                      </label>
+                      <PremiumSelect
+                        ariaLabel="Prioridade do comunicado"
+                        size="md"
+                        value={newPriority || 'normal'}
+                        onChange={(val) => setNewPriority(val as any)}
+                        options={[
+                          { value: 'normal', label: 'Normal' },
+                          { value: 'media', label: 'Média' },
+                          { value: 'alta', label: 'Alta (Fixar no Topo)' },
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                      Texto Completo do Comunicado *
+                    </label>
+                    <textarea
+                      value={newContent}
+                      onChange={(e) => setNewContent(e.target.value)}
+                      placeholder="Descreva detalhes, datas, recomendações e canais de contato com a administração..."
+                      rows={4}
+                      className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreating(false)}
+                    className="px-4 py-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
                   >
-                    <option value="normal">Normal</option>
-                    <option value="media">Média</option>
-                    <option value="alta">Alta (Fixar no Topo)</option>
-                  </select>
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-pill cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Publicar Comunicado</span>
+                  </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                  Texto Completo do Comunicado
-                </label>
-                <textarea
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="Descreva detalhes, datas, recomendações e canais de contato com a administração..."
-                  rows={4}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(false)}
-                  className="px-4 py-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Publicar e Disparar Push</span>
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           )}
 
           {/* Announcements Feed */}
@@ -400,6 +460,20 @@ export const AnnouncementsModal: React.FC<AnnouncementsModalProps> = ({
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        title="Excluir comunicado oficial?"
+        description={
+          deleteTarget
+            ? `Tem certeza de que deseja excluir "${deleteTarget.title}" do mural deste condomínio?`
+            : ''
+        }
+        confirmLabel="Excluir Comunicado"
+        variant="danger"
+        onConfirm={confirmDeleteAnnouncement}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Receipt, Trash2, Search, CheckCircle2, X } from 'lucide-react';
 import type { OperationalExpense } from '../../services/financialDataService';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 interface OperationalExpensesModalProps {
   isOpen: boolean;
@@ -255,16 +256,18 @@ export const OperationalExpensesModal: React.FC<OperationalExpensesModalProps> =
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Categoria
                 </label>
-                <select
+                <PremiumSelect
+                  ariaLabel="Categoria da despesa"
+                  size="sm"
                   value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="Folha & Portaria">Folha & Portaria</option>
-                  <option value="Manutenção & Elevadores">Manutenção & Elevadores</option>
-                  <option value="Concessionárias">Concessionárias</option>
-                  <option value="Outros">Outros</option>
-                </select>
+                  onChange={(val) => setNewCategory(val as any)}
+                  options={[
+                    'Folha & Portaria',
+                    'Manutenção & Elevadores',
+                    'Concessionárias',
+                    'Outros',
+                  ]}
+                />
               </div>
 
               <div>
@@ -301,14 +304,16 @@ export const OperationalExpensesModal: React.FC<OperationalExpensesModalProps> =
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Status
                 </label>
-                <select
+                <PremiumSelect
+                  ariaLabel="Status da despesa"
+                  size="sm"
                   value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="A Vencer">A Vencer</option>
-                  <option value="Pago">Pago</option>
-                </select>
+                  onChange={(val) => setNewStatus(val as any)}
+                  options={[
+                    { value: 'A Vencer', label: 'A Vencer' },
+                    { value: 'Pago', label: 'Pago' },
+                  ]}
+                />
               </div>
             </div>
 

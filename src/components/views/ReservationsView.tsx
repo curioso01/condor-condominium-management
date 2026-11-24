@@ -12,6 +12,7 @@ import { CreateReservationModal } from './CreateReservationModal';
 import { CommonAreaModal } from './CommonAreaModal';
 import { EmptyState } from '../ui/EmptyState';
 import { Skeleton } from '../ui/Skeleton';
+import { AmenityIconBadge } from '../common/AmenityIconBadge';
 import {
   CalendarDays,
   Plus,
@@ -33,7 +34,9 @@ export type { ExtendedCommonArea };
 
 export const ReservationsView: React.FC = () => {
   const { currentCondominium, isSuperAdmin, isSindico, canManageUsers, currentRole } = useAuth();
-  const isSindicoOrAdmin = isSindico || isSuperAdmin || canManageUsers || currentRole === 'sindico' || currentRole === 'superadmin' || !currentRole || (currentRole as string) === 'admin';
+  const isSindicoOrAdmin = Boolean(
+    isSindico || isSuperAdmin || canManageUsers || currentRole === 'sindico' || currentRole === 'superadmin'
+  );
 
   const [commonAreas, setCommonAreas] = useState<ExtendedCommonArea[]>([]);
   const [reservations, setReservations] = useState<AmenityReservation[]>([]);
@@ -68,6 +71,8 @@ export const ReservationsView: React.FC = () => {
   const loadAreasAndReservations = useCallback(async () => {
     if (!currentCondominium?.id) return;
     setIsLoadingAreas(true);
+    setCommonAreas([]);
+    setReservations([]);
 
     const [areasRes, reservationsRes] = await Promise.all([
       amenityService.getCommonAreasByCondominium(currentCondominium.id),
@@ -110,15 +115,19 @@ export const ReservationsView: React.FC = () => {
 
 
   const handleReservationCreated = async (input: CreateReservationInput): Promise<{ success: boolean; error?: string }> => {
-    const { data, error } = await amenityService.createReservation(input);
-    if (error) {
-      return { success: false, error: error.message };
+    const selectedArea = commonAreas.find((a) => a.id === input.common_area_id || a.name === input.spaceName);
+    const { data, error } = await amenityService.createReservation({
+      ...input,
+      requiresApproval: Boolean(selectedArea?.requiresApproval ?? selectedArea?.requires_approval),
+    });
+    if (error || !data) {
+      return { success: false, error: error?.message || 'Erro ao salvar reserva no banco de dados.' };
     }
 
     setReservations((prev) => [data, ...prev]);
     setNotification({
       type: 'success',
-      message: `Reserva para "${data.spaceName}" confirmada com sucesso!`,
+      message: `Reserva para "${data.spaceName}" ${data.status === 'pending' ? 'registrada (aguardando aprovação do síndico)' : 'confirmada'} com sucesso!`,
     });
     setTimeout(() => setNotification(null), 5000);
     return { success: true };
@@ -239,15 +248,17 @@ export const ReservationsView: React.FC = () => {
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={handleOpenNewSpaceModal}
-            className="px-3.5 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-pill transition duration-150 flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="Cadastrar Novo Espaço Comum de Lazer"
-          >
-            <Plus className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
-            <span>Cadastrar Novo Espaço</span>
-          </button>
+          {isSindicoOrAdmin && (
+            <button
+              type="button"
+              onClick={handleOpenNewSpaceModal}
+              className="px-3.5 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-bold text-xs shadow-pill transition duration-150 flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="Cadastrar Novo Espaço Comum de Lazer"
+            >
+              <Plus className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+              <span>Cadastrar Novo Espaço</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -275,7 +286,7 @@ export const ReservationsView: React.FC = () => {
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">{commonAreas.length || 4}</span>
+              <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">{commonAreas.length}</span>
               <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">100% liberados</span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">Salão de Festas, Gourmet, Piscina, Fitness</p>
@@ -320,8 +331,8 @@ export const ReservationsView: React.FC = () => {
                     key={r.id}
                     className="p-1.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs hover:border-teal-300 dark:hover:border-teal-600 transition-colors"
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-sm shrink-0">{r.emoji || '🎉'}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AmenityIconBadge spaceName={r.spaceName} emoji={r.emoji} size="xs" />
                       <div className="min-w-0">
                         <p className="text-[11px] font-bold text-slate-900 dark:text-slate-100 truncate">
                           {r.spaceName}
@@ -352,34 +363,41 @@ export const ReservationsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 3: Taxa de Ocupação Finais de Semana */}
+        {/* Card 3: Pendentes de Aprovação (Real) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-soft">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ocupação Fim de Semana</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Aguardando Aprovação</span>
             <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <Award className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">82%</span>
-            <span className="text-xs font-bold text-amber-600 dark:text-amber-400">+12% este mês</span>
+            <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+              {reservations.filter((r) => r.statusType === 'warning').length}
+            </span>
+            <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+              pendente(s)
+            </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Sábados e Domingos com alta procura</p>
+          <p className="text-[11px] text-slate-400 mt-1">Espaços com aprovação da síndica</p>
         </div>
 
-        {/* Card 4: Taxas dos Aluguéis */}
+        {/* Card 4: Taxas dos Aluguéis (Real) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-soft">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Taxas dos Aluguéis</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Taxas de Locação</span>
             <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center">
               <Check className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">R$ 3.850</span>
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">arrecadados</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+              {reservations
+                .reduce((acc, r) => acc + Number(r.rentalFee || 0), 0)
+                .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">Receita de locação dos espaços comuns</p>
+          <p className="text-[11px] text-slate-400 mt-1">Total real das reservas agendadas</p>
         </div>
       </div>
 
@@ -394,9 +412,18 @@ export const ReservationsView: React.FC = () => {
                 Próximos 60 Dias
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Legenda de cores: 🟢 Verde = Livre • 🟡 Amarelo = Parcialmente Ocupado • 🔴 Vermelho = Totalmente Ocupado
-            </p>
+            <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400 mt-1">
+              <span>Legenda:</span>
+              <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-300 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Livre
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-300 font-medium">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" /> Parcialmente Ocupado
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-300 font-medium">
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> Totalmente Ocupado
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
@@ -500,15 +527,7 @@ export const ReservationsView: React.FC = () => {
                   >
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-xl font-bold">
-                          {area.name.includes('Gourmet') || area.name.includes('Churrasco')
-                            ? '🥩'
-                            : area.name.includes('Piscina')
-                            ? '🏊‍♂️'
-                            : area.name.includes('Academia')
-                            ? '🏋️'
-                            : '🎉'}
-                        </div>
+                        <AmenityIconBadge spaceName={area.name} emoji={area.emoji} size="lg" />
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                             {area.requires_approval ? 'Requer Aprovação' : 'Aprovação Imediata'}
@@ -652,28 +671,124 @@ export const ReservationsView: React.FC = () => {
                 {filteredReservations.map((res) => (
                   <div
                     key={res.id}
-                    className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                    className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 flex flex-col justify-between gap-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-base shrink-0">
-                        {res.emoji}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <AmenityIconBadge spaceName={res.spaceName} emoji={res.emoji} size="md" />
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                            {res.spaceName}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            {res.dateStr || res.date} • {res.responsibleName} ({res.unitNumber})
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">{res.spaceName}</h4>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          {res.dateStr} • {res.responsibleName} ({res.unitNumber})
-                        </p>
-                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                          res.statusType === 'success'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                            : res.statusType === 'warning'
+                            ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {res.status}
+                      </span>
                     </div>
-                    <span
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
-                        res.statusType === 'success'
-                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                      }`}
-                    >
-                      {res.status}
-                    </span>
+
+                    {isSindicoOrAdmin && (
+                      <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                        {res.statusType === 'warning' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!currentCondominium?.id) return;
+                                const { error } = await amenityService.updateReservationStatus(
+                                  res.id,
+                                  currentCondominium.id,
+                                  'approved'
+                                );
+                                if (error) {
+                                  setNotification({ type: 'error', message: error.message });
+                                  return;
+                                }
+                                setReservations((prev) =>
+                                  prev.map((r) =>
+                                    r.id === res.id
+                                      ? { ...r, status: 'Aprovada pela Administração', statusType: 'success' }
+                                      : r
+                                  )
+                                );
+                                setNotification({
+                                  type: 'success',
+                                  message: `Reserva de ${res.responsibleName} aprovada!`,
+                                });
+                                setTimeout(() => setNotification(null), 4000);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer"
+                            >
+                              Aprovar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!currentCondominium?.id) return;
+                                const { error } = await amenityService.updateReservationStatus(
+                                  res.id,
+                                  currentCondominium.id,
+                                  'rejected'
+                                );
+                                if (error) {
+                                  setNotification({ type: 'error', message: error.message });
+                                  return;
+                                }
+                                setReservations((prev) =>
+                                  prev.map((r) =>
+                                    r.id === res.id
+                                      ? { ...r, status: 'Recusada pela Administração', statusType: 'info' }
+                                      : r
+                                  )
+                                );
+                                setNotification({
+                                  type: 'success',
+                                  message: `Reserva de ${res.responsibleName} recusada.`,
+                                });
+                                setTimeout(() => setNotification(null), 4000);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 text-[11px] font-bold cursor-pointer"
+                            >
+                              Recusar
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!currentCondominium?.id) return;
+                            const { error } = await amenityService.deleteReservation(
+                              res.id,
+                              currentCondominium.id
+                            );
+                            if (error) {
+                              setNotification({ type: 'error', message: error.message });
+                              return;
+                            }
+                            setReservations((prev) => prev.filter((r) => r.id !== res.id));
+                            setNotification({
+                              type: 'success',
+                              message: `Reserva removida do calendário.`,
+                            });
+                            setTimeout(() => setNotification(null), 4000);
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-[11px] font-bold cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

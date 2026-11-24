@@ -23,9 +23,21 @@ import {
   QrCode,
   Receipt,
   Eye,
+  KeyRound,
+  History,
+  FileDown,
+  Lock,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { userService, type CondominiumUser } from '../../services/userService';
 import { unitService } from '../../services/unitService';
+import { condominiumService } from '../../services/condominiumService';
+import { avatarService } from '../../services/avatarService';
+import { auditService, type AuditLogEntry } from '../../services/auditService';
+import { lgpdService, LGPD_POLICY_VERSION } from '../../services/lgpdService';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { PremiumSelect } from '../ui/PremiumSelect';
 import type { CondominiumRole } from '../../types/database.types';
 import {
   bankAccountService,
@@ -34,7 +46,15 @@ import {
 } from '../../services/bankAccountService';
 import { BoletoModal } from './BoletoModal';
 
-export type SettingsTab = 'perfil' | 'condominio' | 'usuarios' | 'database' | 'preferencias' | 'banco';
+export type SettingsTab =
+  | 'perfil'
+  | 'condominio'
+  | 'usuarios'
+  | 'database'
+  | 'preferencias'
+  | 'banco'
+  | 'auditoria'
+  | 'privacidade';
 
 export interface SettingsModalProps {
   isOpen: boolean;
@@ -45,34 +65,26 @@ export interface SettingsModalProps {
 const PRESET_AVATARS = [
   {
     label: 'Executiva 1',
-    url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCcP2EM7PC3LJ-2tvwQdWRy4rZQHQfz32_v0HHn2ANWMg-BcuiRQgCTS3AsMkvhoYaTcH-I3azZMuXcowKAlf25CS3BVa5WIG7PXHBtH_9ptOqZJBwecSc-CShsf3tQACctQWqGXWl1GS7Bn95cYEubf_IEPUUzvlJ_wertPm0iXxxGASFB0WmV5nKuLcUOPwwMy2gn1vpEEXpUYVIHLw4THq1rGIi5WTlem19-6YXj88WVJd244wElMg',
-  },
-  {
-    label: 'Executiva 2',
-    url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCTczSNnAmSvG-_c4hP69EGDtwbCYVlL01COY56Y33FWfPs1KmchYiQTHgOWPBUnxuWWzRbXiqxM94DulZL2z3lZE6J-ZHtFTWZulmXCV_LyxWhwlI298nj6FnTzRrTFbr8PwwXg5YIB-Jf4lhh3nPxASbnl9O_uGo-AjZQ9n60urOzEEuFyMwe5Tn2ExzBbqc6akHC03yYEtrEC30dgK3TSAIabYdbPFhP9yVlIfuF4Z1qOo9eNoF2Bg',
-  },
-  {
-    label: 'Executivo 1',
-    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&auto=format&fit=crop&q=80',
-  },
-  {
-    label: 'Executivo 2',
-    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80',
-  },
-  {
-    label: 'Profissional 3',
     url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=240&auto=format&fit=crop&q=80',
   },
   {
-    label: 'Profissional 4',
-    url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80',
-  },
-  {
-    label: 'Profissional 5',
+    label: 'Executiva 2',
     url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=240&auto=format&fit=crop&q=80',
   },
   {
-    label: 'Profissional 6',
+    label: 'Executivo 1',
+    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80',
+  },
+  {
+    label: 'Executivo 2',
+    url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80',
+  },
+  {
+    label: 'Profissional 3',
+    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&auto=format&fit=crop&q=80',
+  },
+  {
+    label: 'Profissional 4',
     url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=240&auto=format&fit=crop&q=80',
   },
 ];
@@ -82,10 +94,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   defaultTab = 'perfil',
 }) => {
-  const { profile, user, currentCondominium, currentRole, updateProfile, canManageUsers, isSuperAdmin, isSindico } = useAuth();
+  const {
+    profile,
+    user,
+    memberships,
+    currentCondominium,
+    currentRole,
+    updateProfile,
+    updatePassword,
+    refreshMemberships,
+    canManageUsers,
+    isSuperAdmin,
+    isSindico,
+    isDemoSession,
+  } = useAuth();
   const canManageBankSettings = isSuperAdmin || isSindico;
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const tabButtonRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
+
+  // Auto-centraliza suavemente a aba selecionada (revelando automaticamente as próximas abas da barra)
+  useEffect(() => {
+    if (!isOpen) return;
+    const activeBtn = tabButtonRefs.current[activeTab];
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [activeTab, isOpen]);
+
+  const scrollTabsBy = (delta: number) => {
+    tabsContainerRef.current?.scrollBy({ left: delta, behavior: 'smooth' });
+  };
 
   // Profile editing state
   const [fullName, setFullName] = useState(profile?.full_name || '');
@@ -94,11 +134,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [customUrlInput, setCustomUrlInput] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [copiedMigration, setCopiedMigration] = useState(false);
   const [copiedSeedUsers, setCopiedSeedUsers] = useState(false);
 
-  // Bank settings state
-  const [bankSettings, setBankSettings] = useState<CondominiumBankSettings>(() => bankAccountService.getSettings());
+  // Logged-in password change state
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Audit logs & LGPD state
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+  const [isExportingLgpd, setIsExportingLgpd] = useState(false);
+
+  // Accessible confirmation dialog state (replaces window.confirm)
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    variant: 'danger' | 'primary';
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmLabel: 'Confirmar',
+    variant: 'primary',
+    onConfirm: () => {},
+  });
+
+  // Condominium edit & create state (Section 4.5)
+  const [condoName, setCondoName] = useState(currentCondominium?.name || '');
+  const [condoCnpj, setCondoCnpj] = useState(currentCondominium?.cnpj || '');
+  const [condoAddress, setCondoAddress] = useState(currentCondominium?.address || '');
+  const [condoCity, setCondoCity] = useState(currentCondominium?.city || '');
+  const [condoState, setCondoState] = useState(currentCondominium?.state || 'SP');
+  const [isSavingCondo, setIsSavingCondo] = useState(false);
+
+  const [isCreatingCondo, setIsCreatingCondo] = useState(false);
+  const [newCondoName, setNewCondoName] = useState('');
+  const [newCondoCnpj, setNewCondoCnpj] = useState('');
+  const [newCondoAddress, setNewCondoAddress] = useState('');
+  const [newCondoCity, setNewCondoCity] = useState('São Paulo');
+  const [newCondoState, setNewCondoState] = useState('SP');
+  const [isSubmittingNewCondo, setIsSubmittingNewCondo] = useState(false);
+
+  // Bank settings state (isolated per condominium)
+  const [bankSettings, setBankSettings] = useState<CondominiumBankSettings>(() =>
+    bankAccountService.getSettings(currentCondominium?.id, currentCondominium?.name, currentCondominium?.cnpj)
+  );
   const [isBoletoPreviewOpen, setIsBoletoPreviewOpen] = useState(false);
   const [isSavingBank, setIsSavingBank] = useState(false);
 
@@ -141,10 +227,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [defaultTab, canManageUsers, isSuperAdmin, canManageBankSettings]);
 
   useEffect(() => {
-    if (isOpen) {
-      setBankSettings(bankAccountService.getSettings());
+    if (currentCondominium) {
+      setCondoName(currentCondominium.name || '');
+      setCondoCnpj(currentCondominium.cnpj || '');
+      setCondoAddress(currentCondominium.address || '');
+      setCondoCity(currentCondominium.city || '');
+      setCondoState(currentCondominium.state || 'SP');
     }
-  }, [isOpen]);
+  }, [currentCondominium]);
+
+  useEffect(() => {
+    if (isOpen && currentCondominium?.id) {
+      bankAccountService
+        .fetchSettings(currentCondominium.id, currentCondominium.name, currentCondominium.cnpj)
+        .then((res) => {
+          setBankSettings(res.data);
+        });
+    }
+  }, [isOpen, currentCondominium?.id, currentCondominium?.name, currentCondominium?.cnpj]);
 
   const handleSelectBankPreset = (code: string) => {
     const preset = PRESET_BANKS.find((b) => b.code === code);
@@ -158,13 +258,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const handleSaveBankSettings = (e: React.FormEvent) => {
+  const handleSaveBankSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingBank(true);
     try {
-      const updated = bankAccountService.saveSettings(bankSettings, profile?.full_name || 'Administrador');
+      const { data: updated, error } = await bankAccountService.saveSettingsAsync(
+        currentCondominium?.id || '',
+        bankSettings,
+        profile?.full_name || 'Administrador'
+      );
+      if (error || !updated) {
+        setFeedback(`Erro ao salvar configurações bancárias: ${error?.message || 'Falha na persistência remota.'}`);
+        return;
+      }
       setBankSettings(updated);
-      setFeedback('Configuração do banco de recebimento de boletos salva com sucesso!');
+      setFeedback('Configuração do banco de recebimento de boletos confirmada no banco de dados!');
       setTimeout(() => setFeedback(null), 3500);
     } catch {
       setFeedback('Erro ao salvar configurações bancárias.');
@@ -174,58 +282,193 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleResetBankSettings = () => {
-    if (window.confirm('Deseja restaurar as configurações bancárias padrão do condomínio?')) {
-      const res = bankAccountService.resetSettings();
-      setBankSettings(res);
-      setFeedback('Configurações bancárias restauradas para o padrão.');
-      setTimeout(() => setFeedback(null), 3500);
-    }
+    setConfirmState({
+      isOpen: true,
+      title: 'Restaurar configurações bancárias?',
+      description:
+        'As configurações de banco e chave Pix deste condomínio voltarão ao padrão inicial. Você poderá alterá-las novamente depois.',
+      confirmLabel: 'Restaurar Padrão',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        if (!currentCondominium?.id) {
+          setFeedback('Erro: condomínio ativo não identificado.');
+          return;
+        }
+        const defaults = bankAccountService.resetSettings(
+          currentCondominium.id,
+          currentCondominium.name,
+          currentCondominium.cnpj
+        );
+        const { data: updated, error } = await bankAccountService.saveSettingsAsync(
+          currentCondominium.id,
+          defaults,
+          profile?.full_name || 'Administrador'
+        );
+        if (error) {
+          setFeedback(`Erro ao restaurar configurações bancárias: ${error.message}`);
+          return;
+        }
+        setBankSettings(updated || defaults);
+        setFeedback('Configurações bancárias restauradas para o padrão.');
+        setTimeout(() => setFeedback(null), 3500);
+      },
+    });
   };
 
-  const loadUsers = useCallback(() => {
-    const condoId = currentCondominium?.id || 'condo-imperial-001';
-    const list = userService.getUsers(condoId);
-    setUsersList(list);
+  const handleSaveCondominium = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCondominium?.id) return;
+    setIsSavingCondo(true);
+    const { error } = await condominiumService.updateCondominium(
+      currentCondominium.id,
+      {
+        name: condoName,
+        cnpj: condoCnpj,
+        address: condoAddress,
+        city: condoCity,
+        state: condoState,
+      },
+      currentRole,
+      [currentCondominium.id]
+    );
+    setIsSavingCondo(false);
+
+    if (error) {
+      setFeedback(`Erro ao atualizar dados do condomínio: ${error.message}`);
+      return;
+    }
+
+    await refreshMemberships();
+    setFeedback('Dados cadastrais do condomínio atualizados com sucesso!');
+    setTimeout(() => setFeedback(null), 4000);
+  };
+
+  const handleCreateCondominium = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isSuperAdmin) {
+      setFeedback('Acesso negado: apenas o Super Administrador pode cadastrar novos condomínios.');
+      return;
+    }
+    setIsSubmittingNewCondo(true);
+    const { data, error } = await condominiumService.createCondominium(
+      {
+        name: newCondoName,
+        cnpj: newCondoCnpj,
+        address: newCondoAddress,
+        city: newCondoCity,
+        state: newCondoState,
+      },
+      currentRole
+    );
+    setIsSubmittingNewCondo(false);
+
+    if (error || !data) {
+      setFeedback(`Erro ao cadastrar condomínio: ${error?.message || 'Falha na criação.'}`);
+      return;
+    }
+
+    setIsCreatingCondo(false);
+    setNewCondoName('');
+    setNewCondoCnpj('');
+    setNewCondoAddress('');
+    await refreshMemberships();
+    setFeedback(`Condomínio "${data.name}" cadastrado com sucesso!`);
+    setTimeout(() => setFeedback(null), 4000);
+  };
+
+  const loadUsers = useCallback(async () => {
+    const condoId = currentCondominium?.id;
+    if (!condoId) return;
+    const { data, error } = await userService.fetchUsersByCondominium(condoId);
+    if (error) {
+      setFeedback(`Erro ao carregar usuários: ${error.message}`);
+    }
+    setUsersList(data);
   }, [currentCondominium?.id]);
 
   useEffect(() => {
     if (isOpen && activeTab === 'usuarios' && canManageUsers) {
       loadUsers();
     }
-  }, [isOpen, activeTab, canManageUsers, loadUsers]);
+    if (isOpen && activeTab === 'auditoria' && canManageUsers && currentCondominium?.id) {
+      setIsLoadingAudit(true);
+      auditService.getRecentLogs(currentCondominium.id, 40).then((res) => {
+        setAuditLogs(res.data);
+        setIsLoadingAudit(false);
+      });
+    }
+  }, [isOpen, activeTab, canManageUsers, loadUsers, currentCondominium?.id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
+      if (e.key !== 'Escape' || !isOpen || confirmState.isOpen) return;
+      if (isCreatingCondo) {
+        setIsCreatingCondo(false);
+        return;
+      }
+      if (isAddingUser) {
+        setIsAddingUser(false);
+        return;
+      }
+      onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, confirmState.isOpen, isCreatingCondo, isAddingUser]);
 
-  // Handle local file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload de avatar via Supabase Storage (com compressão 256x256 WebP < 40 KB)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      setFeedback('Por favor, selecione um arquivo de imagem válido (PNG, JPG, WEBP).');
+    setIsUploadingAvatar(true);
+    setFeedback(null);
+
+    const { url, storageUsed, error } = await avatarService.uploadAvatar(file, user?.id || '');
+    setIsUploadingAvatar(false);
+
+    if (error || !url) {
+      setFeedback(error?.message || 'Erro ao carregar imagem.');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setFeedback('A imagem selecionada é muito grande. Escolha uma imagem de até 5MB.');
+    setAvatarUrl(url);
+    setFeedback(
+      storageUsed
+        ? 'Foto enviada ao Supabase Storage! Clique em "Salvar Alterações" para confirmar.'
+        : 'Foto otimizada e carregada! Clique em "Salvar Alterações" para confirmar.'
+    );
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isDemoSession) {
+      setFeedback('Alteração de senha disponível apenas em sessões reais autenticadas no Supabase.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setFeedback('A nova senha deve conter no mínimo 8 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setFeedback('A confirmação da nova senha não coincide.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setAvatarUrl(result);
-        setFeedback('Foto carregada com sucesso! Clique em "Salvar Alterações" para confirmar.');
-      }
-    };
-    reader.readAsDataURL(file);
+    setIsChangingPassword(true);
+    const { error } = await updatePassword(newPassword);
+    setIsChangingPassword(false);
+
+    if (error) {
+      setFeedback(`Erro ao atualizar senha: ${error.message}`);
+      return;
+    }
+
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setFeedback('Senha alterada com sucesso!');
+    setTimeout(() => setFeedback(null), 4000);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -250,90 +493,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleCopyMigrationScript = () => {
-    const sql = `-- Migration Condor: Espaços e Portaria
-CREATE TABLE IF NOT EXISTS public.amenity_reservations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  condominium_id UUID NOT NULL REFERENCES public.condominiums(id) ON DELETE CASCADE,
-  space_name TEXT NOT NULL,
-  emoji TEXT DEFAULT '🎉',
-  date DATE NOT NULL,
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
-  responsible_name TEXT NOT NULL,
-  unit_number TEXT NOT NULL,
-  rental_fee NUMERIC(10,2) DEFAULT 0,
-  status TEXT DEFAULT 'Aprovado / Taxa Paga',
-  status_type TEXT DEFAULT 'success',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.access_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  condominium_id UUID NOT NULL REFERENCES public.condominiums(id) ON DELETE CASCADE,
-  person_name TEXT NOT NULL,
-  photo_url TEXT,
-  auth_type TEXT NOT NULL,
-  auth_detail TEXT,
-  access_point TEXT NOT NULL,
-  destination TEXT NOT NULL,
-  entry_type TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);`;
+    const sql = `-- Utilize EXCLUSIVAMENTE as migrations versionadas com RLS em supabase/migrations/:\n-- 1. supabase/DEPLOY_ALL_MIGRATIONS.sql\n-- 2. supabase/migrations/20261104000001_pilot_readiness_schema_and_rls.sql\n-- 3. supabase/migrations/20261123000001_security_lgpd_packages_and_rls.sql`;
     navigator.clipboard?.writeText(sql);
     setCopiedMigration(true);
     setTimeout(() => setCopiedMigration(false), 3000);
   };
 
   const handleCopySeedUsersScript = () => {
-    const sql = `-- CONDOR: Seed de Usuários de Teste no Supabase (Morador e Porteiro)
-DO $$
-DECLARE
-    v_condo_id UUID;
-    v_morador_id UUID := '786e1481-818d-4161-93b2-db836b08f168';
-    v_porteiro_id UUID := '28297913-3de5-45c5-8b33-ec019c174d4c';
-    v_encrypted_pw TEXT := crypt('condor@2026', gen_salt('bf'));
-BEGIN
-    SELECT id INTO v_condo_id FROM public.condominiums LIMIT 1;
-    IF v_condo_id IS NULL THEN
-        INSERT INTO public.condominiums (name, cnpj, address, city, state)
-        VALUES ('Residencial Imperial Tower', '12.345.678/0001-90', 'Av. Paulista, 1000', 'São Paulo', 'SP')
-        RETURNING id INTO v_condo_id;
-    END IF;
-
-    -- Morador Teste no Auth
-    IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'morador.teste@condor.com.br') THEN
-        UPDATE auth.users
-        SET encrypted_password = v_encrypted_pw, email_confirmed_at = COALESCE(email_confirmed_at, now())
-        WHERE email = 'morador.teste@condor.com.br' RETURNING id INTO v_morador_id;
-    ELSE
-        INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud)
-        VALUES (v_morador_id, '00000000-0000-0000-0000-000000000000', 'morador.teste@condor.com.br', v_encrypted_pw, now(), 'authenticated', 'authenticated');
-    END IF;
-
-    -- Porteiro Teste no Auth
-    IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'porteiro.teste@condor.com.br') THEN
-        UPDATE auth.users
-        SET encrypted_password = v_encrypted_pw, email_confirmed_at = COALESCE(email_confirmed_at, now())
-        WHERE email = 'porteiro.teste@condor.com.br' RETURNING id INTO v_porteiro_id;
-    ELSE
-        INSERT INTO auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, role, aud)
-        VALUES (v_porteiro_id, '00000000-0000-0000-0000-000000000000', 'porteiro.teste@condor.com.br', v_encrypted_pw, now(), 'authenticated', 'authenticated');
-    END IF;
-
-    -- Perfis
-    INSERT INTO public.user_profiles (id, full_name, phone)
-    VALUES 
-        (v_morador_id, 'Carlos Oliveira (Morador Teste)', '(11) 97123-4567'),
-        (v_porteiro_id, 'Antônio Ferreira (Porteiro Teste)', '(11) 96543-2109')
-    ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, phone = EXCLUDED.phone;
-
-    -- Vínculos de Acesso
-    INSERT INTO public.condominium_members (condominium_id, user_id, role, status)
-    VALUES 
-        (v_condo_id, v_morador_id, 'morador', 'active'),
-        (v_condo_id, v_porteiro_id, 'porteiro', 'active')
-    ON CONFLICT (condominium_id, user_id) DO UPDATE SET role = EXCLUDED.role, status = 'active';
-END $$;`;
+    const sql = `-- Para homologação (STAGING), execute exclusivamente o seed em: supabase/seeds/staging_4_condos_seed.sql (NUNCA em Produção).`;
     navigator.clipboard?.writeText(sql);
     setCopiedSeedUsers(true);
     setTimeout(() => setCopiedSeedUsers(false), 3000);
@@ -361,6 +528,10 @@ END $$;`;
       setFeedback('Acesso negado: apenas o Síndico e o Super Administrador podem cadastrar novos usuários.');
       return;
     }
+    if (!currentCondominium?.id) {
+      setFeedback('Erro: selecione um condomínio válido antes de vincular usuários.');
+      return;
+    }
     if (!newUserFullName.trim() || !newUserEmail.trim()) {
       setFeedback('Por favor, informe ao menos o nome completo e o e-mail do usuário.');
       return;
@@ -368,7 +539,7 @@ END $$;`;
 
     setIsSubmittingUser(true);
 
-    const condoId = currentCondominium?.id || 'condo-imperial-001';
+    const condoId = currentCondominium.id;
     const formattedUnit = newUserApartment.trim()
       ? `${newUserApartment.trim()} (${newUserBlock})`
       : '';
@@ -389,7 +560,13 @@ END $$;`;
       currentRole
     );
 
-    // Se for morador ou se informou apartamento, registra/atualiza no censo e diretório de unidades
+    if (res.error) {
+      setIsSubmittingUser(false);
+      setFeedback(`Erro: ${res.error.message}`);
+      return;
+    }
+
+    // Somente vincula/cria unidade no censo APÓS a criação/vinculação do usuário ter sido confirmada no Supabase
     if (newUserRole === 'morador' || newUserApartment.trim()) {
       await unitService.registerOrUpdateResidentUnit({
         condominium_id: condoId,
@@ -405,11 +582,6 @@ END $$;`;
     }
 
     setIsSubmittingUser(false);
-
-    if (res.error) {
-      setFeedback(`Erro: ${res.error.message}`);
-      return;
-    }
 
     setFeedback(`Usuário ${newUserFullName} cadastrado com sucesso com privilégio de ${getRoleLabel(newUserRole)} e sincronizado ao censo!`);
     setIsAddingUser(false);
@@ -430,12 +602,17 @@ END $$;`;
       setFeedback('Acesso negado: apenas o Síndico e o Super Administrador podem conceder ou alterar privilégios.');
       return;
     }
+    if (!currentCondominium?.id) {
+      setFeedback('Erro: condomínio ativo não identificado.');
+      return;
+    }
 
     const res = await userService.updateUserRole(
       targetUserId,
-      currentCondominium?.id || 'condo-imperial-001',
+      currentCondominium.id,
       newRole,
-      currentRole
+      currentRole,
+      user?.id
     );
 
     if (res.error) {
@@ -452,10 +629,14 @@ END $$;`;
       setFeedback('Acesso negado: apenas o Síndico e o Super Administrador podem conceder acesso aos logs.');
       return;
     }
+    if (!currentCondominium?.id) {
+      setFeedback('Erro: condomínio ativo não identificado.');
+      return;
+    }
 
     const res = await userService.setLogAccess(
       targetUserId,
-      currentCondominium?.id || 'condo-imperial-001',
+      currentCondominium.id,
       newAccess,
       currentRole
     );
@@ -469,29 +650,35 @@ END $$;`;
     loadUsers();
   };
 
-  const handleRemoveUser = async (targetUserId: string, targetUserName: string) => {
+  const handleRemoveUser = (targetUserId: string, targetUserName: string) => {
     if (!canManageUsers) {
       setFeedback('Acesso negado: apenas o Síndico e o Super Administrador podem remover usuários.');
       return;
     }
-
-    if (!window.confirm(`Tem certeza de que deseja revogar o acesso de "${targetUserName}" no condomínio?`)) {
+    if (!currentCondominium?.id) {
+      setFeedback('Erro: condomínio ativo não identificado.');
       return;
     }
 
-    const res = await userService.removeUser(
-      targetUserId,
-      currentCondominium?.id || 'condo-imperial-001',
-      currentRole
-    );
-
-    if (res.error) {
-      setFeedback(`Erro ao remover: ${res.error.message}`);
-      return;
-    }
-
-    setFeedback(`Acesso de ${targetUserName} revogado com sucesso.`);
-    loadUsers();
+    const condoId = currentCondominium.id;
+    setConfirmState({
+      isOpen: true,
+      title: `Revogar acesso de ${targetUserName}?`,
+      description:
+        'O usuário perderá imediatamente o acesso aos dados deste condomínio. A ação ficará registrada na trilha de auditoria.',
+      confirmLabel: 'Revogar Acesso',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        const res = await userService.removeUser(targetUserId, condoId, currentRole);
+        if (res.error) {
+          setFeedback(`Erro ao remover: ${res.error.message}`);
+          return;
+        }
+        setFeedback(`Acesso de ${targetUserName} revogado com sucesso.`);
+        loadUsers();
+      },
+    });
   };
 
   if (!isOpen) return null;
@@ -552,79 +739,160 @@ END $$;`;
           </div>
         )}
 
-        {/* Tabs Bar */}
-        <div className="flex items-center gap-4 sm:gap-6 px-6 sm:px-8 pt-5 pb-0 border-b border-slate-200 dark:border-slate-800 overflow-x-auto text-xs sm:text-sm font-semibold">
+        {/* Tabs Bar com Auto-Scroll Suave + Controles Laterais */}
+        <div className="relative flex items-center border-b border-slate-200 dark:border-slate-800 px-2 sm:px-3 pt-4">
           <button
-            onClick={() => setActiveTab('perfil')}
-            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'perfil'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+            type="button"
+            onClick={() => scrollTabsBy(-220)}
+            aria-label="Rolar abas para a esquerda"
+            className="hidden sm:flex w-7 h-7 mb-2.5 rounded-full items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0 cursor-pointer"
           >
-            <User className="w-4 h-4" />
-            <span>Perfil & Foto</span>
+            <ChevronLeft className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setActiveTab('condominio')}
-            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'condominio'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+
+          <div
+            ref={tabsContainerRef}
+            role="tablist"
+            aria-label="Seções de Configurações"
+            className="flex-1 flex items-center gap-2 sm:gap-4 px-2 sm:px-3 overflow-x-auto scroll-smooth no-scrollbar text-xs sm:text-sm font-semibold"
           >
-            <Building className="w-4 h-4" />
-            <span>Dados do Condomínio</span>
-          </button>
-          {canManageUsers && (
             <button
-              onClick={() => setActiveTab('usuarios')}
-              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'usuarios'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'perfil'}
+              ref={(el) => { tabButtonRefs.current.perfil = el; }}
+              onClick={() => setActiveTab('perfil')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'perfil'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Usuários & Privilégios</span>
+              <User className="w-4 h-4" />
+              <span>Perfil &amp; Foto</span>
             </button>
-          )}
-          {canManageBankSettings && (
             <button
-              onClick={() => setActiveTab('banco')}
-              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'banco'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'condominio'}
+              ref={(el) => { tabButtonRefs.current.condominio = el; }}
+              onClick={() => setActiveTab('condominio')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'condominio'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Landmark className="w-4 h-4" />
-              <span>Banco de Recebimento & Boletos</span>
+              <Building className="w-4 h-4" />
+              <span>Dados do Condomínio</span>
             </button>
-          )}
-          {isSuperAdmin && (
+            {canManageUsers && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'usuarios'}
+                ref={(el) => { tabButtonRefs.current.usuarios = el; }}
+                onClick={() => setActiveTab('usuarios')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'usuarios'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Usuários &amp; Privilégios</span>
+              </button>
+            )}
+            {canManageBankSettings && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'banco'}
+                ref={(el) => { tabButtonRefs.current.banco = el; }}
+                onClick={() => setActiveTab('banco')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'banco'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Landmark className="w-4 h-4" />
+                <span>Banco de Recebimento &amp; Boletos</span>
+              </button>
+            )}
+            {canManageUsers && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'auditoria'}
+                ref={(el) => { tabButtonRefs.current.auditoria = el; }}
+                onClick={() => setActiveTab('auditoria')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'auditoria'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <History className="w-4 h-4" />
+                <span>Auditoria</span>
+              </button>
+            )}
             <button
-              onClick={() => setActiveTab('database')}
-              className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'database'
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'privacidade'}
+              ref={(el) => { tabButtonRefs.current.privacidade = el; }}
+              onClick={() => setActiveTab('privacidade')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'privacidade'
                   ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Database className="w-4 h-4" />
-              <span>Banco de Dados & Supabase</span>
+              <Lock className="w-4 h-4" />
+              <span>Privacidade &amp; LGPD</span>
             </button>
-          )}
+            {isSuperAdmin && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'database'}
+                ref={(el) => { tabButtonRefs.current.database = el; }}
+                onClick={() => setActiveTab('database')}
+                className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  activeTab === 'database'
+                    ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Database className="w-4 h-4" />
+                <span>Banco de Dados &amp; Supabase</span>
+              </button>
+            )}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'preferencias'}
+              ref={(el) => { tabButtonRefs.current.preferencias = el; }}
+              onClick={() => setActiveTab('preferencias')}
+              className={`pb-3.5 px-3 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                activeTab === 'preferencias'
+                  ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <Bell className="w-4 h-4" />
+              <span>Preferências &amp; Tema</span>
+            </button>
+          </div>
+
           <button
-            onClick={() => setActiveTab('preferencias')}
-            className={`pb-3.5 px-3 sm:px-4 border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'preferencias'
-                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
+            type="button"
+            onClick={() => scrollTabsBy(220)}
+            aria-label="Rolar abas para a direita"
+            className="hidden sm:flex w-7 h-7 mb-2.5 rounded-full items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0 cursor-pointer"
           >
-            <Bell className="w-4 h-4" />
-            <span>Preferências & Tema</span>
+            <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
@@ -632,6 +900,7 @@ END $$;`;
         <div className="p-6 sm:p-8 pt-7 overflow-y-auto space-y-6 text-xs sm:text-sm">
           {/* TAB 1: PERFIL & FOTO */}
           {activeTab === 'perfil' && (
+            <>
             <form onSubmit={handleSaveProfile} className="space-y-5">
               {/* Avatar management section */}
               <div className="p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-5">
@@ -681,11 +950,12 @@ END $$;`;
                   <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start pt-1">
                     <button
                       type="button"
+                      disabled={isUploadingAvatar}
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      className="px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs disabled:opacity-50"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      <span>Fazer Upload de Imagem</span>
+                      <span>{isUploadingAvatar ? 'Enviando...' : 'Fazer Upload de Imagem'}</span>
                     </button>
                     {avatarUrl && (
                       <button
@@ -792,35 +1062,99 @@ END $$;`;
 
               <div className="flex items-center justify-between pt-2">
                 <span className="text-[11px] text-slate-400">
-                  E-mail: <strong>{user?.email || 'admin@condor.com.br'}</strong>
+                  E-mail: <strong>{user?.email || '—'}</strong>
                 </span>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  className="px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                   <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
                 </button>
               </div>
             </form>
+            <form
+              onSubmit={handleChangePassword}
+              className="mt-5 p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-3"
+            >
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
+                  Segurança da Conta — Alterar Minha Senha
+                </h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                    Nova Senha (mín. 8 caracteres)
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    minLength={8}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                    Confirmar Nova Senha
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    minLength={8}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isChangingPassword || isDemoSession}
+                  className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 font-bold text-xs transition cursor-pointer disabled:opacity-50"
+                >
+                  {isChangingPassword ? 'Atualizando...' : 'Atualizar Senha'}
+                </button>
+              </div>
+            </form>
+            </>
           )}
 
-          {/* TAB 2: CONDOMÍNIO */}
+          {/* TAB 2: CONDOMÍNIO (Section 4.5: Edição para Síndico/Superadmin e Cadastro para Superadmin) */}
           {activeTab === 'condominio' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="space-y-5">
+              <div className="p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Condomínio Ativo</span>
                   <h4 className="text-base font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                    {currentCondominium?.name || 'Residencial Imperial Tower'}
+                    {currentCondominium?.name || 'Condomínio Residencial'}
                   </h4>
                   <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                    {currentCondominium?.address || 'Av. Paulista, 1000'} • {currentCondominium?.city || 'São Paulo'} - {currentCondominium?.state || 'SP'}
+                    {currentCondominium?.address || 'Endereço não informado'} • {currentCondominium?.city || 'São Paulo'} - {currentCondominium?.state || 'SP'}
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-                  <Building className="w-5 h-5" />
+                <div className="flex items-center gap-2">
+                  {isSuperAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingCondo((prev) => !prev)}
+                      className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                    >
+                      {isCreatingCondo ? 'Cancelar Novo Condomínio' : '+ Cadastrar Novo Condomínio'}
+                    </button>
+                  )}
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                    <Building className="w-5 h-5" />
+                  </div>
                 </div>
               </div>
 
@@ -828,17 +1162,229 @@ END $$;`;
                 <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">CNPJ</span>
                   <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
-                    {currentCondominium?.cnpj || '12.345.678/0001-90'}
+                    {currentCondominium?.cnpj || 'Não informado'}
                   </p>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Papel do Usuário</span>
                   <p className="font-bold text-emerald-600 dark:text-emerald-400 capitalize mt-0.5 flex items-center gap-1">
                     <Shield className="w-3.5 h-3.5" />
-                    <span>{currentRole || 'síndico'}</span>
+                    <span>{currentRole || 'sem vínculo'}</span>
                   </p>
                 </div>
               </div>
+
+              {/* Popup Modal: Cadastrar Novo Condomínio (Exclusivo SuperAdmin) */}
+              {isSuperAdmin && isCreatingCondo && (
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Cadastrar Novo Condomínio"
+                  className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/65 backdrop-blur-sm animate-fadeIn"
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) setIsCreatingCondo(false);
+                  }}
+                >
+                  <form
+                    onSubmit={handleCreateCondominium}
+                    className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                          <Building className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
+                            Cadastrar Novo Condomínio
+                          </h5>
+                          <p className="text-[11px] text-slate-400">
+                            Exclusivo Super Administrador • Dados isolados por condomínio
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingCondo(false)}
+                        aria-label="Fechar cadastro de condomínio"
+                        className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="p-6 max-h-[72vh] overflow-y-auto">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            Nome do Condomínio *
+                          </label>
+                          <input
+                            type="text"
+                            value={newCondoName}
+                            onChange={(e) => setNewCondoName(e.target.value)}
+                            placeholder="Ex: Condomínio Parque das Acácias"
+                            className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            CNPJ
+                          </label>
+                          <input
+                            type="text"
+                            value={newCondoCnpj}
+                            onChange={(e) => setNewCondoCnpj(e.target.value)}
+                            placeholder="00.000.000/0001-00"
+                            className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            Endereço Completo
+                          </label>
+                          <input
+                            type="text"
+                            value={newCondoAddress}
+                            onChange={(e) => setNewCondoAddress(e.target.value)}
+                            placeholder="Rua, Número e Bairro"
+                            className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            Cidade
+                          </label>
+                          <input
+                            type="text"
+                            value={newCondoCity}
+                            onChange={(e) => setNewCondoCity(e.target.value)}
+                            className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                            UF (Estado)
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={2}
+                            value={newCondoState}
+                            onChange={(e) => setNewCondoState(e.target.value.toUpperCase())}
+                            className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingCondo(false)}
+                        className="px-4 py-2 rounded-full text-xs font-semibold text-slate-500 hover:bg-slate-200/70 dark:hover:bg-slate-800 cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmittingNewCondo}
+                        className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-pill cursor-pointer"
+                      >
+                        {isSubmittingNewCondo ? 'Cadastrando...' : 'Confirmar Cadastro'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Formulário de Edição do Condomínio Ativo (Síndico Autorizado ou SuperAdmin) */}
+              {(isSindico || isSuperAdmin) && currentCondominium && (
+                <form
+                  onSubmit={handleSaveCondominium}
+                  className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      Editar Dados Cadastrais do Condomínio
+                    </h5>
+                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full">
+                      {isSuperAdmin ? 'Super Admin' : 'Síndico Autorizado'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                        Nome do Condomínio *
+                      </label>
+                      <input
+                        type="text"
+                        value={condoName}
+                        onChange={(e) => setCondoName(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                        CNPJ
+                      </label>
+                      <input
+                        type="text"
+                        value={condoCnpj}
+                        onChange={(e) => setCondoCnpj(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                        Endereço
+                      </label>
+                      <input
+                        type="text"
+                        value={condoAddress}
+                        onChange={(e) => setCondoAddress(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                        Cidade
+                      </label>
+                      <input
+                        type="text"
+                        value={condoCity}
+                        onChange={(e) => setCondoCity(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">
+                        UF
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={2}
+                        value={condoState}
+                        onChange={(e) => setCondoState(e.target.value.toUpperCase())}
+                        className="w-full px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={isSavingCondo}
+                      className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSavingCondo ? 'Salvando...' : 'Salvar Dados do Condomínio'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 
@@ -876,278 +1422,298 @@ END $$;`;
                     </button>
                   </div>
 
-                  {/* New User Form */}
+                  {/* Popup Modal: Cadastrar Novo Usuário */}
                   {isAddingUser && (
-                    <form
-                      onSubmit={handleCreateUser}
-                      className="p-5 rounded-3xl bg-white dark:bg-slate-800 border-2 border-emerald-500/40 dark:border-emerald-500/30 shadow-md space-y-4 animate-fadeIn"
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-label="Cadastrar Novo Usuário e Conceder Privilégio"
+                      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-950/65 backdrop-blur-sm animate-fadeIn"
+                      onClick={(e) => {
+                        if (e.target === e.currentTarget) setIsAddingUser(false);
+                      }}
                     >
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
-                        <div>
-                          <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                            Cadastrar Novo Usuário e Conceder Privilégio
-                          </h5>
-                          <p className="text-[11px] text-slate-400">
-                            Apenas o Síndico e o Super Administrador possuem autorização para registrar este acesso.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setIsAddingUser(false)}
-                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            Nome Completo *
-                          </label>
-                          <input
-                            type="text"
-                            value={newUserFullName}
-                            onChange={(e) => setNewUserFullName(e.target.value)}
-                            placeholder="Ex: Beatriz Lima Duarte"
-                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            CPF
-                          </label>
-                          <input
-                            type="text"
-                            value={newUserCpf}
-                            onChange={(e) => setNewUserCpf(e.target.value)}
-                            placeholder="000.000.000-00"
-                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            E-mail de Acesso *
-                          </label>
-                          <input
-                            type="email"
-                            value={newUserEmail}
-                            onChange={(e) => setNewUserEmail(e.target.value)}
-                            placeholder="Ex: beatriz@condor.com.br"
-                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            Telefone / WhatsApp
-                          </label>
-                          <input
-                            type="text"
-                            value={newUserPhone}
-                            onChange={(e) => setNewUserPhone(e.target.value)}
-                            placeholder="(11) 98765-4321"
-                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            Apartamento / Unidade *
-                          </label>
-                          <input
-                            type="text"
-                            value={newUserApartment}
-                            onChange={(e) => setNewUserApartment(e.target.value)}
-                            placeholder="Ex: 402 ou 104"
-                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            Bloco / Torre *
-                          </label>
-                          <select
-                            value={newUserBlock}
-                            onChange={(e) => setNewUserBlock(e.target.value)}
-                            className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                          >
-                            <option value="Bloco A">Bloco A (Torre A)</option>
-                            <option value="Bloco B">Bloco B (Torre B)</option>
-                            <option value="Bloco C">Bloco C</option>
-                            <option value="Torre Sul">Torre Sul</option>
-                            <option value="Torre Norte">Torre Norte</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            Vínculo do Morador *
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setNewUserResidentType('Proprietário')}
-                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                                newUserResidentType === 'Proprietário'
-                                  ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
-                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              Proprietário
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setNewUserResidentType('Inquilino')}
-                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                                newUserResidentType === 'Inquilino'
-                                  ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
-                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              Inquilino
-                            </button>
+                      <form
+                        onSubmit={handleCreateUser}
+                        className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+                      >
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-900 shrink-0">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                              <UserPlus className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h5 className="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base">
+                                Cadastrar Novo Usuário e Conceder Privilégio
+                              </h5>
+                              <p className="text-[11px] text-slate-400">
+                                Apenas o Síndico e o Super Administrador possuem autorização para registrar este acesso.
+                              </p>
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingUser(false)}
+                            aria-label="Fechar cadastro de usuário"
+                            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 cursor-pointer shrink-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                            Possui Pet / Animal de Estimação? *
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setNewUserHasPet(true)}
-                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                                newUserHasPet
-                                  ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
-                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              🐾 Sim (Tem Pet)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setNewUserHasPet(false)}
-                              className={`py-2 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
-                                !newUserHasPet
-                                  ? 'border-slate-800 dark:border-slate-300 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-bold'
-                                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              Não possui
-                            </button>
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2">
-                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                          Privilégio / Papel Concedido *
-                        </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <label
-                            className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
-                              newUserRole === 'morador'
-                                ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
-                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
+                        <div className="p-6 overflow-y-auto space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                Nome Completo *
+                              </label>
                               <input
-                                type="radio"
-                                name="new-user-role"
-                                value="morador"
-                                checked={newUserRole === 'morador'}
-                                onChange={() => setNewUserRole('morador')}
-                                className="text-emerald-600 focus:ring-emerald-500"
+                                type="text"
+                                value={newUserFullName}
+                                onChange={(e) => setNewUserFullName(e.target.value)}
+                                placeholder="Ex: Beatriz Lima Duarte"
+                                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                required
                               />
-                              <span className="text-xs">Morador</span>
                             </div>
-                            <span className="text-[10px] text-slate-400 mt-1 pl-5">Reservas, avisos e boletos</span>
-                          </label>
-
-                          <label
-                            className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
-                              newUserRole === 'porteiro'
-                                ? 'border-sky-600 bg-sky-50/60 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-bold'
-                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                CPF
+                              </label>
                               <input
-                                type="radio"
-                                name="new-user-role"
-                                value="porteiro"
-                                checked={newUserRole === 'porteiro'}
-                                onChange={() => setNewUserRole('porteiro')}
-                                className="text-sky-600 focus:ring-sky-500"
+                                type="text"
+                                value={newUserCpf}
+                                onChange={(e) => setNewUserCpf(e.target.value)}
+                                placeholder="000.000.000-00"
+                                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                               />
-                              <span className="text-xs">Portaria & Acessos</span>
                             </div>
-                            <span className="text-[10px] text-slate-400 mt-1 pl-5">Guarita, encomendas e lockers</span>
-                          </label>
-
-                          <label
-                            className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
-                              newUserRole === 'sindico'
-                                ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
-                                : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                E-mail de Acesso *
+                              </label>
                               <input
-                                type="radio"
-                                name="new-user-role"
-                                value="sindico"
-                                checked={newUserRole === 'sindico'}
-                                onChange={() => setNewUserRole('sindico')}
-                                className="text-emerald-600 focus:ring-emerald-500"
+                                type="email"
+                                value={newUserEmail}
+                                onChange={(e) => setNewUserEmail(e.target.value)}
+                                placeholder="Ex: beatriz@condor.com.br"
+                                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                required
                               />
-                              <span className="text-xs">Síndico Geral</span>
                             </div>
-                            <span className="text-[10px] text-slate-400 mt-1 pl-5">Gestão total e novos cadastros</span>
-                          </label>
-
-                          {isSuperAdmin && (
-                            <label
-                              className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition sm:col-span-3 ${
-                                newUserRole === 'superadmin'
-                                  ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-950 dark:text-purple-200 font-bold'
-                                  : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="radio"
-                                  name="new-user-role"
-                                  value="superadmin"
-                                  checked={newUserRole === 'superadmin'}
-                                  onChange={() => setNewUserRole('superadmin')}
-                                  className="text-purple-600 focus:ring-purple-500"
-                                />
-                                <span className="text-xs">Super Administrador (Acesso Geral Multi-Condomínios)</span>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                Telefone / WhatsApp
+                              </label>
+                              <input
+                                type="text"
+                                value={newUserPhone}
+                                onChange={(e) => setNewUserPhone(e.target.value)}
+                                placeholder="(11) 98765-4321"
+                                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                Apartamento / Unidade *
+                              </label>
+                              <input
+                                type="text"
+                                value={newUserApartment}
+                                onChange={(e) => setNewUserApartment(e.target.value)}
+                                placeholder="Ex: 402 ou 104"
+                                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                Bloco / Torre *
+                              </label>
+                              <PremiumSelect
+                                ariaLabel="Selecionar Bloco ou Torre"
+                                size="md"
+                                value={newUserBlock}
+                                onChange={setNewUserBlock}
+                                options={[
+                                  { value: 'Bloco A', label: 'Bloco A (Torre A)' },
+                                  { value: 'Bloco B', label: 'Bloco B (Torre B)' },
+                                  { value: 'Bloco C', label: 'Bloco C' },
+                                  { value: 'Torre Sul', label: 'Torre Sul' },
+                                  { value: 'Torre Norte', label: 'Torre Norte' },
+                                ]}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                Vínculo do Morador *
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewUserResidentType('Proprietário')}
+                                  className={`py-2.5 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                    newUserResidentType === 'Proprietário'
+                                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                  }`}
+                                >
+                                  Proprietário
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewUserResidentType('Inquilino')}
+                                  className={`py-2.5 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                    newUserResidentType === 'Inquilino'
+                                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                  }`}
+                                >
+                                  Inquilino
+                                </button>
                               </div>
-                            </label>
-                          )}
-                        </div>
-                      </div>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                Possui Pet / Animal de Estimação? *
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewUserHasPet(true)}
+                                  className={`py-2.5 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                    newUserHasPet
+                                      ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-bold'
+                                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                  }`}
+                                >
+                                  Sim (Tem Pet)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewUserHasPet(false)}
+                                  className={`py-2.5 px-3 rounded-2xl text-xs font-semibold border transition text-center cursor-pointer ${
+                                    !newUserHasPet
+                                      ? 'border-slate-800 dark:border-slate-300 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-bold'
+                                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                  }`}
+                                >
+                                  Não possui
+                                </button>
+                              </div>
+                            </div>
+                          </div>
 
-                      <div className="flex items-center justify-end gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setIsAddingUser(false)}
-                          className="px-4 py-2 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold text-xs cursor-pointer"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isSubmittingUser}
-                          className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm cursor-pointer"
-                        >
-                          {isSubmittingUser ? 'Cadastrando...' : 'Confirmar e Conceder Privilégio'}
-                        </button>
-                      </div>
-                    </form>
+                          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2">
+                            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
+                              Privilégio / Papel Concedido *
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <label
+                                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                                  newUserRole === 'morador'
+                                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
+                                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name="new-user-role"
+                                    value="morador"
+                                    checked={newUserRole === 'morador'}
+                                    onChange={() => setNewUserRole('morador')}
+                                    className="text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  <span className="text-xs">Morador</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Reservas, avisos e Pix</span>
+                              </label>
+
+                              <label
+                                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                                  newUserRole === 'porteiro'
+                                    ? 'border-sky-600 bg-sky-50/60 dark:bg-sky-950/40 text-sky-950 dark:text-sky-200 font-bold'
+                                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name="new-user-role"
+                                    value="porteiro"
+                                    checked={newUserRole === 'porteiro'}
+                                    onChange={() => setNewUserRole('porteiro')}
+                                    className="text-sky-600 focus:ring-sky-500"
+                                  />
+                                  <span className="text-xs">Portaria &amp; Acessos</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Guarita, encomendas e OS</span>
+                              </label>
+
+                              <label
+                                className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition ${
+                                  newUserRole === 'sindico'
+                                    ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-bold'
+                                    : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name="new-user-role"
+                                    value="sindico"
+                                    checked={newUserRole === 'sindico'}
+                                    onChange={() => setNewUserRole('sindico')}
+                                    className="text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  <span className="text-xs">Síndico Geral</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 mt-1 pl-5">Gestão total e cadastros</span>
+                              </label>
+
+                              {isSuperAdmin && (
+                                <label
+                                  className={`p-2.5 rounded-xl border flex flex-col cursor-pointer transition sm:col-span-3 ${
+                                    newUserRole === 'superadmin'
+                                      ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-950 dark:text-purple-200 font-bold'
+                                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100/60 dark:hover:bg-slate-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="radio"
+                                      name="new-user-role"
+                                      value="superadmin"
+                                      checked={newUserRole === 'superadmin'}
+                                      onChange={() => setNewUserRole('superadmin')}
+                                      className="text-purple-600 focus:ring-purple-500"
+                                    />
+                                    <span className="text-xs">Super Administrador (Acesso Geral Multi-Condomínios)</span>
+                                  </div>
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex items-center justify-end gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingUser(false)}
+                            className="px-4 py-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800 font-semibold text-xs cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSubmittingUser}
+                            className="px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-pill cursor-pointer"
+                          >
+                            {isSubmittingUser ? 'Cadastrando...' : 'Confirmar e Conceder Privilégio'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   )}
 
                   {/* Role filter pills */}
@@ -1259,27 +1825,27 @@ END $$;`;
                                 </span>
                               )}
 
-                              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase hidden sm:inline">
                                   Privilégio:
                                 </span>
-                                <select
+                                <PremiumSelect
+                                  size="xs"
+                                  className="w-36"
+                                  ariaLabel={`Alterar privilégio de ${condoUser.full_name}`}
+                                  icon={<Shield className="w-3.5 h-3.5" />}
                                   value={condoUser.role}
                                   disabled={!canModifyTarget}
-                                  onChange={(e) =>
-                                    handleRoleChange(condoUser.id, condoUser.full_name, e.target.value as CondominiumRole)
+                                  onChange={(val) =>
+                                    handleRoleChange(condoUser.id, condoUser.full_name, val as CondominiumRole)
                                   }
-                                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer disabled:opacity-50"
-                                  title="Conceder ou alterar privilégio do usuário"
-                                >
-                                  <option value="morador" className="dark:bg-slate-900">Morador</option>
-                                  <option value="porteiro" className="dark:bg-slate-900">Portaria</option>
-                                  <option value="sindico" className="dark:bg-slate-900">Síndico</option>
-                                  {isSuperAdmin && (
-                                    <option value="superadmin" className="dark:bg-slate-900">Super Admin</option>
-                                  )}
-                                </select>
+                                  options={[
+                                    { value: 'morador', label: 'Morador' },
+                                    { value: 'porteiro', label: 'Portaria' },
+                                    { value: 'sindico', label: 'Síndico' },
+                                    ...(isSuperAdmin ? [{ value: 'superadmin', label: 'Super Admin' }] : []),
+                                  ]}
+                                />
                               </div>
 
                               {canModifyTarget && (
@@ -1316,7 +1882,12 @@ END $$;`;
                   </span>
                 </div>
                 <p className="text-slate-500 dark:text-slate-400 text-xs">
-                  Instância Supabase configurada em <code className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono">https://hbxyzdqshjztunjlduvg.supabase.co</code>
+                  Instância Supabase ativa:{' '}
+                  <code className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-mono">
+                    {import.meta.env.VITE_SUPABASE_URL
+                      ? new URL(import.meta.env.VITE_SUPABASE_URL).host
+                      : 'Não configurado (.env)'}
+                  </code>
                 </p>
               </div>
 
@@ -1353,7 +1924,7 @@ END $$;`;
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Cria e ativa diretamente no banco: <strong>morador.teste@condor.com.br</strong> e <strong>porteiro.teste@condor.com.br</strong> (senha: <code className="font-mono">condor@2026</code>)
+                      Referência de script SQL para criação dos vínculos multi-condomínio no ambiente de homologação (Staging)
                     </p>
                   </div>
                   <button
@@ -1363,6 +1934,153 @@ END $$;`;
                   >
                     {copiedSeedUsers ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedSeedUsers ? 'Copiado!' : 'Copiar SQL Seed'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB AUDITORIA: TRILHA DE AUDITORIA DO CONDOMÍNIO */}
+          {canManageUsers && activeTab === 'auditoria' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                    <History className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Trilha de Auditoria Operacional & LGPD</span>
+                  </h4>
+                  <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+                    Histórico imutável das operações críticas realizadas em {currentCondominium?.name || 'este condomínio'}.
+                  </p>
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  {auditLogs.length} eventos
+                </span>
+              </div>
+
+              {isLoadingAudit ? (
+                <div className="p-8 text-center text-xs text-slate-400">Carregando trilha de auditoria...</div>
+              ) : auditLogs.length === 0 ? (
+                <div className="p-8 text-center rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400">
+                  Nenhum evento de auditoria registrado ainda para este condomínio.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[380px] overflow-y-auto">
+                  {auditLogs.map((log) => (
+                    <div key={log.id} className="p-3.5 bg-white dark:bg-slate-900 flex items-center justify-between gap-3 text-xs">
+                      <div className="min-w-0">
+                        <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md">
+                          {log.action}
+                        </span>
+                        <span className="ml-2 text-slate-600 dark:text-slate-300 font-medium">
+                          Tabela: <code className="font-mono">{log.entity_table}</code>
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                        {new Date(log.created_at).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB PRIVACIDADE & LGPD */}
+          {activeTab === 'privacidade' && (
+            <div className="space-y-4">
+              <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Proteção de Dados & LGPD (Lei nº 13.709/2018)</span>
+                  </h4>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    Versão {LGPD_POLICY_VERSION}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Seus dados pessoais são isolados por condomínio via Row Level Security (RLS) no banco de dados. O condomínio atua como Controlador e a plataforma Condor como Operadora de Dados.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-3">
+                  <div>
+                    <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                      Portabilidade dos Meus Dados (Art. 18, V)
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Baixe uma cópia estruturada em JSON contendo seu perfil e vínculos condominiais cadastrados.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isExportingLgpd || !user?.id}
+                    onClick={async () => {
+                      if (!user?.id) return;
+                      setIsExportingLgpd(true);
+                      const { error } = await lgpdService.exportMyPersonalData({
+                        userId: user.id,
+                        email: user.email,
+                        profile,
+                        memberships,
+                        condominiumId: currentCondominium?.id,
+                      });
+                      setIsExportingLgpd(false);
+                      setFeedback(
+                        error
+                          ? `Erro ao exportar dados: ${error.message}`
+                          : 'Arquivo JSON com seus dados pessoais baixado com sucesso!'
+                      );
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    <span>{isExportingLgpd ? 'Gerando...' : 'Baixar Meus Dados (JSON)'}</span>
+                  </button>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-3">
+                  <div>
+                    <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                      Solicitar Anonimização / Exclusão (Art. 18, VI)
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Registra formalmente sua solicitação junto à administração do condomínio (respeitando obrigações legais fiscais/contábeis).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!user?.id}
+                    onClick={() => {
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Registrar solicitação de anonimização LGPD?',
+                        description:
+                          'Uma solicitação formal será registrada na trilha de conformidade LGPD para revisão pela administração do condomínio.',
+                        confirmLabel: 'Registrar Solicitação',
+                        variant: 'danger',
+                        onConfirm: async () => {
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                          if (!user?.id) return;
+                          const { error } = await lgpdService.recordConsentOrRequest({
+                            userId: user.id,
+                            condominiumId: currentCondominium?.id,
+                            consentType: 'anonymization_request',
+                            metadata: { requested_by_email: user.email || null },
+                          });
+                          setFeedback(
+                            error
+                              ? `Erro ao registrar solicitação: ${error.message}`
+                              : 'Solicitação LGPD registrada com sucesso na trilha de auditoria.'
+                          );
+                        },
+                      });
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold text-xs transition cursor-pointer"
+                  >
+                    Solicitar Anonimização de Dados
                   </button>
                 </div>
               </div>
@@ -1416,17 +2134,17 @@ END $$;`;
                     <label className="text-slate-700 dark:text-slate-300 font-semibold text-xs">
                       Instituição Bancária
                     </label>
-                    <select
+                    <PremiumSelect
+                      ariaLabel="Instituição Bancária"
+                      size="md"
+                      icon={<Landmark className="w-4 h-4" />}
                       value={bankSettings.bankCode}
-                      onChange={(e) => handleSelectBankPreset(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                    >
-                      {PRESET_BANKS.map((b) => (
-                        <option key={b.code} value={b.code}>
-                          {b.fullName}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={handleSelectBankPreset}
+                      options={PRESET_BANKS.map((b) => ({
+                        value: b.code,
+                        label: b.fullName,
+                      }))}
+                    />
                   </div>
 
                   {/* Nome do Banco */}
@@ -1622,16 +2340,19 @@ END $$;`;
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-slate-700 dark:text-slate-300 font-semibold text-xs">Tipo de Chave PIX</label>
-                    <select
+                    <PremiumSelect
+                      ariaLabel="Tipo de Chave PIX"
+                      size="md"
+                      icon={<QrCode className="w-4 h-4" />}
                       value={bankSettings.pixKeyType}
-                      onChange={(e) => setBankSettings({ ...bankSettings, pixKeyType: e.target.value as any })}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                    >
-                      <option value="cnpj">CNPJ do Condomínio</option>
-                      <option value="email">E-mail</option>
-                      <option value="telefone">Telefone Celular</option>
-                      <option value="aleatoria">Chave Aleatória (EVP)</option>
-                    </select>
+                      onChange={(val) => setBankSettings({ ...bankSettings, pixKeyType: val as any })}
+                      options={[
+                        { value: 'cnpj', label: 'CNPJ do Condomínio' },
+                        { value: 'email', label: 'E-mail' },
+                        { value: 'telefone', label: 'Telefone Celular' },
+                        { value: 'aleatoria', label: 'Chave Aleatória (EVP)' },
+                      ]}
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -1790,6 +2511,17 @@ END $$;`;
         isOpen={isBoletoPreviewOpen}
         onClose={() => setIsBoletoPreviewOpen(false)}
         customBankSettings={bankSettings}
+      />
+
+      {/* Diálogo Acessível de Confirmação */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        description={confirmState.description}
+        confirmLabel={confirmState.confirmLabel}
+        variant={confirmState.variant}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

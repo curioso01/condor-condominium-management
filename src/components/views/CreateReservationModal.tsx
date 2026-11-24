@@ -1,11 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
-import { X, Calendar as CalendarIcon, Clock, User, Home, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  X,
+  Calendar as CalendarIcon,
+  Clock,
+  User,
+  Home,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Sunrise,
+  Sun,
+  Moon,
+  CalendarRange,
+} from 'lucide-react';
 import { checkReservationConflict, type CreateReservationInput } from '../../services/amenityService';
 import { useAuth } from '../../contexts/AuthContext';
 import { userService } from '../../services/userService';
 import type { CommonArea } from '../../types/database.types';
 import type { AmenityReservation } from '../../types/condominium';
+import { AmenityIconBadge, resolveAmenityIconMeta } from '../common/AmenityIconBadge';
+import { PremiumSelect } from '../ui/PremiumSelect';
+import { PremiumDatePicker } from '../ui/PremiumDatePicker';
 
 const TIME_OPTIONS = [
   '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
@@ -16,10 +32,10 @@ const TIME_OPTIONS = [
 ];
 
 const PRESET_SLOTS = [
-  { label: '🌅 Manhã', start: '08:00', end: '12:30' },
-  { label: '☀️ Tarde', start: '13:00', end: '17:30' },
-  { label: '🌙 Noite', start: '18:00', end: '23:30' },
-  { label: '🌟 Dia Inteiro', start: '09:00', end: '22:00' },
+  { label: 'Manhã', icon: Sunrise, start: '08:00', end: '12:30' },
+  { label: 'Tarde', icon: Sun, start: '13:00', end: '17:30' },
+  { label: 'Noite', icon: Moon, start: '18:00', end: '23:30' },
+  { label: 'Dia Inteiro', icon: CalendarRange, start: '09:00', end: '22:00' },
 ];
 
 const reservationSchema = z.object({
@@ -60,16 +76,14 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
   const [endTime, setEndTime] = useState('23:00');
   const [responsibleName, setResponsibleName] = useState('');
   const [unitNumber, setUnitNumber] = useState('');
-  const [emoji, setEmoji] = useState('🎉');
+  const [emoji, setEmoji] = useState('party');
   const [isAutoFilled, setIsAutoFilled] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const initialFocusRef = useRef<HTMLSelectElement>(null);
-
-  // Focus trap and ESC key dismiss
+  // ESC key dismiss
   useEffect(() => {
     if (!isOpen) return;
 
@@ -80,17 +94,15 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    setTimeout(() => {
-      initialFocusRef.current?.focus();
-    }, 50);
-
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   // Reset form when modal opens and prefill with logged in user data
   useEffect(() => {
     if (isOpen) {
-      setSpaceName(commonAreas[0]?.name || 'Salão de Festas Principal');
+      const initialSpace = commonAreas[0]?.name || 'Salão de Festas Principal';
+      setSpaceName(initialSpace);
+      setEmoji(resolveAmenityIconMeta(initialSpace, commonAreas[0]?.emoji ?? undefined).key);
       
       // Default to initialDate if provided, or today by default
       if (initialDate) {
@@ -128,7 +140,6 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
       setResponsibleName(defaultName);
       setUnitNumber(defaultUnit);
       setIsAutoFilled(Boolean(defaultName || defaultUnit));
-      setEmoji('🎉');
       setFieldErrors({});
       setFormError(null);
     }
@@ -289,38 +300,36 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
             >
               Espaço Comum *
             </label>
-            <div className="flex gap-2">
-              <select
+            <div className="flex items-center gap-2.5">
+              <PremiumSelect
                 id="reservation-space-input"
-                ref={initialFocusRef}
+                ariaLabel="Selecionar espaço comum"
+                className="flex-1"
                 value={spaceName}
-                onChange={(e) => {
-                  setSpaceName(e.target.value);
-                  if (e.target.value.includes('Gourmet') || e.target.value.includes('Churrasco')) setEmoji('🥩');
-                  else if (e.target.value.includes('Piscina')) setEmoji('🏊‍♂️');
-                  else if (e.target.value.includes('Academia')) setEmoji('🏋️');
-                  else setEmoji('🎉');
+                onChange={(val) => {
+                  setSpaceName(val);
+                  setEmoji(resolveAmenityIconMeta(val).key);
                 }}
-                className="flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold"
-              >
-                {commonAreas.length > 0 ? (
-                  commonAreas.map((area) => (
-                    <option key={area.id} value={area.name}>
-                      {area.name}
-                    </option>
-                  ))
-                ) : (
-                  <>
-                    <option value="Salão de Festas Principal">Salão de Festas Principal</option>
-                    <option value="Espaço Gourmet & Churrasqueira">Espaço Gourmet & Churrasqueira</option>
-                    <option value="Quiosque da Piscina">Quiosque da Piscina</option>
-                    <option value="Academia & Fitness Center">Academia & Fitness Center</option>
-                  </>
-                )}
-              </select>
-              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-base border border-slate-200 dark:border-slate-700 shrink-0">
-                {emoji}
-              </div>
+                options={
+                  commonAreas.length > 0
+                    ? commonAreas.map((area) => ({
+                        value: area.name,
+                        label: area.name,
+                        icon: <AmenityIconBadge spaceName={area.name} size="xs" />,
+                      }))
+                    : [
+                        'Salão de Festas Principal',
+                        'Espaço Gourmet & Churrasqueira',
+                        'Quiosque da Piscina',
+                        'Academia & Fitness Center',
+                      ].map((name) => ({
+                        value: name,
+                        label: name,
+                        icon: <AmenityIconBadge spaceName={name} size="xs" />,
+                      }))
+                }
+              />
+              <AmenityIconBadge spaceName={spaceName} emoji={emoji} size="md" />
             </div>
             {fieldErrors.spaceName && (
               <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">{fieldErrors.spaceName}</p>
@@ -342,20 +351,17 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                 </span>
               )}
             </div>
-            <div className="relative">
-              <input
-                id="reservation-date-input"
-                type="date"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                  if (fieldErrors.date) setFieldErrors({ ...fieldErrors, date: '' });
-                }}
-                className={`w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold cursor-pointer ${
-                  fieldErrors.date ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
-                }`}
-              />
-            </div>
+            <PremiumDatePicker
+              id="reservation-date-input"
+              ariaLabel="Data da reserva"
+              size="md"
+              value={date}
+              onChange={(iso) => {
+                setDate(iso);
+                if (fieldErrors.date) setFieldErrors({ ...fieldErrors, date: '' });
+              }}
+              buttonClassName={fieldErrors.date ? 'border-rose-400' : ''}
+            />
             {fieldErrors.date && (
               <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">{fieldErrors.date}</p>
             )}
@@ -374,21 +380,23 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
             </div>
 
             {/* Quick Shift Presets */}
-            <div className="grid grid-cols-4 gap-1.5 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
               {PRESET_SLOTS.map((slot) => {
                 const isActive = startTime === slot.start && endTime === slot.end;
+                const SlotIcon = slot.icon;
                 return (
                   <button
                     type="button"
                     key={slot.label}
                     onClick={() => handleApplyPreset(slot.start, slot.end)}
-                    className={`py-1 px-1.5 rounded-lg text-[10px] font-bold transition-all text-center cursor-pointer border ${
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all text-center cursor-pointer border inline-flex items-center justify-center gap-1.5 ${
                       isActive
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >
-                    {slot.label}
+                    <SlotIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{slot.label}</span>
                   </button>
                 );
               })}
@@ -403,18 +411,14 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                 >
                   Início
                 </label>
-                <select
+                <PremiumSelect
                   id="reservation-start-time"
+                  size="sm"
+                  ariaLabel="Horário de início"
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  {TIME_OPTIONS.slice(0, -1).map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setStartTime}
+                  options={TIME_OPTIONS.slice(0, -1)}
+                />
               </div>
 
               <div>
@@ -424,23 +428,18 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                 >
                   Término
                 </label>
-                <select
+                <PremiumSelect
                   id="reservation-end-time"
+                  size="sm"
+                  ariaLabel="Horário de término"
                   value={endTime}
-                  onChange={(e) => {
-                    setEndTime(e.target.value);
+                  onChange={(val) => {
+                    setEndTime(val);
                     if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: '' });
                   }}
-                  className={`w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border text-slate-900 dark:text-slate-100 text-xs rounded-lg font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                    fieldErrors.endTime ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  {TIME_OPTIONS.slice(1).map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                  options={TIME_OPTIONS.slice(1)}
+                  buttonClassName={fieldErrors.endTime ? 'border-rose-400' : ''}
+                />
               </div>
             </div>
             {fieldErrors.endTime && (
@@ -450,8 +449,9 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
             {/* Occupied slots indicator for the selected space and date */}
             {conflictingReservationsForDate.length > 0 && (
               <div className="mt-3 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-[11px]">
-                <span className="font-bold block mb-1">
-                  ⚠️ Atenção: Horários já agendados para este espaço nesta data:
+                <span className="font-bold flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Atenção: Horários já agendados para este espaço nesta data:</span>
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {conflictingReservationsForDate.map((r) => (
@@ -469,19 +469,21 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
           </div>
 
           {/* 4. Responsible & Unit */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label
-                htmlFor="reservation-responsible-input"
-                className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
-              >
-                Morador Responsável *
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between gap-1.5 min-h-[20px] mb-1.5">
+                <label
+                  htmlFor="reservation-responsible-input"
+                  className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate"
+                >
+                  Morador Responsável *
+                </label>
                 {isAutoFilled && responsibleName && (
-                  <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold normal-case">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap shrink-0">
                     (preenchido)
                   </span>
                 )}
-              </label>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <User className="w-4 h-4" />
@@ -495,7 +497,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                     if (fieldErrors.responsibleName) setFieldErrors({ ...fieldErrors, responsibleName: '' });
                   }}
                   placeholder="Nome do morador"
-                  className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                  className={`w-full h-11 pl-10 pr-3.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-medium ${
                     fieldErrors.responsibleName ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
                   }`}
                 />
@@ -505,18 +507,20 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
               )}
             </div>
 
-            <div>
-              <label
-                htmlFor="reservation-unit-input"
-                className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
-              >
-                Unidade / Apartamento *
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between gap-1.5 min-h-[20px] mb-1.5">
+                <label
+                  htmlFor="reservation-unit-input"
+                  className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider truncate"
+                >
+                  Unidade / Apartamento *
+                </label>
                 {isAutoFilled && unitNumber && (
-                  <span className="ml-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold normal-case">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold whitespace-nowrap shrink-0">
                     (sua unidade)
                   </span>
                 )}
-              </label>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                   <Home className="w-4 h-4" />
@@ -530,7 +534,7 @@ export const CreateReservationModal: React.FC<CreateReservationModalProps> = ({
                     if (fieldErrors.unitNumber) setFieldErrors({ ...fieldErrors, unitNumber: '' });
                   }}
                   placeholder="Ex: 101, 402"
-                  className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold ${
+                  className={`w-full h-11 pl-10 pr-3.5 bg-slate-50 dark:bg-slate-800 border text-slate-900 dark:text-slate-100 text-xs rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 font-semibold ${
                     fieldErrors.unitNumber ? 'border-rose-400 bg-rose-50/30' : 'border-slate-200 dark:border-slate-700'
                   }`}
                 />

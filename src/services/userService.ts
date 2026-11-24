@@ -1,410 +1,576 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
 import type { CondominiumRole, MembershipStatus } from '../types/database.types';
+import { auditService } from './auditService';
 
 export interface CondominiumUser {
   id: string;
   condominium_id: string;
   full_name: string;
   email: string;
-  phone?: string | null;
-  cpf?: string | null;
-  role: CondominiumRole;
-  unit_number?: string | null;
-  block?: string | null;
-  resident_type?: 'Proprietário' | 'Inquilino';
-  has_pet?: boolean;
-  avatar_url?: string | null;
-  status: MembershipStatus;
-  log_access_granted?: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateUserInput {
-  condominium_id: string;
-  full_name: string;
-  email: string;
-  phone?: string;
+  phone: string;
   cpf?: string;
-  role: CondominiumRole;
   unit_number?: string;
   block?: string;
   resident_type?: 'Proprietário' | 'Inquilino';
   has_pet?: boolean;
-  avatar_url?: string;
+  role: CondominiumRole;
+  status: MembershipStatus;
+  avatar_url?: string | null;
   log_access_granted?: boolean;
+  created_at: string;
 }
 
-/**
- * Validação rigorosa de autorização para RBAC:
- * "Apenas o Síndico e o Super Administrador devem ter a função de cadastrar novos usuários e conceder privilégios."
- */
-export const canManageUsersAndPrivileges = (role: CondominiumRole | null | undefined): boolean => {
-  return role === 'sindico' || role === 'superadmin';
-};
+export interface CreateCondominiumUserInput {
+  condominium_id: string;
+  user_id?: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  cpf?: string;
+  unit_number?: string;
+  block?: string;
+  resident_type?: 'Proprietário' | 'Inquilino';
+  has_pet?: boolean;
+  role: CondominiumRole;
+}
 
-const DEFAULT_USERS: CondominiumUser[] = [
-  {
-    id: 'usr-sindico-001',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Dra. Patrícia Lima',
-    email: 'sindico@condor.com.br',
-    phone: '(11) 98765-4321',
-    role: 'sindico',
-    unit_number: 'Administração / Síndica',
-    avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCcP2EM7PC3LJ-2tvwQdWRy4rZQHQfz32_v0HHn2ANWMg-BcuiRQgCTS3AsMkvhoYaTcH-I3azZMuXcowKAlf25CS3BVa5WIG7PXHBtH_9ptOqZJBwecSc-CShsf3tQACctQWqGXWl1GS7Bn95cYEubf_IEPUUzvlJ_wertPm0iXxxGASFB0WmV5nKuLcUOPwwMy2gn1vpEEXpUYVIHLw4THq1rGIi5WTlem19-6YXj88WVJd244wElMg',
-    status: 'active',
-    created_at: '2026-01-10T10:00:00Z',
-    updated_at: '2026-01-10T10:00:00Z',
+// Cache em memória por condomínio (apenas durante a sessão ativa; limpo no logout)
+const usersMemoryCache = new Map<string, CondominiumUser[]>();
+
+const DEMO_USERS_KEY_PREFIX = 'condor_demo_users_';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function mapMemberRowToUser(row: any): CondominiumUser {
+  const profile = row.user_profiles || {};
+  return {
+    id: row.user_id,
+    condominium_id: row.condominium_id,
+    full_name: profile.full_name || row.full_name || 'Usuário Condor',
+    email: profile.email || row.email || '—',
+    phone: profile.phone || 'Não informado',
+    cpf: row.cpf || undefined,
+    unit_number: row.unit_number || (row.role === 'porteiro' ? 'Guarita / Portaria' : 'Administração'),
+    block: row.block || 'Bloco A',
+    resident_type: (row.resident_type as 'Proprietário' | 'Inquilino') || 'Proprietário',
+    has_pet: Boolean(row.has_pet),
+    role: row.role as CondominiumRole,
+    status: (row.status as MembershipStatus) || 'active',
+    avatar_url: profile.avatar_url || null,
+    log_access_granted:
+      row.role === 'superadmin' ||
+      row.role === 'sindico' ||
+      row.role === 'porteiro' ||
+      Boolean(row.log_access_granted),
+    created_at: row.created_at || new Date().toISOString(),
+  };
+}
+
+export const userService = {
+  canUserManageRoles(callerRole: CondominiumRole | null): boolean {
+    return callerRole === 'sindico' || callerRole === 'superadmin';
   },
-  {
-    id: 'usr-admin-004',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Superadministrador Geral',
-    email: 'admin@condor.com.br',
-    phone: '(11) 99999-9999',
-    role: 'superadmin',
-    unit_number: 'Matriz Condor',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80',
-    status: 'active',
-    created_at: '2026-01-01T08:00:00Z',
-    updated_at: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'usr-porteiro-003',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Marcos Silva',
-    email: 'porteiro@condor.com.br',
-    phone: '(11) 96543-2109',
-    role: 'porteiro',
-    unit_number: 'Guarita / Portaria Principal',
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80',
-    status: 'active',
-    created_at: '2026-02-15T14:30:00Z',
-    updated_at: '2026-02-15T14:30:00Z',
-  },
-  {
-    id: 'usr-morador-002',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Carlos Eduardo Oliveira',
-    email: 'morador@condor.com.br',
-    phone: '(11) 97123-4567',
-    role: 'morador',
-    unit_number: '302-B',
-    avatar_url: null,
-    status: 'active',
-    created_at: '2026-03-01T09:15:00Z',
-    updated_at: '2026-03-01T09:15:00Z',
-  },
-  {
-    id: 'usr-morador-005',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Helena Ramos',
-    email: 'helena@condor.com.br',
-    phone: '(11) 98111-2233',
-    role: 'morador',
-    unit_number: '401-A',
-    avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCTczSNnAmSvG-_c4hP69EGDtwbCYVlL01COY56Y33FWfPs1KmchYiQTHgOWPBUnxuWWzRbXiqxM94DulZL2z3lZE6J-ZHtFTWZulmXCV_LyxWhwlI298nj6FnTzRrTFbr8PwwXg5YIB-Jf4lhh3nPxASbnl9O_uGo-AjZQ9n60urOzEEuFyMwe5Tn2ExzBbqc6akHC03yYEtrEC30dgK3TSAIabYdbPFhP9yVlIfuF4Z1qOo9eNoF2Bg',
-    status: 'active',
-    created_at: '2026-03-05T11:20:00Z',
-    updated_at: '2026-03-05T11:20:00Z',
-  },
-  {
-    id: 'usr-porteiro-006',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Rodrigo Maia',
-    email: 'rodrigo.porteiro@condor.com.br',
-    phone: '(11) 97654-3210',
-    role: 'porteiro',
-    unit_number: 'Portaria Torre A',
-    avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDg8YU1TuK4gcrn7sF-QOejDtmolnlWqunA5_N_Pv7BhvjpOlbdt6XaU1rs0i5XGl7KgvUfJA5derrZmc66YDfXkEg5n0hgoDD32eDFRzLlme8bIws_jpEOfixXXaA6lcESQTi7TcH88BHBjoAMDqfh5jBZ3YEUZXRQZPwKf2lqQPhF8OpwbyiwTwiKdqLHhNIIlp5D3qXgOYfflhSApwDTeHLHz3jqfy7sHiJ6nPzrHzPg9oh9-VeVWA',
-    status: 'active',
-    created_at: '2026-03-12T16:00:00Z',
-    updated_at: '2026-03-12T16:00:00Z',
-  },
-  {
-    id: '786e1481-818d-4161-93b2-db836b08f168',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Carlos Oliveira (Morador Teste)',
-    email: 'morador.teste@condor.com.br',
-    phone: '(11) 97123-4567',
-    role: 'morador',
-    unit_number: '104-A',
-    avatar_url: null,
-    status: 'active',
-    created_at: '2026-10-08T11:05:00Z',
-    updated_at: '2026-10-08T11:05:00Z',
-  },
-  {
-    id: '28297913-3de5-45c5-8b33-ec019c174d4c',
-    condominium_id: 'condo-imperial-001',
-    full_name: 'Antônio Ferreira (Porteiro Teste)',
-    email: 'porteiro.teste@condor.com.br',
-    phone: '(11) 96543-2109',
-    role: 'porteiro',
-    unit_number: 'Portaria Principal / Cancelas',
-    avatar_url: null,
-    status: 'active',
-    created_at: '2026-10-08T11:08:00Z',
-    updated_at: '2026-10-08T11:08:00Z',
-  },
-];
 
-class UserService {
-  private getStorageKey(condominiumId: string): string {
-    return `condor_users_${condominiumId}`;
-  }
-
-  public getUsers(condominiumId: string): CondominiumUser[] {
-    try {
-      const stored = localStorage.getItem(this.getStorageKey(condominiumId));
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch {
-      // ignore localStorage issues
-    }
-    // Return default filtered by condo, or all defaults updated to this condo
-    return DEFAULT_USERS.map((u) => ({ ...u, condominium_id: condominiumId }));
-  }
-
-  private saveUsers(condominiumId: string, users: CondominiumUser[]): void {
-    try {
-      localStorage.setItem(this.getStorageKey(condominiumId), JSON.stringify(users));
-    } catch {
-      // ignore
-    }
-  }
-
-  /**
-   * Cadastrar novo usuário no condomínio.
-   * Regra estrita: Apenas síndico ou superadmin.
-   */
-  public async createUser(
-    input: CreateUserInput,
-    actorRole: CondominiumRole | null | undefined
-  ): Promise<{ data: CondominiumUser | null; error: Error | null }> {
-    if (!canManageUsersAndPrivileges(actorRole)) {
-      return {
-        data: null,
-        error: new Error('Acesso negado: apenas o Síndico e o Super Administrador podem cadastrar novos usuários.'),
-      };
-    }
-
-    if (input.role === 'superadmin' && actorRole !== 'superadmin') {
-      return {
-        data: null,
-        error: new Error('Apenas um Super Administrador pode cadastrar outro Super Administrador.'),
-      };
-    }
-
-    const currentUsers = this.getUsers(input.condominium_id);
-    const existing = currentUsers.find((u) => u.email.toLowerCase() === input.email.trim().toLowerCase());
-    if (existing) {
-      return {
-        data: null,
-        error: new Error('Já existe um usuário cadastrado com este e-mail no condomínio.'),
-      };
-    }
-
-    const newUser: CondominiumUser = {
-      id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      condominium_id: input.condominium_id,
-      full_name: input.full_name.trim(),
-      email: input.email.trim().toLowerCase(),
-      phone: input.phone?.trim() || null,
-      cpf: input.cpf?.trim() || null,
-      role: input.role,
-      unit_number: input.unit_number?.trim() || null,
-      block: input.block?.trim() || null,
-      resident_type: input.resident_type,
-      has_pet: input.has_pet,
-      avatar_url: input.avatar_url || null,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const updated = [newUser, ...currentUsers];
-    this.saveUsers(input.condominium_id, updated);
-
-    // Sync to Supabase if available
-    if (isSupabaseConfigured) {
-      try {
-        await (supabase.from('condominium_members') as any).insert({
-          condominium_id: input.condominium_id,
-          user_id: newUser.id,
-          role: newUser.role,
-          status: 'active',
-        });
-      } catch {
-        // Fallback gracefully to offline cache
-      }
-    }
-
-    return { data: newUser, error: null };
-  }
-
-  /**
-   * Conceder ou alterar privilégio de um usuário.
-   * Regra estrita: Apenas síndico ou superadmin.
-   */
-  public async updateUserRole(
-    userId: string,
-    condominiumId: string,
-    newRole: CondominiumRole,
-    actorRole: CondominiumRole | null | undefined
-  ): Promise<{ success: boolean; error: Error | null }> {
-    if (!canManageUsersAndPrivileges(actorRole)) {
-      return {
-        success: false,
-        error: new Error('Acesso negado: apenas o Síndico e o Super Administrador podem conceder ou alterar privilégios.'),
-      };
-    }
-
-    if (newRole === 'superadmin' && actorRole !== 'superadmin') {
-      return {
-        success: false,
-        error: new Error('Apenas um Super Administrador pode conceder privilégios de Super Administrador.'),
-      };
-    }
-
-    const users = this.getUsers(condominiumId);
-    const targetIndex = users.findIndex((u) => u.id === userId);
-    if (targetIndex === -1) {
-      return {
-        success: false,
-        error: new Error('Usuário não encontrado no condomínio.'),
-      };
-    }
-
-    const targetUser = users[targetIndex];
-    if (targetUser.role === 'superadmin' && actorRole !== 'superadmin') {
-      return {
-        success: false,
-        error: new Error('Você não pode alterar os privilégios de um Super Administrador.'),
-      };
-    }
-
-    users[targetIndex] = {
-      ...targetUser,
-      role: newRole,
-      updated_at: new Date().toISOString(),
-    };
-
-    this.saveUsers(condominiumId, users);
-
-    if (isSupabaseConfigured) {
-      try {
-        await (supabase.from('condominium_members') as any)
-          .update({ role: newRole, updated_at: new Date().toISOString() })
-          .eq('condominium_id', condominiumId)
-          .eq('user_id', userId);
-      } catch {
-        // Fallback gracefully
-      }
-    }
-
-    return { success: true, error: null };
-  }
-
-  /**
-   * Remover usuário do condomínio.
-   * Regra estrita: Apenas síndico ou superadmin.
-   */
-  public async removeUser(
-    userId: string,
-    condominiumId: string,
-    actorRole: CondominiumRole | null | undefined
-  ): Promise<{ success: boolean; error: Error | null }> {
-    if (!canManageUsersAndPrivileges(actorRole)) {
-      return {
-        success: false,
-        error: new Error('Acesso negado: apenas o Síndico e o Super Administrador podem remover usuários.'),
-      };
-    }
-
-    const users = this.getUsers(condominiumId);
-    const target = users.find((u) => u.id === userId);
-    if (target?.role === 'superadmin' && actorRole !== 'superadmin') {
-      return {
-        success: false,
-        error: new Error('Você não pode remover um Super Administrador.'),
-      };
-    }
-
-    const updated = users.filter((u) => u.id !== userId);
-    this.saveUsers(condominiumId, updated);
-
-    if (isSupabaseConfigured) {
-      try {
-        await (supabase.from('condominium_members') as any)
-          .delete()
-          .eq('condominium_id', condominiumId)
-          .eq('user_id', userId);
-      } catch {
-        // Fallback gracefully
-      }
-    }
-
-    return { success: true, error: null };
-  }
-
-  /**
-   * Verificar se um usuário tem permissão para visualizar o Log em Tempo Real.
-   * Regra estrita:
-   * "Log em tempo real deve aparecer apenas para super admin e sindico, para outros usuarios
-   * como porteiro por exemplo, deve aparecer apenas se o sindico ou o super admin conceder acesso;"
-   */
-  public canAccessRealtimeLogs(
+  canAccessRealtimeLogs(
     userId: string | undefined,
-    role: CondominiumRole | null | undefined,
+    role: CondominiumRole | null,
     condominiumId: string
   ): boolean {
-    if (role === 'sindico' || role === 'superadmin') {
+    if (!role) return false;
+    if (role === 'superadmin' || role === 'sindico' || role === 'porteiro') {
       return true;
     }
-    if (!userId) return false;
-    const users = this.getUsers(condominiumId);
-    const user = users.find((u) => u.id === userId || u.email === userId);
-    return Boolean(user?.log_access_granted);
-  }
+    if (!userId || !condominiumId) return false;
+    const cached = usersMemoryCache.get(condominiumId) || [];
+    const found = cached.find((u) => u.id === userId);
+    return Boolean(found?.log_access_granted);
+  },
 
   /**
-   * Conceder ou revogar permissão de acesso ao Log em Tempo Real para um usuário (ex: porteiro).
-   * Regra estrita: Apenas síndico ou superadmin podem conceder ou revogar.
+   * Retorna a lista em cache da sessão para o condomínio (nunca usa localStorage em sessões reais).
    */
-  public async setLogAccess(
+  getUsers(condominiumId: string): CondominiumUser[] {
+    if (!condominiumId) return [];
+    if (isDemoSessionActive()) {
+      try {
+        const raw = localStorage.getItem(`${DEMO_USERS_KEY_PREFIX}${condominiumId}`);
+        if (raw) return JSON.parse(raw) as CondominiumUser[];
+      } catch {
+        // ignore
+      }
+    }
+    return usersMemoryCache.get(condominiumId) || [];
+  },
+
+  /**
+   * Busca os membros reais do condomínio no Supabase (public.condominium_members + public.user_profiles).
+   */
+  async fetchUsersByCondominium(condominiumId: string): Promise<{
+    data: CondominiumUser[];
+    error: { message: string } | null;
+  }> {
+    if (!condominiumId) {
+      return { data: [], error: null };
+    }
+
+    if (isDemoSessionActive()) {
+      return { data: this.getUsers(condominiumId), error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: [], error: { message: 'Supabase não configurado.' } };
+    }
+
+    try {
+      const { data: members, error: memErr } = await (supabase.from('condominium_members') as any)
+        .select('*')
+        .eq('condominium_id', condominiumId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: true });
+
+      if (memErr) {
+        return { data: [], error: { message: memErr.message } };
+      }
+
+      const memberRows: any[] = members || [];
+      if (memberRows.length === 0) {
+        usersMemoryCache.set(condominiumId, []);
+        return { data: [], error: null };
+      }
+
+      const userIds = memberRows.map((m) => m.user_id).filter(Boolean);
+      const { data: profiles } = await (supabase.from('user_profiles') as any)
+        .select('*')
+        .in('id', userIds);
+
+      const profileMap = new Map<string, any>();
+      (profiles || []).forEach((p: any) => profileMap.set(p.id, p));
+
+      const mapped: CondominiumUser[] = memberRows.map((m) =>
+        mapMemberRowToUser({
+          ...m,
+          user_profiles: profileMap.get(m.user_id) || {},
+        })
+      );
+
+      usersMemoryCache.set(condominiumId, mapped);
+      return { data: mapped, error: null };
+    } catch (err: any) {
+      return {
+        data: [],
+        error: { message: err?.message || 'Erro ao buscar usuários do condomínio no Supabase.' },
+      };
+    }
+  },
+
+  /**
+   * Vincula um usuário autenticado existente no Supabase Auth ao condomínio em public.condominium_members.
+   * REGRAS CRÍTICAS (Itens 3.1, 3.2 e 3.4):
+   * - Não inventa UUIDs falsos (usr-...).
+   * - Não permite que síndico conceda o papel 'superadmin'.
+   * - Só confirma sucesso após persistência confirmada pelo PostgreSQL.
+   */
+  async createUser(
+    input: CreateCondominiumUserInput,
+    callerRole: CondominiumRole | null
+  ): Promise<{
+    data: CondominiumUser | null;
+    error: { message: string } | null;
+  }> {
+    if (!this.canUserManageRoles(callerRole)) {
+      return {
+        data: null,
+        error: {
+          message:
+            'Acesso negado: apenas o Síndico e o Super Administrador possuem permissão para cadastrar usuários e conceder privilégios.',
+        },
+      };
+    }
+
+    // Impede que síndico conceda privilégio superior ao próprio ('superadmin')
+    if (input.role === 'superadmin' && callerRole !== 'superadmin') {
+      return {
+        data: null,
+        error: {
+          message:
+            'Violação de privilégio bloqueada: apenas um Super Administrador pode conceder o papel de Super Administrador.',
+        },
+      };
+    }
+
+    const normalizedEmail = input.email.trim().toLowerCase();
+    if (!normalizedEmail || !input.full_name.trim()) {
+      return {
+        data: null,
+        error: { message: 'Informe o nome completo e o e-mail do usuário.' },
+      };
+    }
+
+    if (isDemoSessionActive()) {
+      const current = this.getUsers(input.condominium_id);
+      if (current.some((u) => u.email.toLowerCase() === normalizedEmail)) {
+        return {
+          data: null,
+          error: { message: 'Já existe um usuário vinculado com este e-mail neste condomínio.' },
+        };
+      }
+      const demoUser: CondominiumUser = {
+        id: input.user_id && UUID_REGEX.test(input.user_id)
+          ? input.user_id
+          : `00000000-0000-4000-8000-${String(Date.now()).slice(-12).padStart(12, '0')}`,
+        condominium_id: input.condominium_id,
+        full_name: input.full_name.trim(),
+        email: normalizedEmail,
+        phone: input.phone?.trim() || 'Não informado',
+        cpf: input.cpf?.trim() || undefined,
+        unit_number: input.unit_number?.trim() || 'Administração',
+        block: input.block?.trim() || 'Bloco A',
+        resident_type: input.resident_type || 'Proprietário',
+        has_pet: Boolean(input.has_pet),
+        role: input.role,
+        status: 'active',
+        log_access_granted: input.role !== 'morador',
+        created_at: new Date().toISOString(),
+      };
+      const updated = [demoUser, ...current];
+      localStorage.setItem(`${DEMO_USERS_KEY_PREFIX}${input.condominium_id}`, JSON.stringify(updated));
+      usersMemoryCache.set(input.condominium_id, updated);
+      return { data: demoUser, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return {
+        data: null,
+        error: { message: 'Cadastro bloqueado: banco de dados Supabase não configurado.' },
+      };
+    }
+
+    try {
+      let targetUserId = input.user_id?.trim() || '';
+
+      if (!UUID_REGEX.test(targetUserId)) {
+        // 1. Tenta resolver via RPC segura resolve_user_by_email no PostgreSQL
+        const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)(
+          'resolve_user_by_email',
+          { target_email: normalizedEmail }
+        );
+
+        if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0 && rpcData[0]?.user_id) {
+          targetUserId = rpcData[0].user_id;
+        } else {
+          // 2. Fallback: busca em user_profiles caso a coluna email já esteja populada
+          const { data: profileByEmail } = await (supabase.from('user_profiles') as any)
+            .select('id')
+            .ilike('email', normalizedEmail)
+            .maybeSingle();
+
+          if (profileByEmail?.id && UUID_REGEX.test(profileByEmail.id)) {
+            targetUserId = profileByEmail.id;
+          }
+        }
+      }
+
+      if (!UUID_REGEX.test(targetUserId)) {
+        return {
+          data: null,
+          error: {
+            message:
+              'Usuário não encontrado no Supabase Auth com este e-mail. A conta precisa existir no Supabase Auth antes de ser vinculada ao condomínio (não é permitido criar vínculo sem UUID real).',
+          },
+        };
+      }
+
+      // Insere/atualiza o vínculo em public.condominium_members com o UUID real do Auth
+      const fullPayload = {
+        condominium_id: input.condominium_id,
+        user_id: targetUserId,
+        role: input.role,
+        status: 'active',
+        unit_number: input.unit_number?.trim() || null,
+        block: input.block?.trim() || null,
+        resident_type: input.resident_type || 'Proprietário',
+        has_pet: Boolean(input.has_pet),
+        cpf: input.cpf?.trim() || null,
+        log_access_granted:
+          input.role === 'superadmin' || input.role === 'sindico' || input.role === 'porteiro',
+      };
+
+      let { data: memberRow, error: insertErr } = await (
+        supabase.from('condominium_members') as any
+      )
+        .upsert(fullPayload, { onConflict: 'condominium_id,user_id' })
+        .select('*')
+        .single();
+
+      // Fallback de colunas básicas caso a migration 20261104000001 ainda não tenha sido aplicada
+      if (insertErr && (insertErr.code === '42703' || insertErr.message?.includes('column'))) {
+        const basicRes = await (supabase.from('condominium_members') as any)
+          .upsert(
+            {
+              condominium_id: input.condominium_id,
+              user_id: targetUserId,
+              role: input.role,
+              status: 'active',
+            },
+            { onConflict: 'condominium_id,user_id' }
+          )
+          .select('*')
+          .single();
+        memberRow = basicRes.data;
+        insertErr = basicRes.error;
+      }
+
+      if (insertErr || !memberRow) {
+        return {
+          data: null,
+          error: {
+            message:
+              insertErr?.message ||
+              'Não foi possível salvar o vínculo do usuário no Supabase (verifique permissões RLS).',
+          },
+        };
+      }
+
+      await auditService.log({
+        condominiumId: input.condominium_id,
+        action: 'USER_MEMBER_LINKED',
+        entityTable: 'condominium_members',
+        entityId: memberRow.id,
+        metadata: { target_user_id: targetUserId, role: input.role },
+      });
+
+      await this.fetchUsersByCondominium(input.condominium_id);
+      const createdUser: CondominiumUser = {
+        id: targetUserId,
+        condominium_id: input.condominium_id,
+        full_name: input.full_name.trim(),
+        email: normalizedEmail,
+        phone: input.phone?.trim() || 'Não informado',
+        cpf: input.cpf?.trim() || undefined,
+        unit_number: input.unit_number?.trim() || 'Administração',
+        block: input.block?.trim() || 'Bloco A',
+        resident_type: input.resident_type || 'Proprietário',
+        has_pet: Boolean(input.has_pet),
+        role: input.role,
+        status: 'active',
+        log_access_granted:
+          input.role === 'superadmin' || input.role === 'sindico' || input.role === 'porteiro',
+        created_at: memberRow.created_at || new Date().toISOString(),
+      };
+
+      return { data: createdUser, error: null };
+    } catch (err: any) {
+      return {
+        data: null,
+        error: { message: err?.message || 'Erro ao vincular usuário no Supabase.' },
+      };
+    }
+  },
+
+  /**
+   * Atualiza o papel (privilégio RBAC) de um membro no condomínio.
+   * Impede escalada para 'superadmin' por quem não é 'superadmin' e impede auto-alteração de papel.
+   */
+  async updateUserRole(
     targetUserId: string,
     condominiumId: string,
-    granted: boolean,
-    actorRole: CondominiumRole | null | undefined
-  ): Promise<{ success: boolean; error: Error | null }> {
-    if (!canManageUsersAndPrivileges(actorRole)) {
+    newRole: CondominiumRole,
+    callerRole: CondominiumRole | null,
+    callerUserId?: string
+  ): Promise<{ error: { message: string } | null }> {
+    if (!this.canUserManageRoles(callerRole)) {
       return {
-        success: false,
-        error: new Error('Acesso negado: apenas o Síndico e o Super Administrador podem conceder acesso aos logs em tempo real.'),
+        error: {
+          message:
+            'Acesso negado: apenas o Síndico e o Super Administrador podem conceder ou alterar privilégios.',
+        },
       };
     }
 
-    const users = this.getUsers(condominiumId);
-    const targetIndex = users.findIndex((u) => u.id === targetUserId);
-    if (targetIndex === -1) {
+    if (newRole === 'superadmin' && callerRole !== 'superadmin') {
       return {
-        success: false,
-        error: new Error('Usuário não encontrado no condomínio.'),
+        error: {
+          message:
+            'Escalada de privilégio bloqueada: apenas um Super Administrador pode conceder o papel de Super Administrador.',
+        },
       };
     }
 
-    users[targetIndex] = {
-      ...users[targetIndex],
-      log_access_granted: granted,
-      updated_at: new Date().toISOString(),
-    };
+    if (callerUserId && targetUserId === callerUserId && callerRole !== 'superadmin') {
+      return {
+        error: {
+          message: 'Operação não permitida: você não pode alterar seu próprio papel de acesso.',
+        },
+      };
+    }
 
-    this.saveUsers(condominiumId, users);
-    return { success: true, error: null };
-  }
-}
+    if (isDemoSessionActive()) {
+      const current = this.getUsers(condominiumId);
+      const updated = current.map((u) => (u.id === targetUserId ? { ...u, role: newRole } : u));
+      localStorage.setItem(`${DEMO_USERS_KEY_PREFIX}${condominiumId}`, JSON.stringify(updated));
+      usersMemoryCache.set(condominiumId, updated);
+      return { error: null };
+    }
 
-export const userService = new UserService();
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Alteração bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { data, error } = await (supabase.from('condominium_members') as any)
+        .update({ role: newRole, updated_at: new Date().toISOString() })
+        .eq('condominium_id', condominiumId)
+        .eq('user_id', targetUserId)
+        .select('id')
+        .single();
+
+      if (error || !data) {
+        return {
+          error: {
+            message:
+              error?.message ||
+              'Não foi possível atualizar o papel no Supabase (operação bloqueada pelas políticas RLS).',
+          },
+        };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'USER_ROLE_CHANGED',
+        entityTable: 'condominium_members',
+        entityId: data.id,
+        metadata: { target_user_id: targetUserId, new_role: newRole },
+      });
+
+      await this.fetchUsersByCondominium(condominiumId);
+      return { error: null };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Erro ao atualizar papel no Supabase.' } };
+    }
+  },
+
+  /**
+   * Concede ou revoga acesso ao Log em Tempo Real da Portaria no Supabase.
+   */
+  async setLogAccess(
+    targetUserId: string,
+    condominiumId: string,
+    grantAccess: boolean,
+    callerRole: CondominiumRole | null
+  ): Promise<{ error: { message: string } | null }> {
+    if (!this.canUserManageRoles(callerRole)) {
+      return {
+        error: {
+          message:
+            'Acesso negado: apenas o Síndico e o Super Administrador podem conceder ou revogar acesso aos logs.',
+        },
+      };
+    }
+
+    if (isDemoSessionActive()) {
+      const current = this.getUsers(condominiumId);
+      const updated = current.map((u) =>
+        u.id === targetUserId ? { ...u, log_access_granted: grantAccess } : u
+      );
+      localStorage.setItem(`${DEMO_USERS_KEY_PREFIX}${condominiumId}`, JSON.stringify(updated));
+      usersMemoryCache.set(condominiumId, updated);
+      return { error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Alteração bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { data, error } = await (supabase.from('condominium_members') as any)
+        .update({
+          log_access_granted: grantAccess,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('condominium_id', condominiumId)
+        .eq('user_id', targetUserId)
+        .select('id')
+        .single();
+
+      if (error || !data) {
+        return {
+          error: {
+            message:
+              error?.message ||
+              'Não foi possível atualizar a permissão de logs no Supabase.',
+          },
+        };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'USER_LOG_ACCESS_CHANGED',
+        entityTable: 'condominium_members',
+        entityId: data.id,
+        metadata: { target_user_id: targetUserId, log_access_granted: grantAccess },
+      });
+
+      await this.fetchUsersByCondominium(condominiumId);
+      return { error: null };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Erro ao atualizar permissão de logs.' } };
+    }
+  },
+
+  /**
+   * Remove o vínculo de um usuário no condomínio no Supabase.
+   */
+  async removeUser(
+    targetUserId: string,
+    condominiumId: string,
+    callerRole: CondominiumRole | null
+  ): Promise<{ error: { message: string } | null }> {
+    if (!this.canUserManageRoles(callerRole)) {
+      return {
+        error: {
+          message:
+            'Acesso negado: apenas o Síndico e o Super Administrador podem remover vínculos de usuários.',
+        },
+      };
+    }
+
+    if (isDemoSessionActive()) {
+      const current = this.getUsers(condominiumId);
+      const updated = current.filter((u) => u.id !== targetUserId);
+      localStorage.setItem(`${DEMO_USERS_KEY_PREFIX}${condominiumId}`, JSON.stringify(updated));
+      usersMemoryCache.set(condominiumId, updated);
+      return { error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Remoção bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { error } = await (supabase.from('condominium_members') as any)
+        .delete()
+        .eq('condominium_id', condominiumId)
+        .eq('user_id', targetUserId);
+
+      if (error) {
+        return { error: { message: error.message } };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'USER_MEMBER_REMOVED',
+        entityTable: 'condominium_members',
+        entityId: targetUserId,
+      });
+
+      await this.fetchUsersByCondominium(condominiumId);
+      return { error: null };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Erro ao remover usuário no Supabase.' } };
+    }
+  },
+
+  clearCache(): void {
+    usersMemoryCache.clear();
+  },
+};

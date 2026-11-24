@@ -19,9 +19,35 @@ const swBuildId = (): Plugin => ({
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), swBuildId()],
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('react-dom') || id.includes('node_modules/react/')) {
+            return 'react-vendor'
+          }
+          if (id.includes('@supabase')) {
+            return 'supabase-vendor'
+          }
+          if (id.includes('recharts') || id.includes('d3-')) {
+            return 'charts-vendor'
+          }
+          if (id.includes('lucide-react')) {
+            return 'icons-vendor'
+          }
+          if (id.includes('qrcode') || id.includes('sonner')) {
+            return 'ui-utils-vendor'
+          }
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     open: false,
-    host: true
-  }
+    host: true,
+  },
 })

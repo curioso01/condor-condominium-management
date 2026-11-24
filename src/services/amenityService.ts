@@ -1,104 +1,23 @@
-import { supabase } from '../lib/supabase';
-import type { CommonArea as DatabaseCommonArea, AmenityReservationRow } from '../types/database.types';
+import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
+import type { CommonArea } from '../types/database.types';
 import type { AmenityReservation } from '../types/condominium';
 import { mockReservations } from './mockData';
-
-const MISSING_TABLE_CODES = new Set(['42P01', 'PGRST205']);
-
-export interface AmenityServiceError extends Error {
-  tableMissing?: boolean;
-}
-
-function toError(message: string, code?: string): AmenityServiceError {
-  const err: AmenityServiceError = new Error(message);
-  if (code && MISSING_TABLE_CODES.has(code)) err.tableMissing = true;
-  return err;
-}
-
-export interface CreateCommonAreaInput {
-  condominium_id: string;
-  name: string;
-  description?: string;
-  active?: boolean;
-}
-
-export interface UpsertCommonAreaInput {
-  condominium_id: string;
-  name: string;
-  description?: string;
-  active?: boolean;
-  capacity?: number;
-  fee?: number;
-  rules?: string;
-  requires_approval?: boolean;
-}
-
-export interface ExtendedCommonArea extends DatabaseCommonArea {
-  requires_approval?: boolean;
-  rules?: string;
-  capacity?: number;
-  fee?: number;
-}
-
-export const DEFAULT_COMMON_AREAS: Omit<ExtendedCommonArea, 'id' | 'condominium_id' | 'created_at' | 'updated_at'>[] = [
-  {
-    name: 'Salão de Festas Principal',
-    description: 'Espaço climatizado com isolamento acústico, mesas, cadeiras e cozinha de apoio completa.',
-    active: true,
-    capacity: 80,
-    fee: 250,
-    rules: 'Uso das 08:00 às 23:30. Proibido som alto após as 22:00. Limpeza inclusa na taxa.',
-    requires_approval: true,
-  },
-  {
-    name: 'Espaço Gourmet & Churrasqueira',
-    description: 'Churrasqueira a carvão, forno de pizza a lenha, bancada em granito e freezer horizontal.',
-    active: true,
-    capacity: 30,
-    fee: 150,
-    rules: 'Uso das 10:00 às 22:00. Trazer carvão e utensílios pessoais.',
-    requires_approval: false,
-  },
-  {
-    name: 'Quiosque da Piscina',
-    description: 'Área externa coberta com ombrelones, mesas bistrô e vista para o deck molhado.',
-    active: true,
-    capacity: 20,
-    fee: 80,
-    rules: 'Uso das 09:00 às 18:00. Não é permitido vidro ou garrafas na borda da piscina.',
-    requires_approval: false,
-  },
-  {
-    name: 'Academia & Fitness Center',
-    description: 'Equipamentos modernos para musculação, esteiras, elípticos e halteres.',
-    active: true,
-    capacity: 15,
-    fee: 0,
-    rules: 'Acesso livre aos moradores das 06:00 às 23:00 com toalha obrigatória.',
-    requires_approval: false,
-  },
-];
+import { auditService } from './auditService';
 
 export interface CreateReservationInput {
   condominium_id: string;
-  common_area_id?: string;
+  common_area_id?: string | null;
   spaceName: string;
-  emoji?: string;
-  dateStr?: string;
-  date?: string; // YYYY-MM-DD
-  startTime?: string; // HH:mm
-  endTime?: string; // HH:mm
+  emoji: string;
+  date: string; // YYYY-MM-DD
+  startTime: string;
+  endTime: string;
   responsibleName: string;
   unitNumber: string;
   rentalFee?: number;
-  status?: 'Aprovado / Taxa Paga' | 'Aprovado' | 'Aguardando Caução';
-  statusType?: 'success' | 'warning' | 'info';
-}
-
-function toMinutes(timeStr?: string): number {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+  requiresApproval?: boolean;
+  status?: AmenityReservation['status'];
+  statusType?: AmenityReservation['statusType'];
 }
 
 export function checkReservationConflict(
@@ -106,304 +25,520 @@ export function checkReservationConflict(
   date: string,
   startTime: string,
   endTime: string,
-  existingList: AmenityReservation[],
-  excludeId?: string
+  existingReservations: AmenityReservation[]
 ): AmenityReservation | null {
-  const normSpace = spaceName.trim().toLowerCase();
-  const startMins = toMinutes(startTime);
-  const endMins = toMinutes(endTime);
-
-  for (const item of existingList) {
-    if (excludeId && item.id === excludeId) continue;
-    const itemSpace = item.spaceName.trim().toLowerCase();
-    if (itemSpace !== normSpace) continue;
-
-    // Check date match
-    const itemDate = item.date;
-    if (itemDate && itemDate !== date) continue;
-
-    const itemStart = toMinutes(item.startTime || '08:00');
-    const itemEnd = toMinutes(item.endTime || '23:00');
-
-    // Overlap condition: startA < endB && endA > startB
-    if (startMins < itemEnd && endMins > itemStart) {
-      return item;
+  const normalizedSpace = spaceName.trim().toLowerCase();
+  for (const res of existingReservations) {
+    if (res.spaceName.trim().toLowerCase() !== normalizedSpace) continue;
+    if (res.date !== date) continue;
+    if (res.status === 'rejected' || res.status === 'cancelled') continue;
+    const existingStart = res.startTime || '00:00';
+    const existingEnd = res.endTime || '23:59';
+    if (startTime < existingEnd && endTime > existingStart) {
+      return res;
     }
   }
-
   return null;
 }
 
-function mapRowToReservation(row: AmenityReservationRow): AmenityReservation {
+export interface UpsertCommonAreaInput {
+  condominium_id: string;
+  name: string;
+  description?: string;
+  capacity?: number;
+  fee?: number;
+  rules?: string;
+  requires_approval?: boolean;
+  requiresApproval?: boolean;
+  emoji?: string;
+  hours?: string;
+  active?: boolean;
+}
+
+export type ExtendedCommonArea = CommonArea & {
+  emoji?: string;
+  fee?: number;
+  capacity?: number;
+  hours?: string;
+  rules?: string;
+  requires_approval?: boolean;
+  requiresApproval?: boolean;
+};
+
+const DEMO_SPACES_KEY_PREFIX = 'condor_demo_spaces_';
+const DEMO_RESERVATIONS_KEY_PREFIX = 'condor_demo_reservations_';
+
+export const SPACE_METADATA: Record<
+  string,
+  { emoji: string; fee: number; capacity: number; hours: string }
+> = {
+  'Salão Gourmet Principal': { emoji: '🥂', fee: 250, capacity: 60, hours: '10:00 às 23:59' },
+  'Churrasqueira Gourmet 01': { emoji: '🍖', fee: 120, capacity: 25, hours: '09:00 às 22:00' },
+  'Churrasqueira Gourmet 02': { emoji: '🥩', fee: 120, capacity: 25, hours: '09:00 às 22:00' },
+  'Quadra Poliesportiva Oficial': { emoji: '🎾', fee: 0, capacity: 20, hours: '07:00 às 22:00' },
+  'Salão de Festas Infantil': { emoji: '🎈', fee: 180, capacity: 50, hours: '09:00 às 22:00' },
+  'Espaço Pet & Agility': { emoji: '🐾', fee: 0, capacity: 15, hours: '06:00 às 22:00' },
+  'Piscina Aquecida (Raia Olímpica)': { emoji: '🏊', fee: 0, capacity: 30, hours: '06:00 às 22:00' },
+  'Academia BioSync Fitness': { emoji: '🏋️', fee: 0, capacity: 20, hours: '24 Horas' },
+};
+
+function enrichCommonArea(row: any): ExtendedCommonArea {
+  const preset = SPACE_METADATA[row.name];
+  const reqApproval = Boolean(row.requires_approval ?? row.requiresApproval);
+  return {
+    ...row,
+    capacity: row.capacity !== undefined && row.capacity !== null ? Number(row.capacity) : preset?.capacity ?? 30,
+    fee: row.fee !== undefined && row.fee !== null ? Number(row.fee) : preset?.fee ?? 0,
+    rules: row.rules || row.description || 'Sujeito ao regimento interno do condomínio.',
+    requires_approval: reqApproval,
+    requiresApproval: reqApproval,
+    emoji: row.emoji || preset?.emoji || '🏢',
+    hours: row.hours || preset?.hours || '08:00 às 22:00',
+  };
+}
+
+function formatPtBrDateLabel(
+  isoDate: string,
+  startTime: string = '18:00',
+  endTime: string = '23:00'
+): string {
+  try {
+    const [year, month, day] = isoDate.split('-').map(Number);
+    const d = new Date(year, month - 1, day);
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const mName = months[d.getMonth()] || 'Out';
+    const wName = weekdays[d.getDay()] || 'Sáb';
+    return `${String(day).padStart(2, '0')} ${mName} (${wName}) • ${startTime} - ${endTime}`;
+  } catch {
+    return `${isoDate} • ${startTime} - ${endTime}`;
+  }
+}
+
+export function mapDbReservationToUI(row: any): AmenityReservation {
   return {
     id: row.id,
     spaceName: row.space_name,
-    emoji: row.emoji || '🎉',
+    emoji: row.emoji || SPACE_METADATA[row.space_name]?.emoji || '🎉',
     date: row.date,
-    startTime: row.start_time,
-    endTime: row.end_time,
-    dateStr: row.date_str || `${row.date} • ${row.start_time} às ${row.end_time}`,
+    dateStr: row.date_str || formatPtBrDateLabel(row.date, row.start_time, row.end_time),
     responsibleName: row.responsible_name,
     unitNumber: row.unit_number,
-    status: row.status as any,
-    statusType: row.status_type as any,
+    rentalFee: Number(row.rental_fee) || 0,
+    status: row.status || 'Aprovado / Taxa Paga',
+    statusType: (row.status_type as 'success' | 'warning' | 'info') || 'success',
   };
 }
 
 export const amenityService = {
   /**
-   * Fetches all common areas for a given condominium with Supabase + localStorage + default fallbacks.
+   * Lista as áreas comuns do condomínio no Supabase.
+   * Quando conectado ao Supabase, retorna [] se o condomínio não tiver áreas cadastradas.
    */
-  async getCommonAreasByCondominium(condominiumId: string): Promise<{ data: ExtendedCommonArea[]; error: AmenityServiceError | null }> {
-    const storageKey = `condor_common_areas_${condominiumId}`;
+  async getCommonAreasByCondominium(condominiumId: string): Promise<{
+    data: ExtendedCommonArea[];
+    error: { message: string } | null;
+  }> {
+    if (!condominiumId) {
+      return { data: [], error: null };
+    }
+
+    if (isDemoSessionActive()) {
+      try {
+        const raw = localStorage.getItem(`${DEMO_SPACES_KEY_PREFIX}${condominiumId}`);
+        if (raw) {
+          return { data: JSON.parse(raw), error: null };
+        }
+      } catch {
+        // ignore
+      }
+      if (condominiumId === 'condo-palmeiras-004') {
+        return { data: [], error: null };
+      }
+      const demoAreas: ExtendedCommonArea[] = Object.entries(SPACE_METADATA)
+        .slice(0, 4)
+        .map(([name, meta], idx) => ({
+          id: `demo-area-${condominiumId}-${idx}`,
+          condominium_id: condominiumId,
+          name,
+          description: `Capacidade até ${meta.capacity} pessoas • Horário: ${meta.hours}`,
+          active: true,
+          emoji: meta.emoji,
+          fee: meta.fee,
+          capacity: meta.capacity,
+          hours: meta.hours,
+          rules: `Capacidade até ${meta.capacity} pessoas • Horário: ${meta.hours}`,
+          requires_approval: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+      return { data: demoAreas, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: [], error: { message: 'Supabase não configurado.' } };
+    }
+
     try {
-      // 1. Try Supabase first
       const { data, error } = await supabase
         .from('common_areas')
         .select('*')
         .eq('condominium_id', condominiumId)
         .order('name', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        const savedRaw = localStorage.getItem(storageKey);
-        const savedList: ExtendedCommonArea[] = savedRaw ? JSON.parse(savedRaw) : [];
-        const merged: ExtendedCommonArea[] = data.map((item) => {
-          const match = savedList.find((s) => s.id === item.id || s.name.trim().toLowerCase() === item.name.trim().toLowerCase());
-          return {
-            ...item,
-            capacity: match?.capacity ?? (item.name.includes('Festas') ? 80 : item.name.includes('Gourmet') ? 30 : 20),
-            fee: match?.fee ?? (item.name.includes('Festas') ? 250 : item.name.includes('Gourmet') ? 150 : item.name.includes('Piscina') ? 80 : 0),
-            rules: match?.rules ?? (item.description || 'Espaço de uso compartilhado com reserva prévia pelo sistema Condor.'),
-            requires_approval: match?.requires_approval ?? item.name.includes('Festas'),
-          };
-        });
-        localStorage.setItem(storageKey, JSON.stringify(merged));
-        return { data: merged, error: null };
+      if (error) {
+        return { data: [], error: { message: error.message } };
       }
 
-      // 2. If Supabase is empty or had error, check localStorage
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return { data: parsed, error: null };
-          }
-        } catch {}
-      }
-
-      // 3. Populate default initial common areas so calendar filter and showcase are never empty
-      const fallbackList: ExtendedCommonArea[] = DEFAULT_COMMON_AREAS.map((def, idx) => ({
-        ...def,
-        id: `ca-${condominiumId}-${idx + 1}`,
-        condominium_id: condominiumId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
-
-      localStorage.setItem(storageKey, JSON.stringify(fallbackList));
-
-      // Attempt background seed to Supabase
-      this.seedInitialCommonAreas(condominiumId).catch(() => {});
-
-      return { data: fallbackList, error: null };
-    } catch {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        try {
-          return { data: JSON.parse(saved), error: null };
-        } catch {}
-      }
-      const fallbackList: ExtendedCommonArea[] = DEFAULT_COMMON_AREAS.map((def, idx) => ({
-        ...def,
-        id: `ca-${condominiumId}-${idx + 1}`,
-        condominium_id: condominiumId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }));
-      return { data: fallbackList, error: null };
+      const enriched = ((data as any[]) || []).map((row) => enrichCommonArea(row));
+      return { data: enriched, error: null };
+    } catch (err: any) {
+      return { data: [], error: { message: err?.message || 'Erro ao buscar áreas comuns.' } };
     }
   },
 
   /**
-   * Creates a new common area in Supabase + local cache.
+   * Cria uma nova área comum no Supabase persistindo capacity, fee, rules, requires_approval, emoji e hours.
    */
-  async createCommonArea(input: UpsertCommonAreaInput): Promise<{ data: ExtendedCommonArea | null; error: AmenityServiceError | null }> {
-    const storageKey = `condor_common_areas_${input.condominium_id}`;
-    try {
-      const nowIso = new Date().toISOString();
-      let createdRow: DatabaseCommonArea | null = null;
+  async createCommonArea(input: UpsertCommonAreaInput): Promise<{
+    data: ExtendedCommonArea | null;
+    error: { message: string } | null;
+  }> {
+    if (!input.name.trim()) {
+      return { data: null, error: { message: 'Informe o nome da área comum.' } };
+    }
 
-      try {
-        const { data, error } = await supabase
-          .from('common_areas')
-          .insert({
-            condominium_id: input.condominium_id,
-            name: input.name.trim(),
-            description: input.description?.trim() || null,
-            active: input.active ?? true,
-          })
-          .select()
-          .single();
-
-        if (!error && data) {
-          createdRow = data;
-        }
-      } catch {}
-
+    if (isDemoSessionActive()) {
       const newArea: ExtendedCommonArea = {
-        id: createdRow?.id || `ca-${Date.now()}`,
+        id: `demo-area-${Date.now()}`,
         condominium_id: input.condominium_id,
         name: input.name.trim(),
         description: input.description?.trim() || null,
         active: input.active ?? true,
-        capacity: Number(input.capacity) || 50,
-        fee: Number(input.fee) || 0,
-        rules: input.rules?.trim() || input.description?.trim() || 'Regras padrão do condomínio.',
-        requires_approval: input.requires_approval ?? false,
-        created_at: createdRow?.created_at || nowIso,
-        updated_at: createdRow?.updated_at || nowIso,
+        capacity: input.capacity ?? 30,
+        fee: input.fee ?? 0,
+        rules: input.rules?.trim() || 'Sujeito ao regimento interno.',
+        requires_approval: Boolean(input.requires_approval),
+        emoji: input.emoji || '🏢',
+        hours: input.hours || '08:00 às 22:00',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const existing = (await this.getCommonAreasByCondominium(input.condominium_id)).data;
+      localStorage.setItem(
+        `${DEMO_SPACES_KEY_PREFIX}${input.condominium_id}`,
+        JSON.stringify([...existing, newArea])
+      );
+      return { data: newArea, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: null, error: { message: 'Cadastro bloqueado: Supabase não configurado.' } };
+    }
+
+    try {
+      const fullPayload = {
+        condominium_id: input.condominium_id,
+        name: input.name.trim(),
+        description:
+          input.description?.trim() ||
+          input.rules?.trim() ||
+          `Capacidade: ${input.capacity ?? 30} pessoas`,
+        capacity: Number(input.capacity ?? 30),
+        fee: Number(input.fee ?? 0),
+        rules: input.rules?.trim() || input.description?.trim() || 'Sujeito ao regimento interno.',
+        requires_approval: Boolean(input.requires_approval),
+        emoji: input.emoji || SPACE_METADATA[input.name.trim()]?.emoji || '🏢',
+        hours: input.hours || '08:00 às 22:00',
+        active: input.active ?? true,
       };
 
-      const savedRaw = localStorage.getItem(storageKey);
-      const list: ExtendedCommonArea[] = savedRaw ? JSON.parse(savedRaw) : [];
-      list.push(newArea);
-      localStorage.setItem(storageKey, JSON.stringify(list));
+      let { data, error } = await (supabase.from('common_areas') as any)
+        .insert(fullPayload)
+        .select('*')
+        .single();
 
-      return { data: newArea, error: null };
+      // Fallback apenas de colunas caso a migration 20261104000001 ainda não tenha sido executada no banco
+      if (error && (error.code === '42703' || error.message?.includes('column'))) {
+        const basicRes = await (supabase.from('common_areas') as any)
+          .insert({
+            condominium_id: input.condominium_id,
+            name: input.name.trim(),
+            description: fullPayload.description,
+            active: input.active ?? true,
+          })
+          .select('*')
+          .single();
+        data = basicRes.data;
+        error = basicRes.error;
+      }
+
+      if (error || !data) {
+        return {
+          data: null,
+          error: {
+            message: error?.message || 'Não foi possível cadastrar a área comum no Supabase.',
+          },
+        };
+      }
+
+      const created = enrichCommonArea({ ...fullPayload, ...data });
+
+      await auditService.log({
+        condominiumId: input.condominium_id,
+        action: 'COMMON_AREA_CREATED',
+        entityTable: 'common_areas',
+        entityId: created.id,
+        metadata: {
+          name: created.name,
+          capacity: created.capacity,
+          fee: created.fee,
+          requires_approval: created.requires_approval,
+        },
+      });
+
+      return { data: created, error: null };
     } catch (err: any) {
-      return { data: null, error: err instanceof Error ? err : toError('Falha ao cadastrar área comum') };
+      return {
+        data: null,
+        error: { message: err?.message || 'Erro ao criar área comum no Supabase.' },
+      };
     }
   },
 
   /**
-   * Updates an existing common area in Supabase + local cache.
+   * Atualiza uma área comum existente no Supabase.
    */
   async updateCommonArea(
-    id: string,
-    input: Partial<UpsertCommonAreaInput> & { condominium_id: string }
-  ): Promise<{ data: ExtendedCommonArea | null; error: AmenityServiceError | null }> {
-    const storageKey = `condor_common_areas_${input.condominium_id}`;
-    try {
-      const nowIso = new Date().toISOString();
+    areaId: string,
+    input: UpsertCommonAreaInput
+  ): Promise<{
+    data: ExtendedCommonArea | null;
+    error: { message: string } | null;
+  }> {
+    if (!input.name.trim()) {
+      return { data: null, error: { message: 'Informe o nome da área comum.' } };
+    }
 
-      try {
-        await supabase
-          .from('common_areas')
+    if (isDemoSessionActive()) {
+      const existing = (await this.getCommonAreasByCondominium(input.condominium_id)).data;
+      let updatedItem: ExtendedCommonArea | null = null;
+      const updatedList = existing.map((a) => {
+        if (a.id === areaId) {
+          updatedItem = {
+            ...a,
+            name: input.name.trim(),
+            description: input.description?.trim() || a.description,
+            capacity: input.capacity ?? a.capacity,
+            fee: input.fee ?? a.fee,
+            rules: input.rules ?? a.rules,
+            requires_approval: input.requires_approval ?? a.requires_approval,
+            active: input.active ?? a.active,
+            updated_at: new Date().toISOString(),
+          };
+          return updatedItem;
+        }
+        return a;
+      });
+      localStorage.setItem(
+        `${DEMO_SPACES_KEY_PREFIX}${input.condominium_id}`,
+        JSON.stringify(updatedList)
+      );
+      return { data: updatedItem, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: null, error: { message: 'Atualização bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const fullPayload = {
+        name: input.name.trim(),
+        description:
+          input.description?.trim() ||
+          input.rules?.trim() ||
+          `Capacidade: ${input.capacity ?? 30} pessoas`,
+        capacity: Number(input.capacity ?? 30),
+        fee: Number(input.fee ?? 0),
+        rules: input.rules?.trim() || input.description?.trim() || 'Sujeito ao regimento interno.',
+        requires_approval: Boolean(input.requires_approval),
+        emoji: input.emoji || SPACE_METADATA[input.name.trim()]?.emoji || '🏢',
+        hours: input.hours || '08:00 às 22:00',
+        active: input.active ?? true,
+      };
+
+      let { data, error } = await (supabase.from('common_areas') as any)
+        .update(fullPayload)
+        .eq('id', areaId)
+        .eq('condominium_id', input.condominium_id)
+        .select('*')
+        .single();
+
+      if (error && (error.code === '42703' || error.message?.includes('column'))) {
+        const basicRes = await (supabase.from('common_areas') as any)
           .update({
-            ...(input.name ? { name: input.name.trim() } : {}),
-            ...(input.description !== undefined ? { description: input.description?.trim() || null } : {}),
-            ...(input.active !== undefined ? { active: input.active } : {}),
-            updated_at: nowIso,
+            name: input.name.trim(),
+            description: fullPayload.description,
+            active: input.active ?? true,
           })
-          .eq('id', id);
-      } catch {}
+          .eq('id', areaId)
+          .eq('condominium_id', input.condominium_id)
+          .select('*')
+          .single();
+        data = basicRes.data;
+        error = basicRes.error;
+      }
 
-      const savedRaw = localStorage.getItem(storageKey);
-      const list: ExtendedCommonArea[] = savedRaw ? JSON.parse(savedRaw) : [];
-      const index = list.findIndex((a) => a.id === id);
-
-      if (index >= 0) {
-        list[index] = {
-          ...list[index],
-          ...input,
-          name: input.name?.trim() || list[index].name,
-          capacity: input.capacity !== undefined ? Number(input.capacity) : list[index].capacity,
-          fee: input.fee !== undefined ? Number(input.fee) : list[index].fee,
-          rules: input.rules !== undefined ? input.rules.trim() : list[index].rules,
-          requires_approval: input.requires_approval !== undefined ? input.requires_approval : list[index].requires_approval,
-          active: input.active !== undefined ? input.active : list[index].active,
-          updated_at: nowIso,
+      if (error || !data) {
+        return {
+          data: null,
+          error: {
+            message: error?.message || 'Não foi possível atualizar a área comum no Supabase.',
+          },
         };
-        localStorage.setItem(storageKey, JSON.stringify(list));
-        return { data: list[index], error: null };
       }
 
-      return { data: null, error: toError('Área comum não encontrada') };
+      const updated = enrichCommonArea({ ...fullPayload, ...data });
+
+      await auditService.log({
+        condominiumId: input.condominium_id,
+        action: 'COMMON_AREA_UPDATED',
+        entityTable: 'common_areas',
+        entityId: areaId,
+        metadata: {
+          name: updated.name,
+          capacity: updated.capacity,
+          fee: updated.fee,
+          requires_approval: updated.requires_approval,
+        },
+      });
+
+      return { data: updated, error: null };
     } catch (err: any) {
-      return { data: null, error: err instanceof Error ? err : toError('Falha ao atualizar área comum') };
+      return {
+        data: null,
+        error: { message: err?.message || 'Erro ao atualizar área comum no Supabase.' },
+      };
     }
   },
 
   /**
-   * Deletes a common area from Supabase + local cache.
+   * Exclui uma área comum do condomínio no Supabase.
    */
-  async deleteCommonArea(id: string, condominiumId: string): Promise<{ success: boolean; error: AmenityServiceError | null }> {
-    const storageKey = `condor_common_areas_${condominiumId}`;
-    try {
-      try {
-        await supabase
-          .from('common_areas')
-          .delete()
-          .eq('id', id);
-      } catch {}
-
-      const savedRaw = localStorage.getItem(storageKey);
-      if (savedRaw) {
-        const list: ExtendedCommonArea[] = JSON.parse(savedRaw);
-        const filtered = list.filter((a) => a.id !== id);
-        localStorage.setItem(storageKey, JSON.stringify(filtered));
-      }
-
-      return { success: true, error: null };
-    } catch (err: any) {
-      return { success: false, error: err instanceof Error ? err : toError('Falha ao excluir área comum') };
+  async deleteCommonArea(
+    areaId: string,
+    condominiumId: string
+  ): Promise<{
+    error: { message: string } | null;
+  }> {
+    if (isDemoSessionActive()) {
+      const existing = (await this.getCommonAreasByCondominium(condominiumId)).data;
+      localStorage.setItem(
+        `${DEMO_SPACES_KEY_PREFIX}${condominiumId}`,
+        JSON.stringify(existing.filter((a) => a.id !== areaId))
+      );
+      return { error: null };
     }
-  },
 
-  /**
-   * Seeds initial common areas (Salão de Festas, Espaço Gourmet, Piscina, etc.)
-   */
-  async seedInitialCommonAreas(condominiumId: string): Promise<{ count: number; error: AmenityServiceError | null }> {
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Exclusão bloqueada: Supabase não configurado.' } };
+    }
+
     try {
-      const initialAreas = [
-        {
-          condominium_id: condominiumId,
-          name: 'Salão de Festas Principal',
-          description: 'Capacidade para 80 convidados, ar-condicionado e cozinha equipada.',
-          active: true,
-        },
-        {
-          condominium_id: condominiumId,
-          name: 'Espaço Gourmet & Churrasqueira',
-          description: 'Capacidade para 30 pessoas com forno de pizza e churrasqueira a carvão.',
-          active: true,
-        },
-        {
-          condominium_id: condominiumId,
-          name: 'Quiosque da Piscina',
-          description: 'Área externa com ombrelones e freezer.',
-          active: true,
-        },
-        {
-          condominium_id: condominiumId,
-          name: 'Academia & Fitness Center',
-          description: 'Aparelhos de musculação e esteiras de alta performance.',
-          active: true,
-        },
-      ];
-
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('common_areas')
-        .insert(initialAreas)
-        .select();
+        .delete()
+        .eq('id', areaId)
+        .eq('condominium_id', condominiumId);
 
       if (error) {
-        return { count: 0, error: toError(error.message, error.code) };
+        return { error: { message: error.message } };
       }
 
-      return { count: data?.length || 0, error: null };
+      await auditService.log({
+        condominiumId,
+        action: 'COMMON_AREA_DELETED',
+        entityTable: 'common_areas',
+        entityId: areaId,
+      });
+
+      return { error: null };
     } catch (err: any) {
-      return { count: 0, error: err instanceof Error ? err : toError('Falha ao popular áreas comuns') };
+      return { error: { message: err?.message || 'Erro ao excluir área comum no Supabase.' } };
     }
   },
 
   /**
-   * Fetches reservations from Supabase with fallback to localStorage/mockData if table is not yet created.
+   * Popula áreas comuns iniciais no Supabase quando solicitado explicitamente.
    */
-  async getReservations(condominiumId: string): Promise<{ data: AmenityReservation[]; isMock: boolean; error: AmenityServiceError | null }> {
+  async seedInitialCommonAreas(condominiumId: string): Promise<{
+    count: number;
+    error: { message: string } | null;
+  }> {
+    if (!isSupabaseConfigured || isDemoSessionActive()) {
+      return { count: 0, error: { message: 'Disponível apenas com Supabase conectado.' } };
+    }
+
+    const defaultSpaces = Object.entries(SPACE_METADATA).map(([name, meta]) => ({
+      condominium_id: condominiumId,
+      name,
+      description: `Capacidade até ${meta.capacity} pessoas • Horário: ${meta.hours}`,
+      capacity: meta.capacity,
+      fee: meta.fee,
+      rules: `Capacidade até ${meta.capacity} pessoas • Horário: ${meta.hours}`,
+      requires_approval: false,
+      emoji: meta.emoji,
+      hours: meta.hours,
+      active: true,
+    }));
+
     try {
-      // 1. Try Supabase first
+      const { data, error } = await (supabase.from('common_areas') as any)
+        .insert(defaultSpaces)
+        .select('*');
+
+      if (error) {
+        return { count: 0, error: { message: error.message } };
+      }
+
+      return { count: data?.length || defaultSpaces.length, error: null };
+    } catch (err: any) {
+      return { count: 0, error: { message: err?.message || 'Erro ao cadastrar áreas comuns.' } };
+    }
+  },
+
+  /**
+   * Busca as reservas do condomínio no Supabase.
+   * Quando conectado ao Supabase, retorna [] se o condomínio não tiver reservas (sem mockReservations).
+   */
+  async getReservations(condominiumId: string): Promise<{
+    data: AmenityReservation[];
+    error: { message: string; tableMissing?: boolean } | null;
+  }> {
+    if (!condominiumId) {
+      return { data: [], error: null };
+    }
+
+    if (isDemoSessionActive()) {
+      try {
+        const raw = localStorage.getItem(`${DEMO_RESERVATIONS_KEY_PREFIX}${condominiumId}`);
+        if (raw) {
+          return { data: JSON.parse(raw), error: null };
+        }
+      } catch {
+        // ignore
+      }
+      return {
+        data: condominiumId === 'condo-imperial-001' ? [...mockReservations] : [],
+        error: null,
+      };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: [], error: { message: 'Supabase não configurado.' } };
+    }
+
+    try {
       const { data, error } = await supabase
         .from('amenity_reservations')
         .select('*')
@@ -411,140 +546,237 @@ export const amenityService = {
         .order('date', { ascending: true });
 
       if (error) {
-        const appErr = toError(error.message, error.code);
-        // Fallback gracefully
-        const storageKey = `condor_reservations_${condominiumId}`;
-        const saved = localStorage.getItem(storageKey);
-        const list: AmenityReservation[] = saved ? JSON.parse(saved) : [...mockReservations];
-        return { data: list, isMock: true, error: appErr };
+        const isMissing =
+          error.code === '42P01' ||
+          error.code === 'PGRST205' ||
+          error.message?.includes('amenity_reservations');
+        return {
+          data: [],
+          error: { message: error.message, tableMissing: isMissing },
+        };
       }
 
-      if (data && data.length > 0) {
-        return { data: data.map(mapRowToReservation), isMock: false, error: null };
-      }
-
-      // If database is empty, check localStorage
-      const storageKey = `condor_reservations_${condominiumId}`;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        return { data: JSON.parse(saved), isMock: true, error: null };
-      }
-
-      return { data: [...mockReservations], isMock: true, error: null };
-    } catch {
-      return { data: [...mockReservations], isMock: true, error: null };
-    }
-  },
-
-  /**
-   * Seeds demo reservations into Supabase if table is created.
-   */
-  async seedInitialReservations(condominiumId: string): Promise<{ count: number; error: AmenityServiceError | null }> {
-    try {
-      const rows = mockReservations.map((r) => ({
-        condominium_id: condominiumId,
-        space_name: r.spaceName,
-        emoji: r.emoji,
-        date: r.date || '2026-10-10',
-        start_time: r.startTime || '12:00',
-        end_time: r.endTime || '22:00',
-        date_str: r.dateStr,
-        responsible_name: r.responsibleName,
-        unit_number: r.unitNumber,
-        rental_fee: r.spaceName.includes('Festas') ? 250 : r.spaceName.includes('Gourmet') ? 150 : 80,
-        status: r.status,
-        status_type: r.statusType,
-      }));
-
-      const { data, error } = await supabase
-        .from('amenity_reservations')
-        .insert(rows)
-        .select();
-
-      if (error) {
-        return { count: 0, error: toError(error.message, error.code) };
-      }
-
-      return { count: data?.length || 0, error: null };
-    } catch (err: any) {
-      return { count: 0, error: err instanceof Error ? err : toError('Falha ao popular reservas no banco') };
-    }
-  },
-
-  /**
-   * Creates a new amenity reservation with collision prevention.
-   */
-  async createReservation(input: CreateReservationInput): Promise<{ data: AmenityReservation; error: AmenityServiceError | null }> {
-    try {
-      let friendlyDateStr = input.dateStr;
-      if (!friendlyDateStr && input.date) {
-        const [year, month, day] = input.date.split('-').map(Number);
-        const d = new Date(year, month - 1, day);
-        const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-        const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        const weekday = days[d.getDay()] || '';
-        const monthName = months[d.getMonth()] || '';
-        const dayStr = String(day).padStart(2, '0');
-        friendlyDateStr = `${weekday}, ${dayStr} ${monthName}`;
-        if (input.startTime && input.endTime) {
-          friendlyDateStr += ` • ${input.startTime} às ${input.endTime}`;
-        }
-      }
-
-      const unitFormatted = input.unitNumber.startsWith('Apto') ? input.unitNumber : `Apto ${input.unitNumber}`;
-
-      // 1. Attempt to insert into Supabase
-      const { data, error } = await supabase
-        .from('amenity_reservations')
-        .insert({
-          condominium_id: input.condominium_id,
-          common_area_id: input.common_area_id || null,
-          space_name: input.spaceName,
-          emoji: input.emoji || '🎉',
-          date: input.date || '2026-10-10',
-          start_time: input.startTime || '08:00',
-          end_time: input.endTime || '22:00',
-          date_str: friendlyDateStr || 'Data agendada',
-          responsible_name: input.responsibleName,
-          unit_number: unitFormatted,
-          rental_fee: input.rentalFee ?? (input.spaceName.includes('Festas') ? 250 : input.spaceName.includes('Gourmet') ? 150 : 80),
-          status: input.status || 'Aprovado / Taxa Paga',
-          status_type: input.statusType || 'success',
-        })
-        .select()
-        .single();
-
-      if (!error && data) {
-        return { data: mapRowToReservation(data), error: null };
-      }
-
-      // If Supabase failed (e.g. tableMissing), persist locally
-      const newReservation: AmenityReservation = {
-        id: `res-${Date.now()}`,
-        spaceName: input.spaceName,
-        emoji: input.emoji || '🎉',
-        date: input.date,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        dateStr: friendlyDateStr || 'Data agendada',
-        responsibleName: input.responsibleName,
-        unitNumber: unitFormatted,
-        status: input.status || 'Aprovado / Taxa Paga',
-        statusType: input.statusType || 'success',
-      };
-
-      const storageKey = `condor_reservations_${input.condominium_id}`;
-      const existing = localStorage.getItem(storageKey);
-      const list: AmenityReservation[] = existing ? JSON.parse(existing) : [...mockReservations];
-      list.unshift(newReservation);
-      localStorage.setItem(storageKey, JSON.stringify(list));
-
-      return { data: newReservation, error: null };
+      const mapped = ((data as any[]) || []).map(mapDbReservationToUI);
+      return { data: mapped, error: null };
     } catch (err: any) {
       return {
-        data: null as any,
-        error: err instanceof Error ? err : toError('Falha ao registrar reserva'),
+        data: [],
+        error: { message: err?.message || 'Erro ao buscar reservas no Supabase.' },
       };
+    }
+  },
+
+  /**
+   * Cria uma reserva de área comum no Supabase.
+   * Respeita o parâmetro requires_approval da área comum e só confirma sucesso após persistência no banco.
+   */
+  async createReservation(input: CreateReservationInput): Promise<{
+    data: AmenityReservation | null;
+    error: { message: string } | null;
+  }> {
+    const dateStr = formatPtBrDateLabel(input.date, input.startTime, input.endTime);
+    const needsApproval = Boolean(input.requiresApproval);
+    const rentalFeeValue = Number(input.rentalFee ?? 0);
+    const statusText = needsApproval
+      ? 'Aguardando Aprovação do Síndico'
+      : rentalFeeValue > 0
+      ? 'Aprovado / Taxa em Boleto'
+      : 'Confirmada / Uso Gratuito';
+    const statusType: 'success' | 'warning' | 'info' = needsApproval ? 'warning' : 'success';
+
+    if (isDemoSessionActive()) {
+      const demoRes: AmenityReservation = {
+        id: `demo-res-${Date.now()}`,
+        spaceName: input.spaceName,
+        emoji: input.emoji,
+        date: input.date,
+        dateStr,
+        responsibleName: input.responsibleName,
+        unitNumber: input.unitNumber,
+        rentalFee: rentalFeeValue,
+        status: statusText,
+        statusType,
+      };
+      const current = (await this.getReservations(input.condominium_id)).data;
+      localStorage.setItem(
+        `${DEMO_RESERVATIONS_KEY_PREFIX}${input.condominium_id}`,
+        JSON.stringify([demoRes, ...current])
+      );
+      return { data: demoRes, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return {
+        data: null,
+        error: { message: 'Reserva bloqueada: banco de dados Supabase não configurado.' },
+      };
+    }
+
+    try {
+      const isUuidArea =
+        input.common_area_id &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          input.common_area_id
+        );
+
+      const { data, error } = await (supabase.from('amenity_reservations') as any)
+        .insert({
+          condominium_id: input.condominium_id,
+          common_area_id: isUuidArea ? input.common_area_id : null,
+          space_name: input.spaceName,
+          emoji: input.emoji,
+          date: input.date,
+          start_time: input.startTime,
+          end_time: input.endTime,
+          date_str: dateStr,
+          responsible_name: input.responsibleName,
+          unit_number: input.unitNumber,
+          rental_fee: input.rentalFee,
+          status: statusText,
+          status_type: statusType,
+        })
+        .select('*')
+        .single();
+
+      if (error || !data) {
+        return {
+          data: null,
+          error: {
+            message:
+              error?.message || 'Não foi possível confirmar a reserva no banco de dados Supabase.',
+          },
+        };
+      }
+
+      const created = mapDbReservationToUI(data);
+
+      await auditService.log({
+        condominiumId: input.condominium_id,
+        action: 'RESERVATION_CREATED',
+        entityTable: 'amenity_reservations',
+        entityId: created.id,
+        metadata: {
+          space_name: created.spaceName,
+          date: created.date,
+          unit_number: created.unitNumber,
+          status: created.status,
+        },
+      });
+
+      return { data: created, error: null };
+    } catch (err: any) {
+      return {
+        data: null,
+        error: { message: err?.message || 'Falha ao gravar reserva no Supabase.' },
+      };
+    }
+  },
+
+  /**
+   * Aprova ou recusa uma reserva pendente (apenas Síndico / SuperAdmin via RLS).
+   */
+  async updateReservationStatus(
+    reservationId: string,
+    condominiumId: string,
+    decision: 'approved' | 'rejected'
+  ): Promise<{ error: { message: string } | null }> {
+    const nextStatus =
+      decision === 'approved' ? 'Aprovada pela Administração' : 'Recusada pela Administração';
+    const nextStatusType: 'success' | 'warning' | 'info' =
+      decision === 'approved' ? 'success' : 'info';
+
+    if (isDemoSessionActive()) {
+      const existing = (await this.getReservations(condominiumId)).data;
+      const updated = existing.map((r) =>
+        r.id === reservationId ? { ...r, status: nextStatus, statusType: nextStatusType } : r
+      );
+      localStorage.setItem(
+        `${DEMO_RESERVATIONS_KEY_PREFIX}${condominiumId}`,
+        JSON.stringify(updated)
+      );
+      return { error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Operação bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const { data, error } = await (supabase.from('amenity_reservations') as any)
+        .update({
+          status: nextStatus,
+          status_type: nextStatusType,
+          approved_by: authData?.user?.id || null,
+          approved_at: new Date().toISOString(),
+        })
+        .eq('id', reservationId)
+        .eq('condominium_id', condominiumId)
+        .select('id')
+        .single();
+
+      if (error || !data) {
+        return {
+          error: {
+            message: error?.message || 'Não foi possível atualizar a reserva no banco de dados.',
+          },
+        };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: decision === 'approved' ? 'RESERVATION_APPROVED' : 'RESERVATION_REJECTED',
+        entityTable: 'amenity_reservations',
+        entityId: reservationId,
+      });
+
+      return { error: null };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Erro ao atualizar reserva.' } };
+    }
+  },
+
+  /**
+   * Cancela / remove uma reserva (Síndico/SuperAdmin ou o próprio Morador criador via RLS).
+   */
+  async deleteReservation(
+    reservationId: string,
+    condominiumId: string
+  ): Promise<{ error: { message: string } | null }> {
+    if (isDemoSessionActive()) {
+      const existing = (await this.getReservations(condominiumId)).data;
+      localStorage.setItem(
+        `${DEMO_RESERVATIONS_KEY_PREFIX}${condominiumId}`,
+        JSON.stringify(existing.filter((r) => r.id !== reservationId))
+      );
+      return { error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Exclusão bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('amenity_reservations')
+        .delete()
+        .eq('id', reservationId)
+        .eq('condominium_id', condominiumId);
+
+      if (error) {
+        return { error: { message: error.message } };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'RESERVATION_CANCELLED',
+        entityTable: 'amenity_reservations',
+        entityId: reservationId,
+      });
+
+      return { error: null };
+    } catch (err: any) {
+      return { error: { message: err?.message || 'Erro ao cancelar reserva.' } };
     }
   },
 };

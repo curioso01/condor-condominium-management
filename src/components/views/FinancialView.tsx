@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { mockInvoices } from '../../services/mockData';
 import type { Invoice, Unit } from '../../types/condominium';
 import { useAuth } from '../../contexts/AuthContext';
 import { invoiceService } from '../../services/invoiceService';
@@ -9,14 +8,15 @@ import { Badge } from '../ui/Badge';
 import { EmptyState } from '../ui/EmptyState';
 import { Skeleton } from '../ui/Skeleton';
 import { DynamicTelemetryChart } from '../common/DynamicTelemetryChart';
-import { CheckCircle2, AlertCircle, Database, RefreshCw, FileText, Sliders, Edit, Plus, Download, Landmark } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Database, RefreshCw, FileText, Sliders, Edit, Plus, Download, Landmark, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import { financialDataService, type ReserveFundData, type OperationalExpense, type AiDiagnosisData } from '../../services/financialDataService';
-import { bankAccountService, type CondominiumBankSettings } from '../../services/bankAccountService';
+import { bankAccountService, isValidPixKeyConfigured, type CondominiumBankSettings } from '../../services/bankAccountService';
 import { BoletoModal, type BoletoInvoiceData } from './BoletoModal';
 import { ReserveFundModal } from './ReserveFundModal';
 import { BankConciliationModal } from './BankConciliationModal';
 import { AiSmartRuleModal } from './AiSmartRuleModal';
 import { OperationalExpensesModal } from './OperationalExpensesModal';
+import { ReportsModal } from './ReportsModal';
 
 export interface FinancialViewProps {
   onOpenSettings?: (tab?: 'perfil' | 'condominio' | 'usuarios' | 'database' | 'preferencias' | 'banco') => void;
@@ -26,7 +26,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
   const { currentCondominium, isSuperAdmin, isSindico } = useAuth();
   const canManageFinancial = isSuperAdmin || isSindico;
 
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMockMode, setIsMockMode] = useState(false);
@@ -40,29 +40,47 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
   // Boleto viewing & bank state
   const [selectedBoletoInvoice, setSelectedBoletoInvoice] = useState<BoletoInvoiceData | null>(null);
   const [isBoletoModalOpen, setIsBoletoModalOpen] = useState(false);
-  const [bankSettings, setBankSettings] = useState<CondominiumBankSettings>(() => bankAccountService.getSettings());
+  const [bankSettings, setBankSettings] = useState<CondominiumBankSettings>(() =>
+    bankAccountService.getSettings(currentCondominium?.id, currentCondominium?.name, currentCondominium?.cnpj)
+  );
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [modalInitialSelection, setModalInitialSelection] = useState<'all' | 'none'>('all');
 
-  // Interactive Financial Datasets & Modals
-  const [reserveFund, setReserveFund] = useState<ReserveFundData>(() => financialDataService.getReserveFund());
-  const [expenses, setExpenses] = useState<OperationalExpense[]>(() => financialDataService.getExpenses());
+  // Interactive Financial Datasets & Modals (isolated per condominium)
+  const [reserveFund, setReserveFund] = useState<ReserveFundData>(() =>
+    financialDataService.getReserveFund(currentCondominium?.id)
+  );
+  const [expenses, setExpenses] = useState<OperationalExpense[]>(() =>
+    financialDataService.getExpenses(currentCondominium?.id)
+  );
   const [monthlyBudget, setMonthlyBudget] = useState(145000);
-  const [aiDiagnosis, setAiDiagnosis] = useState<AiDiagnosisData>(() => financialDataService.getAiDiagnosis());
+  const [aiDiagnosis, setAiDiagnosis] = useState<AiDiagnosisData>(() =>
+    financialDataService.getAiDiagnosis(currentCondominium?.id)
+  );
 
   const [isReserveModalOpen, setIsReserveModalOpen] = useState(false);
   const [isConciliationModalOpen, setIsConciliationModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isExpensesModalOpen, setIsExpensesModalOpen] = useState(false);
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+
+  const isPixReady = isValidPixKeyConfigured(bankSettings);
 
   const loadData = useCallback(async () => {
-    if (!currentCondominium?.id) return;
+    const condoId = currentCondominium?.id;
+    if (!condoId) return;
     setIsLoading(true);
+    // Clear previous condominium state immediately so previous condo data never flashes
+    setInvoices([]);
+    setUnits([]);
+    setSelectedInvoices([]);
 
-    const [unitsRes, invoicesRes] = await Promise.all([
-      unitService.getUnitsByCondominium(currentCondominium.id),
-      invoiceService.getInvoicesByCondominium(currentCondominium.id),
+    const [unitsRes, invoicesRes, bankRes, financialsRes] = await Promise.all([
+      unitService.getUnitsByCondominium(condoId),
+      invoiceService.getInvoicesByCondominium(condoId),
+      bankAccountService.fetchSettings(condoId, currentCondominium?.name, currentCondominium?.cnpj),
+      financialDataService.loadCondominiumFinancials(condoId),
     ]);
 
     setIsLoading(false);
@@ -71,25 +89,31 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
       setUnits(unitsRes.data);
     }
 
+    setBankSettings(bankRes.data);
+    setReserveFund(financialsRes.reserveFund);
+    setExpenses(financialsRes.expenses);
+    setAiDiagnosis(financialsRes.aiDiagnosis);
+    setMonthlyBudget(financialsRes.health.monthlyRevenueTarget || 145000);
+
     if (invoicesRes.error) {
       if (invoicesRes.error.tableMissing) {
         setTableMissing(true);
-        setIsMockMode(true);
-        setInvoices(mockInvoices);
+        setIsMockMode(false);
+        setInvoices([]);
       } else {
         setNotification({
           type: 'error',
           message: `Erro ao buscar cobranças: ${invoicesRes.error.message}`,
         });
-        setIsMockMode(true);
-        setInvoices(mockInvoices);
+        setIsMockMode(false);
+        setInvoices([]);
       }
     } else {
       setTableMissing(false);
       setIsMockMode(false);
       setInvoices(invoicesRes.data);
     }
-  }, [currentCondominium?.id]);
+  }, [currentCondominium?.id, currentCondominium?.name, currentCondominium?.cnpj]);
 
   useEffect(() => {
     loadData();
@@ -233,20 +257,28 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
   };
 
   const handleBulkRemittance = () => {
-    const cnabContent = `01REMESSA01COBRANCA       0341BANCO ITAU S.A.   ${new Date().toISOString().slice(0, 10)}\n` +
-      selectedInvoices.map((id, idx) => `1${String(idx + 1).padStart(6, '0')}${id.slice(0, 10)}`).join('\n');
-    const blob = new Blob([cnabContent], { type: 'text/plain' });
+    const selectedRows = invoices.filter((inv) => selectedInvoices.includes(inv.id));
+    if (selectedRows.length === 0) return;
+    const BOM = '\uFEFF';
+    const header = 'Unidade;Bloco;Morador;Descricao;Vencimento;Valor;Status;Chave_Pix_Condominio\n';
+    const body = selectedRows
+      .map(
+        (inv) =>
+          `"${inv.unitNumber}";"${inv.block}";"${inv.residentName}";"${inv.description}";"${inv.dueDate}";"${inv.amount.toFixed(2)}";"${inv.statusLabel}";"${bankSettings.pixKey || ''}"`
+      )
+      .join('\n');
+    const blob = new Blob([BOM + header + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `CB${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.REM`;
+    a.download = `Lote_Cobrancas_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setNotification({
       type: 'success',
-      message: `Arquivo de Remessa CNAB 240 baixado para ${selectedInvoices.length} boletos!`,
+      message: `Lote CSV exportado com ${selectedRows.length} cobrança(s) selecionada(s)!`,
     });
     setTimeout(() => setNotification(null), 4000);
   };
@@ -260,13 +292,21 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleAddAporte = (amount: number, description: string, fromAccount: string) => {
-    const updated = financialDataService.addReserveAporte({
-      amount,
-      description,
-      date: new Date().toLocaleDateString('pt-BR'),
-      fromAccount,
-    });
+  const handleAddAporte = async (amount: number, description: string, fromAccount: string) => {
+    const { data: updated, error } = await financialDataService.addReserveAporteAsync(
+      {
+        amount,
+        description,
+        date: new Date().toLocaleDateString('pt-BR'),
+        fromAccount,
+      },
+      currentCondominium?.id
+    );
+    if (error) {
+      setNotification({ type: 'error', message: error });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setReserveFund(updated);
     setNotification({
       type: 'success',
@@ -275,8 +315,13 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleUpdateReserveParams = (updated: ReserveFundData) => {
-    financialDataService.updateReserveFund(updated);
+  const handleUpdateReserveParams = async (updated: ReserveFundData) => {
+    const { error } = await financialDataService.updateReserveFundAsync(updated, currentCondominium?.id);
+    if (error) {
+      setNotification({ type: 'error', message: error });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setReserveFund(updated);
     setNotification({
       type: 'success',
@@ -285,18 +330,28 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleUpdateAiDiagnosis = (updated: AiDiagnosisData) => {
-    financialDataService.updateAiDiagnosis(updated);
+  const handleUpdateAiDiagnosis = async (updated: AiDiagnosisData) => {
+    const { error } = await financialDataService.updateAiDiagnosisAsync(updated, currentCondominium?.id);
+    if (error) {
+      setNotification({ type: 'error', message: `Erro ao salvar régua: ${error}` });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setAiDiagnosis(updated);
     setNotification({
       type: 'success',
-      message: 'Diagnóstico CONDOR AI e Régua Inteligente atualizados!',
+      message: 'Parâmetros de cobrança inteligente salvos no banco de dados!',
     });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleAddExpense = (exp: Omit<OperationalExpense, 'id'>) => {
-    const updated = financialDataService.addExpense(exp);
+  const handleAddExpense = async (exp: Omit<OperationalExpense, 'id'>) => {
+    const { data: updated, error } = await financialDataService.addExpenseAsync(exp, currentCondominium?.id);
+    if (error) {
+      setNotification({ type: 'error', message: error });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setExpenses(updated);
     setNotification({
       type: 'success',
@@ -305,8 +360,13 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleDeleteExpense = (id: string) => {
-    const updated = financialDataService.deleteExpense(id);
+  const handleDeleteExpense = async (id: string) => {
+    const { data: updated, error } = await financialDataService.deleteExpenseAsync(id, currentCondominium?.id);
+    if (error) {
+      setNotification({ type: 'error', message: error });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setExpenses(updated);
     setNotification({
       type: 'info',
@@ -315,14 +375,37 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
     setTimeout(() => setNotification(null), 4000);
   };
 
-  const handleUpdateBudget = (newBudget: number) => {
+  const handleUpdateBudget = async (newBudget: number) => {
+    const { error } = await financialDataService.updateMonthlyBudgetAsync(newBudget, currentCondominium?.id);
+    if (error) {
+      setNotification({ type: 'error', message: `Erro ao salvar orçamento: ${error}` });
+      setTimeout(() => setNotification(null), 5000);
+      return;
+    }
     setMonthlyBudget(newBudget);
     setNotification({
       type: 'success',
-      message: `Teto orçamentário mensal atualizado para R$ ${newBudget.toLocaleString('pt-BR')}!`,
+      message: `Teto orçamentário mensal salvo no banco: R$ ${newBudget.toLocaleString('pt-BR')}!`,
     });
     setTimeout(() => setNotification(null), 4000);
   };
+
+  // Série real para o gráfico financeiro Recharts (agrupada por status/categoria real)
+  const financialChartPoints = useMemo(() => {
+    if (invoices.length === 0 && expenses.length === 0) return [];
+    const paidExp = expenses
+      .filter((e) => e.status === 'Pago')
+      .reduce((acc, e) => acc + e.amount, 0);
+    const pendingExp = expenses
+      .filter((e) => e.status !== 'Pago')
+      .reduce((acc, e) => acc + e.amount, 0);
+    return [
+      { label: 'Liquidado', primaryValue: Math.round(stats.paidAmount), secondaryValue: Math.round(paidExp) },
+      { label: 'A Vencer', primaryValue: Math.round(stats.pendingAmount), secondaryValue: Math.round(pendingExp) },
+      { label: 'Em Atraso', primaryValue: Math.round(stats.overdueAmount), secondaryValue: 0 },
+      { label: 'Reserva', primaryValue: Math.round(reserveFund.balance), secondaryValue: Math.round(reserveFund.targetAmount) },
+    ];
+  }, [invoices.length, expenses, stats.paidAmount, stats.pendingAmount, stats.overdueAmount, reserveFund.balance, reserveFund.targetAmount]);
 
   const currentMonthName = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   const formattedCompetence = `Competência ${currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1)}`;
@@ -355,7 +438,13 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
             <button
               type="button"
               onClick={() => {
-                setBankSettings(bankAccountService.getSettings());
+                setBankSettings(
+                  bankAccountService.getSettings(
+                    currentCondominium?.id,
+                    currentCondominium?.name,
+                    currentCondominium?.cnpj
+                  )
+                );
                 onOpenSettings?.('banco');
               }}
               className="px-3.5 py-2 rounded-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-600 dark:hover:border-emerald-500 shadow-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
@@ -365,6 +454,14 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
               <span>Banco de Recebimento</span>
             </button>
           )}
+          <button 
+            type="button"
+            onClick={() => setIsReportsModalOpen(true)}
+            className="px-4 py-2 rounded-full text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-all flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            Relatórios
+          </button>
           <button 
             type="button"
             onClick={handleExportBalancete}
@@ -414,6 +511,28 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
             className="text-[11px] underline opacity-80 hover:opacity-100 ml-4 cursor-pointer"
           >
             Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Alerta se a síndica ainda não cadastrou a chave Pix deste condomínio */}
+      {canManageFinancial && !isPixReady && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-950 dark:text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Chave Pix de recebimento ainda não configurada para {currentCondominium?.name}</p>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300/80 mt-0.5">
+                Cadastre a chave Pix do condomínio para que todas as cobranças emitidas gerem QR Code Pix BACEN válido para pagamento e baixa manual.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenSettings?.('banco')}
+            className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 cursor-pointer"
+          >
+            Cadastrar Chave Pix
           </button>
         </div>
       )}
@@ -469,8 +588,8 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
                   <span className="text-3xl font-extrabold text-slate-900 tracking-tight tabular-nums">
                     {stats.totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </span>
-                  <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    ↑ +8.4%
+                  <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full tabular-nums">
+                    {stats.rate}% liquidado
                   </span>
                 </div>
               </div>
@@ -490,17 +609,17 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
               <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex gap-1 p-0.5">
                 <div
                   className="h-full bg-emerald-600 rounded-full transition-all"
-                  style={{ width: `${stats.totalAmount > 0 ? (stats.paidAmount / stats.totalAmount) * 100 : 86}%` }}
+                  style={{ width: `${stats.totalAmount > 0 ? (stats.paidAmount / stats.totalAmount) * 100 : 0}%` }}
                   title="Boletos Pagos no Prazo"
                 ></div>
                 <div
                   className="h-full bg-amber-400 rounded-full transition-all"
-                  style={{ width: `${stats.totalAmount > 0 ? (stats.pendingAmount / stats.totalAmount) * 100 : 10.8}%` }}
+                  style={{ width: `${stats.totalAmount > 0 ? (stats.pendingAmount / stats.totalAmount) * 100 : 0}%` }}
                   title="A Vencer / Acordo"
                 ></div>
                 <div
                   className="h-full bg-rose-500 rounded-full transition-all"
-                  style={{ width: `${stats.totalAmount > 0 ? (stats.overdueAmount / stats.totalAmount) * 100 : 3.2}%` }}
+                  style={{ width: `${stats.totalAmount > 0 ? (stats.overdueAmount / stats.totalAmount) * 100 : 0}%` }}
                   title="Inadimplência"
                 ></div>
               </div>
@@ -536,19 +655,20 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
           </div>
         </section>
 
-        {/* BENTO CARD 2: Gráfico Principal de Fluxo & Arrecadação */}
+        {/* BENTO CARD 2: Gráfico Principal de Fluxo & Arrecadação (Recharts Real) */}
         <section className="col-span-1 lg:col-span-8 w-full min-w-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-bento border border-slate-100 dark:border-slate-800 flex flex-col justify-between group hover:shadow-bento-hover transition-all duration-300">
           <DynamicTelemetryChart
-            title="Fluxo Dinâmico de Arrecadação & Receita"
-            subtitle="Comparativo dinâmico entre arrecadação liquidada e receita orçamentária"
-            primaryLabel="Receita Liquidada (Atual)"
-            secondaryLabel="Meta Orçada / Mês Anterior"
-            primaryColor="#0D9488"
+            title="Composição Financeira Real do Condomínio"
+            subtitle="Comparativo real entre cobranças (liquidadas, a vencer, em atraso), despesas e fundo de reserva"
+            primaryLabel="Receitas / Saldo"
+            secondaryLabel="Despesas / Meta"
+            primaryColor="#059669"
             secondaryColor="#F59E0B"
             valueFormatter={(v) => `R$ ${v.toLocaleString('pt-BR')}`}
-            defaultPeriod="mes"
             height={205}
             unitLabel=""
+            dataPoints={financialChartPoints}
+            emptyMessage="Emita cobranças ou lance despesas operacionais para visualizar o gráfico financeiro real deste condomínio."
           />
         </section>
 
@@ -761,10 +881,28 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
 
           <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">
             <div className="flex items-center -space-x-2">
-              <span className="w-7 h-7 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-700" title="Atlas Schindler">AS</span>
-              <span className="w-7 h-7 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-emerald-800" title="Sabesp">SB</span>
-              <span className="w-7 h-7 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-blue-800" title="Enel">EN</span>
-              <span className="w-7 h-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-amber-800" title="Protege">SP</span>
+              {expenses.slice(0, 4).length > 0 ? (
+                expenses.slice(0, 4).map((exp) => {
+                  const initials = (exp.supplier || exp.description || 'DP')
+                    .split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w) => w[0])
+                    .join('')
+                    .toUpperCase();
+                  return (
+                    <span
+                      key={exp.id}
+                      className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border-2 border-white dark:border-slate-900 flex items-center justify-center text-[10px] font-bold text-emerald-800 dark:text-emerald-300"
+                      title={exp.supplier || exp.description}
+                    >
+                      {initials}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="text-[11px] text-slate-400 font-medium">Nenhuma despesa lançada</span>
+              )}
             </div>
             <button 
               type="button"
@@ -781,12 +919,12 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-slate-900 tracking-tight">Cobranças & Boletos Recentes</h3>
+                <h3 className="text-base font-bold text-slate-900 tracking-tight">Cobranças & Pix Recentes</h3>
                 <span className="bg-slate-100 text-slate-600 text-xs px-2.5 py-0.5 rounded-full font-bold tabular-nums">
                   {filteredInvoices.length} emissões
                 </span>
               </div>
-              <p className="text-xs font-medium text-slate-400 mt-0.5">Emissão via split bancário integrado com compensação instantânea via Pix QR Code</p>
+              <p className="text-xs font-medium text-slate-400 mt-0.5">Cobranças via Pix oficial (chave cadastrada pelo condomínio) com controle de baixa manual auditada</p>
             </div>
             
             {/* Filter Pills + Primary Action */}
@@ -969,7 +1107,13 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
                             <button
                               type="button"
                               onClick={() => {
-                                setBankSettings(bankAccountService.getSettings());
+                                setBankSettings(
+                                  bankAccountService.getSettings(
+                                    currentCondominium?.id,
+                                    currentCondominium?.name,
+                                    currentCondominium?.cnpj
+                                  )
+                                );
                                 setSelectedBoletoInvoice({
                                   id: inv.id,
                                   unitNumber: inv.unitNumber,
@@ -1067,6 +1211,9 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
       <BankConciliationModal
         isOpen={isConciliationModalOpen}
         onClose={() => setIsConciliationModalOpen(false)}
+        invoices={invoices}
+        expenses={expenses}
+        bankSettings={bankSettings}
       />
 
       {/* CONDOR AI Diagnóstico & Régua Inteligente Modal */}
@@ -1088,7 +1235,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
         onUpdateBudget={handleUpdateBudget}
       />
 
-      {/* Visualizador de Boleto Bancário Híbrido com Pix */}
+      {/* Visualizador de Cobrança & QR Code Pix Oficial */}
       <BoletoModal
         isOpen={isBoletoModalOpen}
         onClose={() => {
@@ -1097,6 +1244,14 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
         }}
         invoice={selectedBoletoInvoice}
         customBankSettings={bankSettings}
+        onConfigureBank={() => onOpenSettings?.('banco')}
+      />
+
+      {/* Central de Relatórios Reais */}
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+        condominiumName={currentCondominium?.name || 'Condomínio'}
       />
     </div>
   );

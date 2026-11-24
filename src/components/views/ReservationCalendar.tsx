@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import type { AmenityReservation } from '../../types/condominium';
 import type { CommonArea } from '../../types/database.types';
+import { AmenityIconBadge } from '../common/AmenityIconBadge';
+import { PremiumSelect } from '../ui/PremiumSelect';
 
 export interface ReservationCalendarProps {
   reservations: AmenityReservation[];
@@ -234,23 +236,26 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
 
         {/* Filter by Space and New Space Button */}
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-          <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
+          <div className="flex items-center gap-2 flex-1 sm:flex-none">
             <label htmlFor="calendar-space-filter" className="text-xs font-semibold text-slate-500 whitespace-nowrap">
               Espaço:
             </label>
-            <select
+            <PremiumSelect
               id="calendar-space-filter"
+              size="sm"
+              ariaLabel="Filtrar calendário por espaço comum"
               value={selectedSpaceFilter}
-              onChange={(e) => setSelectedSpaceFilter(e.target.value)}
-              className="w-full sm:w-auto min-w-0 px-3 py-2 sm:py-1.5 bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-            >
-              <option value="all">Todos os Espaços</option>
-              {filterSpacesList.map((space) => (
-                <option key={space.id} value={space.name}>
-                  {space.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedSpaceFilter}
+              className="w-full sm:w-52"
+              options={[
+                { value: 'all', label: 'Todos os Espaços' },
+                ...filterSpacesList.map((space) => ({
+                  value: space.name,
+                  label: space.name,
+                  icon: <AmenityIconBadge spaceName={space.name} size="xs" />,
+                })),
+              ]}
+            />
           </div>
 
           {onOpenNewSpace && (
@@ -408,7 +413,7 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
 
               {/* Status Indicator */}
               <span
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
                   selectedDay?.status === 'free'
                     ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                     : selectedDay?.status === 'partial'
@@ -416,11 +421,22 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
                     : 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                 }`}
               >
-                {selectedDay?.status === 'free'
-                  ? '🟢 Livre'
-                  : selectedDay?.status === 'partial'
-                  ? '🟡 Parcial'
-                  : '🔴 Ocupado'}
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    selectedDay?.status === 'free'
+                      ? 'bg-emerald-500'
+                      : selectedDay?.status === 'partial'
+                      ? 'bg-amber-400'
+                      : 'bg-rose-500'
+                  }`}
+                />
+                <span>
+                  {selectedDay?.status === 'free'
+                    ? 'Livre'
+                    : selectedDay?.status === 'partial'
+                    ? 'Parcial'
+                    : 'Ocupado'}
+                </span>
               </span>
             </div>
 
@@ -445,10 +461,10 @@ export const ReservationCalendar: React.FC<ReservationCalendarProps> = ({
                       key={res.id}
                       className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col gap-1.5"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                          <span>{res.emoji}</span>
-                          <span>{res.spaceName}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 min-w-0">
+                          <AmenityIconBadge spaceName={res.spaceName} emoji={res.emoji} size="xs" />
+                          <span className="truncate">{res.spaceName}</span>
                         </span>
                         <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/50 dark:border-emerald-800/50">
                           {res.status}

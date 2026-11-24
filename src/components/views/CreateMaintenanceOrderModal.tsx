@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { z } from 'zod';
-import { X, Wrench, CheckCircle2, AlertCircle, Calendar, Clock, MapPin, User, Building } from 'lucide-react';
+import { X, Wrench, CheckCircle2, AlertCircle, Clock, MapPin, User, Building } from 'lucide-react';
 import type { CreateMaintenanceOrderInput } from '../../services/maintenanceService';
 import type { MaintenanceOrderDbPriority } from '../../types/database.types';
+import { PremiumSelect } from '../ui/PremiumSelect';
+import { PremiumDatePicker } from '../ui/PremiumDatePicker';
 
 const PRESET_TITLES = [
   'Manutenção Preventiva de Bombas',
@@ -276,21 +278,18 @@ export const CreateMaintenanceOrderModal: React.FC<CreateMaintenanceOrderModalPr
               >
                 Categoria Técnica *
               </label>
-              <select
+              <PremiumSelect
                 id="os-category"
+                size="md"
+                ariaLabel="Categoria técnica da ordem de serviço"
                 value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value);
+                onChange={(val) => {
+                  setCategory(val);
                   clearError('category');
                 }}
-                className={`${inputBase} px-3.5 ${fieldErrors.category ? errBorder : okBorder}`}
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
+                options={CATEGORIES}
+                buttonClassName={fieldErrors.category ? 'border-rose-400' : ''}
+              />
               {fieldErrors.category && (
                 <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">{fieldErrors.category}</p>
               )}
@@ -303,21 +302,34 @@ export const CreateMaintenanceOrderModal: React.FC<CreateMaintenanceOrderModalPr
               >
                 Nível de Prioridade *
               </label>
-              <select
+              <PremiumSelect
                 id="os-priority"
+                size="md"
+                ariaLabel="Nível de prioridade"
                 value={priority}
-                onChange={(e) => {
-                  setPriority(e.target.value as MaintenanceOrderDbPriority);
+                onChange={(val) => {
+                  setPriority(val as MaintenanceOrderDbPriority);
                   clearError('priority');
                 }}
-                className={`${inputBase} px-3.5 ${fieldErrors.priority ? errBorder : okBorder}`}
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+                options={PRIORITIES.map((p) => ({
+                  value: p,
+                  label: p,
+                  icon: (
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        p === 'Prioridade Máxima'
+                          ? 'bg-rose-500'
+                          : p === 'Média'
+                          ? 'bg-amber-400'
+                          : p === 'Preventiva'
+                          ? 'bg-emerald-500'
+                          : 'bg-sky-500'
+                      }`}
+                    />
+                  ),
+                }))}
+                buttonClassName={fieldErrors.priority ? 'border-rose-400' : ''}
+              />
               {fieldErrors.priority && (
                 <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">{fieldErrors.priority}</p>
               )}
@@ -362,21 +374,17 @@ export const CreateMaintenanceOrderModal: React.FC<CreateMaintenanceOrderModalPr
               >
                 Data Prevista *
               </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 dark:text-slate-500 pointer-events-none">
-                  <Calendar className="w-4 h-4" />
-                </span>
-                <input
-                  id="os-scheduled-date"
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(e) => {
-                    setScheduledDate(e.target.value);
-                    clearError('scheduledDate');
-                  }}
-                  className={`${inputBase} pl-10 pr-3.5 cursor-pointer ${fieldErrors.scheduledDate ? errBorder : okBorder}`}
-                />
-              </div>
+              <PremiumDatePicker
+                id="os-scheduled-date"
+                ariaLabel="Data prevista da manutenção"
+                size="md"
+                value={scheduledDate}
+                onChange={(iso) => {
+                  setScheduledDate(iso);
+                  clearError('scheduledDate');
+                }}
+                buttonClassName={fieldErrors.scheduledDate ? 'border-rose-400' : ''}
+              />
               {fieldErrors.scheduledDate && (
                 <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-medium">{fieldErrors.scheduledDate}</p>
               )}

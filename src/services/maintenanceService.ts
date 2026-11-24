@@ -1,90 +1,94 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { MaintenanceOrderRow, MaintenanceOrderDbStatus, MaintenanceOrderDbPriority } from '../types/database.types';
+import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
+import type {
+  MaintenanceOrderRow,
+  MaintenanceOrderDbStatus,
+  MaintenanceOrderDbPriority,
+} from '../types/database.types';
 import type { MaintenanceOrder } from '../types/condominium';
 import { mockMaintenanceOrders } from './mockData';
-
-const MISSING_TABLE_CODES = new Set(['42P01', 'PGRST205']);
-
-export function isValidUuid(str?: string | null): boolean {
-  if (!str) return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-}
-
-export interface MaintenanceServiceError extends Error {
-  tableMissing?: boolean;
-}
-
-function toError(message: string, code?: string): MaintenanceServiceError {
-  const err: MaintenanceServiceError = new Error(message);
-  if (code && MISSING_TABLE_CODES.has(code)) err.tableMissing = true;
-  return err;
-}
+import { auditService } from './auditService';
 
 export interface CreateMaintenanceOrderInput {
   condominium_id: string;
   title: string;
   location: string;
-  category?: string;
+  category: string;
   description: string;
   priority: MaintenanceOrderDbPriority;
-  scheduled_date: string; // YYYY-MM-DD
-  scheduled_time: string;
+  scheduledDateIso?: string; // YYYY-MM-DD
+  scheduled_date?: string; // YYYY-MM-DD
+  scheduledTime?: string;
+  scheduled_time?: string;
+  technicianName?: string;
   technician_name?: string;
+  technicianCompany?: string;
   technician_company?: string;
+  materialsReserved?: boolean;
   materials_reserved?: boolean;
 }
 
-function getInitials(name?: string | null): string {
-  if (!name) return 'OS';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+const DEMO_MAINTENANCE_KEY_PREFIX = 'condor_demo_maintenance_';
 
-function getStorageKey(condoId: string): string {
-  return `condor_maintenance_orders_${condoId || 'default'}`;
-}
-
-function getLocalOrders(condoId: string): MaintenanceOrder[] {
+function loadDemoOrders(condominiumId: string): MaintenanceOrder[] {
   try {
-    const raw = localStorage.getItem(getStorageKey(condoId));
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    const raw = localStorage.getItem(`${DEMO_MAINTENANCE_KEY_PREFIX}${condominiumId}`);
+    if (!raw) {
+      return condominiumId === 'condo-imperial-001' ? [...mockMaintenanceOrders] : [];
     }
-  } catch (e) {
-    console.warn('[maintenanceService] Erro ao ler ordens do localStorage:', e);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
-  return [...mockMaintenanceOrders];
 }
 
-function saveLocalOrders(condoId: string, orders: MaintenanceOrder[]): void {
+function saveDemoOrders(condominiumId: string, orders: MaintenanceOrder[]): void {
   try {
-    localStorage.setItem(getStorageKey(condoId), JSON.stringify(orders));
-  } catch (e) {
-    console.warn('[maintenanceService] Erro ao salvar ordens no localStorage:', e);
+    localStorage.setItem(`${DEMO_MAINTENANCE_KEY_PREFIX}${condominiumId}`, JSON.stringify(orders));
+  } catch {
+    // ignore
   }
 }
 
-function mapRowToOrder(row: MaintenanceOrderRow): MaintenanceOrder {
-  let statusLabel: string;
-  if (row.status === 'completed') {
-    statusLabel = '100% Concluído';
-  } else if (row.status === 'certified') {
-    statusLabel = 'Laudo Emitido';
-  } else if (row.status === 'in_progress') {
-    statusLabel = `${row.progress_percentage || 50}% Em Andamento`;
-  } else {
-    statusLabel = 'Agendado';
+function formatScheduledLabel(isoDate: string, timeRange: string): string {
+  if (!isoDate) return timeRange || 'A definir';
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const datePart = isoDate.slice(0, 10);
+
+  if (datePart === todayIso) {
+    return `Hoje • ${timeRange}`;
   }
 
-  const technicians = [];
-  if (row.technician_name || row.technician_initials) {
-    technicians.push({
-      initials: row.technician_initials || getInitials(row.technician_name),
-      name: row.technician_name || undefined,
-    });
+  const parts = datePart.split('-');
+  if (parts.length === 3) {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const monthLabel = months[monthIndex] || parts[1];
+    return `${parts[2]} ${monthLabel} • ${timeRange}`;
   }
+
+  return `${datePart} • ${timeRange}`;
+}
+
+function getInitials(name: string | null): string {
+  if (!name) return 'EQ';
+  return (
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('') || 'EQ'
+  );
+}
+
+export function mapDbOrderToUI(row: MaintenanceOrderRow): MaintenanceOrder {
+  const techDisplay = row.technician_name
+    ? row.technician_company
+      ? `${row.technician_name} (${row.technician_company})`
+      : row.technician_name
+    : row.technician_company || 'Equipe Interna Condor';
+  const initials = row.technician_initials || getInitials(row.technician_name);
 
   return {
     id: row.id,
@@ -93,34 +97,44 @@ function mapRowToOrder(row: MaintenanceOrderRow): MaintenanceOrder {
     location: row.location,
     category: row.category,
     description: row.description,
-    status: statusLabel,
+    priority: row.priority,
+    status:
+      row.status === 'completed'
+        ? '100% Concluído'
+        : row.status === 'certified'
+        ? 'Laudo Emitido'
+        : `${row.progress_percentage}% Em Andamento`,
     statusType: row.status,
     progressPercentage: row.progress_percentage,
-    scheduledTime: row.scheduled_time,
+    scheduledTime: formatScheduledLabel(row.scheduled_date, row.scheduled_time),
     scheduledDate: row.scheduled_date,
-    priority: row.priority,
-    technicians,
+    scheduledDateIso: row.scheduled_date,
+    technicians: [{ initials, name: techDisplay }],
     technicianCompany: row.technician_company || undefined,
     materialsReserved: row.materials_reserved,
     hasCertificate: row.has_certificate,
-    createdAt: row.created_at,
   };
 }
 
 export const maintenanceService = {
   /**
-   * Busca todas as ordens de serviço do condomínio, ordenadas pela data de criação.
-   * Evita erros de sintaxe UUID quando executado com personas demo e garante fallback local.
+   * Lista todas as ordens de serviço do condomínio selecionado.
+   * Quando conectado ao Supabase, retorna [] se o condomínio estiver vazio (sem mockMaintenanceOrders).
    */
-  async getMaintenanceOrders(
-    condominiumId: string
-  ): Promise<{ data: MaintenanceOrder[]; error: MaintenanceServiceError | null }> {
-    const localList = getLocalOrders(condominiumId);
+  async getOrdersByCondominium(condominiumId: string): Promise<{
+    data: MaintenanceOrder[];
+    error: { message: string; code?: string; tableMissing?: boolean } | null;
+  }> {
+    if (!condominiumId) {
+      return { data: [], error: null };
+    }
 
-    // Se Supabase não estiver configurado ou o ID não for um UUID válido,
-    // retorna imediatamente os dados locais persistidos sem lançar erro de sintaxe SQL
-    if (!isSupabaseConfigured || !isValidUuid(condominiumId)) {
-      return { data: localList, error: null };
+    if (isDemoSessionActive()) {
+      return { data: loadDemoOrders(condominiumId), error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { data: [], error: { message: 'Supabase não configurado.' } };
     }
 
     try {
@@ -131,250 +145,288 @@ export const maintenanceService = {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.warn('[maintenanceService] Falha na consulta Supabase, utilizando dados locais:', error.message);
-        const appErr = toError(error.message, error.code);
-        // Retorna aviso informativo de tabela apenas se for erro específico de tabela inexistente
-        return { data: localList, error: appErr.tableMissing ? appErr : null };
+        const isTableMissing =
+          error.code === '42P01' ||
+          error.code === 'PGRST205' ||
+          error.message?.includes('relation "public.maintenance_orders" does not exist') ||
+          error.message?.includes('Could not find the table');
+
+        return {
+          data: [],
+          error: {
+            message: error.message,
+            code: error.code,
+            tableMissing: isTableMissing,
+          },
+        };
       }
 
-      if (data && data.length > 0) {
-        const rows = data as MaintenanceOrderRow[];
-        const mapped = rows.map(mapRowToOrder);
-        saveLocalOrders(condominiumId, mapped);
-        return { data: mapped, error: null };
-      }
-
-      // Se a tabela estiver vazia no banco, usa os dados persistidos locais
-      return { data: localList, error: null };
+      const mapped = ((data as MaintenanceOrderRow[]) || []).map(mapDbOrderToUI);
+      return { data: mapped, error: null };
     } catch (err: any) {
-      console.warn('[maintenanceService] Exceção ao consultar ordens:', err);
-      return { data: localList, error: null };
+      return {
+        data: [],
+        error: { message: err?.message || 'Erro ao buscar ordens de manutenção no Supabase.' },
+      };
     }
   },
 
   /**
-   * Cria uma nova ordem de serviço no banco de dados e/ou no armazenamento local.
-   * Garante funcionamento imediato mesmo em modo de demonstração.
+   * Cria uma nova Ordem de Serviço / Chamado de Manutenção no Supabase.
+   * Só retorna sucesso se o banco confirmar a gravação.
    */
-  async createMaintenanceOrder(
-    input: CreateMaintenanceOrderInput
-  ): Promise<{ data: MaintenanceOrder | null; error: MaintenanceServiceError | null }> {
-    const randomCodeNumber = Math.floor(8500 + Math.random() * 900);
-    const code = `OS #${randomCodeNumber}`;
-    const initials = getInitials(input.technician_name || input.technician_company);
+  async createOrder(input: CreateMaintenanceOrderInput): Promise<{
+    data: MaintenanceOrder | null;
+    error: { message: string } | null;
+  }> {
+    const randomNum = Math.floor(2900 + Math.random() * 7000);
+    const code = `#OS-${randomNum}`;
+    const techName = input.technicianName || input.technician_name;
+    const techCompany = input.technicianCompany || input.technician_company;
+    const schedDate = input.scheduledDateIso || input.scheduled_date || new Date().toISOString().slice(0, 10);
+    const schedTime = input.scheduledTime || input.scheduled_time || 'Horário Comercial';
+    const matReserved = Boolean(input.materialsReserved ?? input.materials_reserved);
+    const initials = getInitials(techName || techCompany || 'Equipe');
 
-    const localNewOrder: MaintenanceOrder = {
-      id: `os-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      code,
-      title: input.title.trim(),
-      location: input.location.trim(),
-      category: input.category?.trim() || 'Geral',
-      description: input.description.trim(),
-      status: 'Agendado',
-      statusType: 'scheduled',
-      progressPercentage: 0,
-      scheduledDate: input.scheduled_date,
-      scheduledTime: input.scheduled_time.trim(),
-      priority: input.priority,
-      technicians: (input.technician_name || input.technician_company)
-        ? [
-            {
-              initials,
-              name: input.technician_name?.trim() || undefined,
-            },
-          ]
-        : [],
-      technicianCompany: input.technician_company?.trim() || undefined,
-      materialsReserved: Boolean(input.materials_reserved),
-      hasCertificate: false,
-      createdAt: new Date().toISOString(),
-    };
+    const isUrgent = input.priority === 'Prioridade Máxima';
+    const initialStatus: MaintenanceOrderDbStatus = isUrgent ? 'in_progress' : 'scheduled';
+    const initialProgress = isUrgent ? 25 : 0;
 
-    // Se Supabase não estiver configurado ou o ID do condomínio não for UUID válido, salva localmente
-    if (!isSupabaseConfigured || !isValidUuid(input.condominium_id)) {
-      const localList = getLocalOrders(input.condominium_id);
-      const updated = [localNewOrder, ...localList.filter((o) => o.id !== localNewOrder.id)];
-      saveLocalOrders(input.condominium_id, updated);
-      return { data: localNewOrder, error: null };
+    if (isDemoSessionActive()) {
+      const demoOrder = mapDbOrderToUI({
+        id: `demo-os-${Date.now()}`,
+        condominium_id: input.condominium_id,
+        code,
+        title: input.title.trim(),
+        location: input.location.trim(),
+        category: input.category,
+        description: input.description.trim(),
+        priority: input.priority,
+        status: initialStatus,
+        progress_percentage: initialProgress,
+        scheduled_date: schedDate,
+        scheduled_time: schedTime.trim() || 'Horário Comercial',
+        technician_name: techName?.trim() || 'Equipe Técnica',
+        technician_company: techCompany?.trim() || null,
+        technician_initials: initials,
+        materials_reserved: matReserved,
+        has_certificate: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      const current = loadDemoOrders(input.condominium_id);
+      saveDemoOrders(input.condominium_id, [demoOrder, ...current]);
+      return { data: demoOrder, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return {
+        data: null,
+        error: { message: 'Abertura de OS bloqueada: Supabase não configurado.' },
+      };
     }
 
     try {
-      const { data, error } = await supabase
-        .from('maintenance_orders')
+      const { data, error } = await (supabase.from('maintenance_orders') as any)
         .insert({
           condominium_id: input.condominium_id,
           code,
           title: input.title.trim(),
           location: input.location.trim(),
-          category: input.category?.trim() || 'Geral',
+          category: input.category,
           description: input.description.trim(),
           priority: input.priority,
-          status: 'scheduled',
-          progress_percentage: 0,
-          scheduled_date: input.scheduled_date,
-          scheduled_time: input.scheduled_time.trim(),
-          technician_name: input.technician_name?.trim() || null,
-          technician_company: input.technician_company?.trim() || null,
+          status: initialStatus,
+          progress_percentage: initialProgress,
+          scheduled_date: schedDate,
+          scheduled_time: schedTime.trim() || 'Horário Comercial',
+          technician_name: techName?.trim() || 'Equipe Técnica',
+          technician_company: techCompany?.trim() || null,
           technician_initials: initials,
-          materials_reserved: Boolean(input.materials_reserved),
+          materials_reserved: matReserved,
           has_certificate: false,
         })
         .select('*')
         .single();
 
-      if (error) {
-        console.warn('[maintenanceService] Falha ao persistir no Supabase, salvando localmente:', error.message);
-        // Grava localmente para não frustrar o usuário
-        const localList = getLocalOrders(input.condominium_id);
-        const updated = [localNewOrder, ...localList.filter((o) => o.id !== localNewOrder.id)];
-        saveLocalOrders(input.condominium_id, updated);
-        return { data: localNewOrder, error: null };
+      if (error || !data) {
+        return {
+          data: null,
+          error: {
+            message:
+              error?.message || 'Não foi possível registrar a Ordem de Serviço no Supabase.',
+          },
+        };
       }
 
-      const created = mapRowToOrder(data as MaintenanceOrderRow);
-      const localList = getLocalOrders(input.condominium_id);
-      saveLocalOrders(input.condominium_id, [created, ...localList.filter((o) => o.id !== created.id)]);
+      const created = mapDbOrderToUI(data as MaintenanceOrderRow);
+
+      await auditService.log({
+        condominiumId: input.condominium_id,
+        action: 'MAINTENANCE_ORDER_CREATED',
+        entityTable: 'maintenance_orders',
+        entityId: created.id,
+        metadata: { code: created.code, title: created.title, priority: created.priority },
+      });
+
       return { data: created, error: null };
     } catch (err: any) {
-      console.warn('[maintenanceService] Erro ao gravar ordem de serviço:', err);
-      const localList = getLocalOrders(input.condominium_id);
-      saveLocalOrders(input.condominium_id, [localNewOrder, ...localList]);
-      return { data: localNewOrder, error: null };
+      return {
+        data: null,
+        error: { message: err?.message || 'Erro ao criar ordem de serviço no Supabase.' },
+      };
     }
   },
 
   /**
-   * Atualiza o status e progresso de uma ordem de serviço.
+   * Avança ou atualiza o status de uma Ordem de Serviço no Supabase.
    */
+  async updateOrderStatus(
+    orderId: string,
+    nextStatus: MaintenanceOrderDbStatus,
+    condominiumId: string = ''
+  ): Promise<{
+    progressPercentage: number;
+    hasCertificate: boolean;
+    error: { message: string } | null;
+  }> {
+    let progressPercentage = 0;
+    let hasCertificate = false;
+
+    if (nextStatus === 'scheduled') {
+      progressPercentage = 15;
+    } else if (nextStatus === 'in_progress') {
+      progressPercentage = 65;
+    } else if (nextStatus === 'completed' || nextStatus === 'certified') {
+      progressPercentage = 100;
+      hasCertificate = true;
+    }
+
+    if (isDemoSessionActive()) {
+      const current = loadDemoOrders(condominiumId || 'condo-imperial-001');
+      const updated = current.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              status: nextStatus,
+              progressPercentage,
+              hasCertificate,
+            }
+          : o
+      );
+      saveDemoOrders(condominiumId || 'condo-imperial-001', updated);
+      return { progressPercentage, hasCertificate, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return {
+        progressPercentage,
+        hasCertificate,
+        error: { message: 'Atualização de OS bloqueada: Supabase não configurado.' },
+      };
+    }
+
+    try {
+      let query = (supabase.from('maintenance_orders') as any)
+        .update({
+          status: nextStatus,
+          progress_percentage: progressPercentage,
+          has_certificate: hasCertificate,
+        })
+        .eq('id', orderId);
+
+      if (condominiumId) {
+        query = query.eq('condominium_id', condominiumId);
+      }
+
+      const { data, error } = await query.select('id').single();
+
+      if (error || !data) {
+        return {
+          progressPercentage,
+          hasCertificate,
+          error: {
+            message:
+              error?.message ||
+              'Não foi possível atualizar o status da Ordem de Serviço no Supabase.',
+          },
+        };
+      }
+
+      return { progressPercentage, hasCertificate, error: null };
+    } catch (err: any) {
+      return {
+        progressPercentage,
+        hasCertificate,
+        error: { message: err?.message || 'Erro ao atualizar status da OS no Supabase.' },
+      };
+    }
+  },
+
+  async getMaintenanceOrders(condominiumId: string) {
+    return this.getOrdersByCondominium(condominiumId);
+  },
+
+  async createMaintenanceOrder(input: CreateMaintenanceOrderInput) {
+    return this.createOrder(input);
+  },
+
   async updateMaintenanceOrderStatus(
-    condominiumIdOrOrderId: string,
-    orderIdOrStatus: string | MaintenanceOrderDbStatus,
-    statusOrProgress?: MaintenanceOrderDbStatus | number,
-    progressPercentage?: number
-  ): Promise<{ error: MaintenanceServiceError | null }> {
-    let condoId = 'condo-imperial-001';
-    let id = condominiumIdOrOrderId;
-    let status: MaintenanceOrderDbStatus = 'in_progress';
-    let progress = progressPercentage;
-
-    // Trata sobrecarga de parâmetros para compatibilidade com chamadas existentes
-    if (typeof orderIdOrStatus === 'string' && (orderIdOrStatus === 'scheduled' || orderIdOrStatus === 'in_progress' || orderIdOrStatus === 'completed' || orderIdOrStatus === 'certified')) {
-      id = condominiumIdOrOrderId;
-      status = orderIdOrStatus;
-      if (typeof statusOrProgress === 'number') {
-        progress = statusOrProgress;
-      }
-    } else if (typeof orderIdOrStatus === 'string' && typeof statusOrProgress === 'string') {
-      condoId = condominiumIdOrOrderId;
-      id = orderIdOrStatus;
-      status = statusOrProgress as MaintenanceOrderDbStatus;
-    }
-
-    if (progress === undefined) {
-      if (status === 'completed' || status === 'certified') progress = 100;
-      else if (status === 'in_progress') progress = 50;
-      else progress = 0;
-    }
-
-    // Atualiza localmente
-    const localList = getLocalOrders(condoId);
-    const updated = localList.map((o) =>
-      o.id === id
-        ? {
-            ...o,
-            statusType: status,
-            progressPercentage: progress!,
-            status:
-              status === 'completed'
-                ? '100% Concluído'
-                : status === 'certified'
-                ? 'Laudo Emitido'
-                : `${progress}% Em Andamento`,
-            hasCertificate: status === 'certified',
-          }
-        : o
-    );
-    saveLocalOrders(condoId, updated);
-
-    // Se estiver conectado ao Supabase com UUID válido, atualiza também no banco
-    if (isSupabaseConfigured && isValidUuid(id)) {
-      try {
-        const { error } = await supabase
-          .from('maintenance_orders')
-          .update({
-            status,
-            progress_percentage: progress,
-            has_certificate: status === 'certified',
-          })
-          .eq('id', id);
-
-        if (error) console.warn('[maintenanceService] Falha ao atualizar no Supabase:', error.message);
-      } catch (err: any) {
-        console.warn('[maintenanceService] Exceção ao atualizar no Supabase:', err);
-      }
-    }
-
-    return { error: null };
-  },
-
-  /**
-   * Remove uma ordem de serviço.
-   */
-  async deleteMaintenanceOrder(
     condominiumId: string,
-    id: string
-  ): Promise<{ error: MaintenanceServiceError | null }> {
-    const localList = getLocalOrders(condominiumId);
-    saveLocalOrders(condominiumId, localList.filter((o) => o.id !== id));
-
-    if (isSupabaseConfigured && isValidUuid(id)) {
-      try {
-        const { error } = await supabase.from('maintenance_orders').delete().eq('id', id);
-        if (error) return { error: toError(error.message, error.code) };
-      } catch (err: any) {
-        return { error: err instanceof Error ? err : toError('Falha ao excluir no banco') };
-      }
-    }
-
-    return { error: null };
+    orderId: string,
+    nextStatus: MaintenanceOrderDbStatus,
+    _nextProgress?: number
+  ) {
+    return this.updateOrderStatus(orderId, nextStatus, condominiumId);
   },
 
   /**
-   * Popula ordens de serviço padrão caso o condomínio não tenha nenhuma.
+   * Exclui permanentemente uma Ordem de Serviço no Supabase (apenas síndico/superadmin via RLS).
    */
-  async seedInitialMaintenanceOrders(
+  async deleteOrder(
+    orderId: string,
     condominiumId: string
-  ): Promise<{ count: number; error: MaintenanceServiceError | null }> {
-    const seeds = [...mockMaintenanceOrders];
-    saveLocalOrders(condominiumId, seeds);
-
-    if (isSupabaseConfigured && isValidUuid(condominiumId)) {
-      try {
-        const dbSeeds = seeds.map((s) => ({
-          condominium_id: condominiumId,
-          code: s.code,
-          title: s.title,
-          location: s.location,
-          category: s.category || 'Geral',
-          description: s.description || '',
-          priority: s.priority as MaintenanceOrderDbPriority,
-          status: s.statusType,
-          progress_percentage: s.progressPercentage || 0,
-          scheduled_date: s.scheduledDate || new Date().toISOString().slice(0, 10),
-          scheduled_time: s.scheduledTime || 'Horário Comercial',
-          technician_name: s.technicians[0]?.name || null,
-          technician_company: s.technicianCompany || null,
-          technician_initials: s.technicians[0]?.initials || null,
-          materials_reserved: Boolean(s.materialsReserved),
-          has_certificate: Boolean(s.hasCertificate),
-        }));
-
-        await supabase.from('maintenance_orders').insert(dbSeeds);
-      } catch (e) {
-        console.warn('[maintenanceService] Falha ao enviar seed ao Supabase:', e);
-      }
+  ): Promise<{ error: { message: string } | null }> {
+    if (!orderId || !condominiumId) {
+      return { error: { message: 'Identificador de ordem ou condomínio inválido.' } };
     }
 
-    return { count: seeds.length, error: null };
+    if (isDemoSessionActive()) {
+      const current = loadDemoOrders(condominiumId);
+      saveDemoOrders(
+        condominiumId,
+        current.filter((o) => o.id !== orderId)
+      );
+      return { error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { error: { message: 'Exclusão de OS bloqueada: Supabase não configurado.' } };
+    }
+
+    try {
+      const { error } = await (supabase.from('maintenance_orders') as any)
+        .delete()
+        .eq('id', orderId)
+        .eq('condominium_id', condominiumId);
+
+      if (error) {
+        return { error: { message: error.message } };
+      }
+
+      await auditService.log({
+        condominiumId,
+        action: 'MAINTENANCE_ORDER_DELETED',
+        entityTable: 'maintenance_orders',
+        entityId: orderId,
+        metadata: { orderId },
+      });
+
+      return { error: null };
+    } catch (err: any) {
+      return {
+        error: { message: err?.message || 'Erro ao excluir ordem de serviço no Supabase.' },
+      };
+    }
   },
 };

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Condor SaaS — Financeiro &amp; Arrecadação</title>
+<!-- Google Fonts: Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Custom Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            emerald: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              primary: '#0d9488', // Verde Esmeralda Condor
+              dark: '#0f766e',
+              glow: 'rgba(13, 148, 136, 0.15)',
+            },
+            slate: {
+              850: '#111827',
+              900: '#0f172a', // Ardósia escuro
+              950: '#080d1a',
+            },
+            canvas: '#F4F5F8', // Fundo clean ultra suave estilo VANTA
+          },
+          borderRadius: {
+            '2xl': '20px',
+            '3xl': '28px',
+            '4xl': '36px',
+            'pill': '9999px',
+          },
+          boxShadow: {
+            'bento': '0 8px 30px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02)',
+            'bento-hover': '0 14px 40px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.03)',
+            'pill-active': '0 6px 20px rgba(13, 148, 136, 0.35)',
+            'floating-sidebar': '0 10px 40px rgba(15, 23, 42, 0.04)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- Custom Styles for Scrollbars and Specific Visual Details -->
+<style data-purpose="base-enhancements">
+    body {
+      background-color: #F4F5F8;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Estilização suave para rolagem interna */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-canvas text-slate-800 antialiased min-h-screen p-4 lg:p-6 flex gap-6">
+<!-- BEGIN: FloatingSidebar -->
+<!-- Barra lateral flutuante em pílula branca ultra-arredondada -->
+<aside class="hidden md:flex flex-col items-center justify-between w-20 py-8 bg-white rounded-4xl shadow-floating-sidebar border border-slate-100/80 shrink-0 sticky top-6 h-[calc(100vh-3rem)]" data-purpose="floating-sidebar">
+<!-- Logo Condor com Símbolo Esmeralda -->
+<div class="flex flex-col items-center gap-1 group cursor-pointer" title="Condor SaaS Imobiliário">
+<div class="w-12 h-12 rounded-2xl bg-emerald-primary/10 flex items-center justify-center text-emerald-primary transition-transform group-hover:scale-105 duration-200">
+<!-- Ícone Logotipo Asas/Condor -->
+<svg class="w-7 h-7 fill-current" viewbox="0 0 24 24">
+<path d="M12 2L3 9L12 12L21 9L12 2Z" fill="currentColor"></path>
+<path d="M3 13.5L12 16.5L21 13.5L12 10.5L3 13.5Z" fill="currentColor" fill-opacity="0.65"></path>
+<path d="M3 18L12 21L21 18L12 15L3 18Z" fill="currentColor" fill-opacity="0.35"></path>
+</svg>
+</div>
+<span class="text-[10px] font-extrabold tracking-wider text-slate-900 uppercase">Condor</span>
+</div>
+<!-- Navegação Vertical em Ícones Arredondados -->
+<nav aria-label="Navegação Principal" class="flex flex-col items-center gap-3">
+<!-- Painel Geral -->
+<a class="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200" href="#" title="Dashboard">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</a>
+<!-- Financeiro (Ativo) em Pílula Esmeralda -->
+<a class="w-12 h-12 rounded-2xl bg-emerald-primary text-white flex items-center justify-center shadow-pill-active transition-transform scale-105" href="#" title="Módulo Financeiro">
+<svg class="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</a>
+<!-- Gestão Predial / Unidades -->
+<a class="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200" href="#" title="Unidades &amp; Moradores">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</a>
+<!-- Cobranças & Boletos -->
+<a class="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200" href="#" title="Cobranças e Contratos">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</a>
+<!-- Inteligência & Automações -->
+<a class="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200" href="#" title="Condor AI">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</a>
+</nav>
+<!-- Rodapé da Barra Lateral: Suporte & Configurações -->
+<div class="flex flex-col items-center gap-3">
+<a class="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" href="#" title="Configurações">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</a>
+<div class="w-8 h-8 rounded-full bg-emerald-primary/10 text-emerald-primary text-xs font-bold flex items-center justify-center">
+        ?
+      </div>
+</div>
+</aside>
+<!-- END: FloatingSidebar -->
+<!-- BEGIN: MainContentArea -->
+<main class="flex-1 flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
+<!-- BEGIN: TopBar -->
+<!-- Cabeçalho Fluido com Pill Tabs, Searchbar e Perfil do Síndico -->
+<header class="flex flex-col md:flex-row items-center justify-between gap-4 py-1" data-purpose="top-navigation">
+<!-- Pill Tabs no Estilo VANTA -->
+<div class="flex items-center gap-1.5 bg-white p-1.5 rounded-pill shadow-sm border border-slate-200/60 overflow-x-auto w-full md:w-auto">
+<a class="px-5 py-2.5 rounded-pill text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors whitespace-nowrap" href="#">
+          Painel Geral
+        </a>
+<a class="px-6 py-2.5 rounded-pill text-xs font-bold text-white bg-emerald-primary shadow-pill-active transition-all whitespace-nowrap flex items-center gap-2" href="#">
+<span class="w-2 h-2 rounded-full bg-emerald-200 animate-pulse"></span>
+          Analytics &amp; Fluxo
+        </a>
+<a class="px-5 py-2.5 rounded-pill text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors whitespace-nowrap" href="#">
+          Relatórios Fiscais
+        </a>
+<a class="px-5 py-2.5 rounded-pill text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors whitespace-nowrap" href="#">
+          Prestação de Contas
+        </a>
+</div>
+<!-- Barra de Busca Central & Ações do Usuário -->
+<div class="flex items-center gap-3 w-full md:w-auto justify-end">
+<!-- Searchbar estilo pílula com atalho de teclado -->
+<div class="relative flex-1 md:w-80">
+<input class="w-full h-11 pl-11 pr-14 text-xs font-medium bg-white rounded-pill border border-slate-200/80 shadow-sm focus:outline-none focus:border-emerald-primary focus:ring-2 focus:ring-emerald-primary/20 placeholder-slate-400" placeholder="Buscar unidade, boleto, CPF ou fornecedor..." type="text"/>
+<div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+</div>
+<span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">⌘K</span>
+</div>
+<!-- Botão de Notificações com badge -->
+<button aria-label="Notificações" class="w-11 h-11 bg-white rounded-pill flex items-center justify-center text-slate-600 shadow-sm border border-slate-200/80 hover:bg-slate-50 relative transition-transform hover:scale-105">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-emerald-primary rounded-full ring-2 ring-white"></span>
+</button>
+<!-- Perfil Síndica / Administradora -->
+<div class="flex items-center gap-3 bg-white pl-1.5 pr-4 py-1.5 rounded-pill shadow-sm border border-slate-200/80 cursor-pointer hover:bg-slate-50/80 transition-colors">
+<div class="relative w-8 h-8 rounded-full overflow-hidden bg-slate-100 ring-2 ring-emerald-primary/30">
+<!-- Avatar Administradora -->
+<img alt="Helena Ramos - Síndica Profissional" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTczSNnAmSvG-_c4hP69EGDtwbCYVlL01COY56Y33FWfPs1KmchYiQTHgOWPBUnxuWWzRbXiqxM94DulZL2z3lZE6J-ZHtFTWZulmXCV_LyxWhwlI298nj6FnTzRrTFbr8PwwXg5YIB-Jf4lhh3nPxASbnl9O_uGo-AjZQ9n60urOzEEuFyMwe5Tn2ExzBbqc6akHC03yYEtrEC30dgK3TSAIabYdbPFhP9yVlIfuF4Z1qOo9eNoF2Bg"/>
+</div>
+<div class="text-left hidden sm:block">
+<h4 class="text-xs font-bold text-slate-800 leading-tight">Helena Ramos</h4>
+<p class="text-[10px] font-semibold text-slate-400">Residencial Ilhas Gregas</p>
+</div>
+<svg class="w-3.5 h-3.5 text-slate-400 ml-1" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+</div>
+</div>
+</header>
+<!-- END: TopBar -->
+<!-- BEGIN: BentoGridContainer -->
+<!-- Grid Bento Ultra-arredondado com cartões premium e sombras suaves -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-5 pb-6" data-purpose="bento-grid">
+<!-- BENTO CARD 1: Resumo de Receita & Distribuição de Adimplência (md:col-span-4) -->
+<section class="md:col-span-4 bg-white rounded-3xl p-6 shadow-bento border border-slate-100 flex flex-col justify-between relative overflow-hidden group hover:shadow-bento-hover transition-all duration-300" data-purpose="revenue-summary-card">
+<!-- Cabeçalho do Card -->
+<div class="flex items-start justify-between">
+<div>
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-emerald-50 text-emerald-primary text-[11px] font-bold mb-2">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-primary"></span>
+              Competência Dezembro 2024
+            </div>
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Arrecadação Mensal</h3>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-3xl font-extrabold text-slate-900 tracking-tight">R$ 184.500</span>
+<span class="inline-flex items-center text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-pill">
+<svg class="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4.5 15.75l7.5-7.5 7.5 7.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+                +8.4%
+              </span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500">
+<svg class="w-5 h-5 text-emerald-primary" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+</div>
+<!-- Indicador Visual Estilo VANTA: Barras de Distribuição das Unidades -->
+<div class="my-6">
+<div class="flex items-center justify-between text-xs font-semibold mb-2">
+<span class="text-slate-600">Taxa de Liquidação de Boletos</span>
+<span class="font-extrabold text-slate-900">96.8% <span class="text-slate-400 font-normal">(182/188 aptos)</span></span>
+</div>
+<!-- Barra Composta de Progresso -->
+<div class="h-3 w-full bg-slate-100 rounded-pill overflow-hidden flex gap-1 p-0.5">
+<div class="h-full bg-emerald-primary rounded-pill transition-all" style="width: 86%" title="Boletos Pagos no Prazo (86%)"></div>
+<div class="h-full bg-amber-400 rounded-pill transition-all" style="width: 10.8%" title="Pagamento com Juros / Acordo (10.8%)"></div>
+<div class="h-full bg-rose-500 rounded-pill transition-all" style="width: 3.2%" title="Inadimplência Crítica (3.2%)"></div>
+</div>
+<div class="flex items-center justify-between mt-3 text-[11px] text-slate-500">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-primary"></span>
+<span>Em dia: <b>R$ 158.670</b></span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-amber-400"></span>
+<span>Acordo: <b>R$ 19.920</b></span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-rose-500"></span>
+<span>Atraso: <b>R$ 5.910</b></span>
+</div>
+</div>
+</div>
+<!-- Mini Footer com Botão de Ação Rápida -->
+<div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+<span class="text-xs text-slate-400">Meta condominial: 95%</span>
+<button class="text-xs font-bold text-emerald-primary hover:text-emerald-dark inline-flex items-center gap-1 group/btn">
+            Emitir Conciliação
+            <svg class="w-3.5 h-3.5 transform group-hover/btn:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M8.25 4.5l7.5 7.5-7.5 7.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+</button>
+</div>
+</section>
+<!-- BENTO CARD 2: Gráfico Principal de Fluxo & Arrecadação com Tooltip Flutuante (md:col-span-8) -->
+<section class="md:col-span-8 bg-white rounded-3xl p-6 shadow-bento border border-slate-100 flex flex-col justify-between group hover:shadow-bento-hover transition-all duration-300" data-purpose="cashflow-analytics-chart">
+<!-- Header do Gráfico com Pills de Filtro de Período -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+<div>
+<h3 class="text-base font-bold text-slate-900 tracking-tight">Fluxo Dinâmico de Arrecadação</h3>
+<p class="text-xs font-medium text-slate-400">Comparativo entre arrecadação prevista e valores compensados em conta</p>
+</div>
+<!-- Filtros de Período e Edifício -->
+<div class="flex items-center gap-2">
+<div class="bg-slate-100 p-1 rounded-pill flex items-center gap-1">
+<button class="px-3 py-1 rounded-pill text-xs font-semibold text-slate-500 hover:text-slate-900">Dia</button>
+<button class="px-3 py-1 rounded-pill text-xs font-semibold text-slate-500 hover:text-slate-900">Semana</button>
+<button class="px-3.5 py-1 rounded-pill text-xs font-bold bg-white text-slate-900 shadow-sm">Mês</button>
+</div>
+<button class="px-3 py-1.5 rounded-pill text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors flex items-center gap-1.5">
+<span>Todos os blocos</span>
+<svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</div>
+<!-- SVG Gráfico Fluido Moderno com Gradiente e Tooltip Flutuante estilo VANTA -->
+<div class="relative w-full h-52 my-3">
+<!-- Tooltip em Cápsula Escura com Ponteiro Flutuante -->
+<div class="absolute left-[36%] -top-1 -translate-x-1/2 z-20 pointer-events-none drop-shadow-lg">
+<div class="bg-slate-900 text-white px-3.5 py-1.5 rounded-pill text-[11px] font-bold flex items-center gap-2 border border-slate-700">
+<span class="w-2 h-2 rounded-full bg-emerald-primary animate-ping"></span>
+<span>Pico: R$ 54.820 em 10/Dez</span>
+</div>
+<div class="w-2 h-2 bg-slate-900 rotate-45 mx-auto -mt-1"></div>
+</div>
+<!-- Arte Gráfica Vetorial Responsiva -->
+<svg class="w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 700 180">
+<defs>
+<!-- Gradiente Verde Esmeralda Suave -->
+<lineargradient id="emeraldFill" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#0d9488" stop-opacity="0.28"></stop>
+<stop offset="60%" stop-color="#0d9488" stop-opacity="0.06"></stop>
+<stop offset="100%" stop-color="#0d9488" stop-opacity="0.0"></stop>
+</lineargradient>
+<!-- Gradiente Laranja Suave para Linha Comparativa -->
+<lineargradient id="amberFill" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#f59e0b" stop-opacity="0.12"></stop>
+<stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<!-- Linhas de Grade Sutis -->
+<line stroke="#f1f5f9" stroke-dasharray="4 4" stroke-width="1.2" x1="0" x2="700" y1="40" y2="40"></line>
+<line stroke="#f1f5f9" stroke-dasharray="4 4" stroke-width="1.2" x1="0" x2="700" y1="90" y2="90"></line>
+<line stroke="#f1f5f9" stroke-dasharray="4 4" stroke-width="1.2" x1="0" x2="700" y1="140" y2="140"></line>
+<!-- Área & Linha Laranja (Mês Anterior) -->
+<path d="M 0,140 Q 90,130 180,115 T 360,110 T 520,85 T 700,70 L 700,180 L 0,180 Z" fill="url(#amberFill)"></path>
+<path d="M 0,140 Q 90,130 180,115 T 360,110 T 520,85 T 700,70" fill="none" stroke="#f59e0b" stroke-dasharray="3 3" stroke-linecap="round" stroke-width="2"></path>
+<!-- Área & Curva Verde Esmeralda (Mês Atual) -->
+<path d="M 0,150 Q 80,135 150,120 T 260,35 T 380,85 T 510,40 T 700,20 L 700,180 L 0,180 Z" fill="url(#emeraldFill)"></path>
+<path d="M 0,150 Q 80,135 150,120 T 260,35 T 380,85 T 510,40 T 700,20" fill="none" stroke="#0d9488" stroke-linecap="round" stroke-width="3.5"></path>
+<!-- Marcadores Interativos na Curva -->
+<circle cx="150" cy="120" fill="#ffffff" r="4.5" stroke="#0d9488" stroke-width="2.5"></circle>
+<!-- Ponto Alto Ativo do Tooltip -->
+<circle class="filter drop-shadow" cx="260" cy="35" fill="#0d9488" r="6" stroke="#ffffff" stroke-width="3"></circle>
+<circle cx="380" cy="85" fill="#ffffff" r="4.5" stroke="#0d9488" stroke-width="2.5"></circle>
+<circle cx="510" cy="40" fill="#ffffff" r="4.5" stroke="#0d9488" stroke-width="2.5"></circle>
+<circle cx="700" cy="20" fill="#ffffff" r="5" stroke="#0d9488" stroke-width="3"></circle>
+</svg>
+<!-- Marcador de Eixo X (Datas) -->
+<div class="flex justify-between items-center text-[10px] font-bold text-slate-400 mt-2 px-1">
+<span>01 Dez</span>
+<span>05 Dez</span>
+<span class="text-emerald-primary font-extrabold bg-emerald-50 px-2 py-0.5 rounded-full">10 Dez (Vencimento Geral)</span>
+<span>15 Dez</span>
+<span>20 Dez</span>
+<span>25 Dez</span>
+<span>31 Dez</span>
+</div>
+</div>
+<!-- Legenda Inferior do Gráfico -->
+<div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+<div class="flex items-center gap-5">
+<span class="flex items-center gap-2 font-semibold text-slate-700">
+<span class="w-3 h-1 bg-emerald-primary rounded-pill"></span>
+              Receita Realizada (Dezembro)
+            </span>
+<span class="flex items-center gap-2 font-semibold text-slate-400">
+<span class="w-3 h-1 bg-amber-400 rounded-pill"></span>
+              Receita Mês Passado (Novembro)
+            </span>
+</div>
+<span class="text-slate-400 font-medium hidden sm:inline">Atualizado há 14 minutos via Open Finance</span>
+</div>
+</section>
+<!-- BENTO CARD 3: Destaque Escuro Ardósia - Fundo de Reserva & Aplicações (md:col-span-4) -->
+<section class="md:col-span-4 bg-slate-900 text-white rounded-3xl p-6 shadow-bento flex flex-col justify-between relative overflow-hidden group hover:shadow-2xl transition-all duration-300" data-purpose="reserve-fund-dark-card">
+<!-- Elemento decorativo de fundo com brilho esmeralda -->
+<div class="absolute -right-12 -top-12 w-48 h-48 bg-emerald-primary/20 rounded-full blur-3xl pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between mb-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-slate-800 border border-slate-700 text-emerald-400 text-[11px] font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              Conta Aplicação Automática
+            </span>
+<span class="text-xs text-slate-400 font-medium">Banco Itaú PJ</span>
+</div>
+<h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fundo de Reserva &amp; Obras</h3>
+<div class="text-3xl font-extrabold tracking-tight mt-1 text-white">
+            R$ 412.300<span class="text-lg text-slate-400 font-medium">,84</span>
+</div>
+<!-- Detalhe de Rendimento -->
+<div class="mt-4 p-3.5 bg-slate-800/80 rounded-2xl border border-slate-700/60 backdrop-blur-sm">
+<div class="flex items-center justify-between text-xs">
+<span class="text-slate-400">Rendimento Mensal Líquido</span>
+<span class="font-bold text-emerald-400">+ R$ 3.840,20</span>
+</div>
+<div class="flex items-center justify-between text-xs mt-1.5">
+<span class="text-slate-400">Rentabilidade Atual</span>
+<span class="font-semibold text-slate-200">104.5% do CDI (11.85% a.a.)</span>
+</div>
+</div>
+</div>
+<!-- Barra de Progresso da Meta de Fundo para Reforma de Fachada -->
+<div class="my-5">
+<div class="flex justify-between items-center text-xs mb-2">
+<span class="text-slate-300 font-medium">Meta para Reforma de Fachada</span>
+<span class="font-extrabold text-emerald-400">88% <span class="text-slate-400 font-normal">/ R$ 470k</span></span>
+</div>
+<div class="w-full h-2.5 bg-slate-800 rounded-pill overflow-hidden p-0.5">
+<div class="h-full bg-gradient-to-r from-emerald-500 to-emerald-primary rounded-pill" style="width: 88%"></div>
+</div>
+</div>
+<!-- Botões de Ação do Fundo -->
+<div class="flex items-center gap-3 pt-2">
+<button class="flex-1 py-2.5 px-4 rounded-pill bg-emerald-primary hover:bg-emerald-dark font-bold text-xs text-white transition-all shadow-pill-active flex items-center justify-center gap-2">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            Aporte Adicional
+          </button>
+<button class="py-2.5 px-3.5 rounded-pill bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5" title="Baixar Extrato Oficial">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            Extrato OFX
+          </button>
+</div>
+</section>
+<!-- BENTO CARD 4: Previsão & Recomendações de Inteligência Condor AI (md:col-span-4) -->
+<section class="md:col-span-4 bg-gradient-to-br from-teal-900 to-slate-900 text-white rounded-3xl p-6 shadow-bento relative overflow-hidden flex flex-col justify-between border border-teal-800/40" data-purpose="condor-ai-insights-card">
+<!-- Header CONDOR AI -->
+<div>
+<div class="flex items-center justify-between mb-3">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-emerald-primary/30 border border-emerald-400/30 text-emerald-300 text-[10px] font-extrabold uppercase tracking-widest">
+<svg class="w-3 h-3 text-emerald-300" fill="currentColor" viewbox="0 0 24 24"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"></path></svg>
+              CONDOR AI • Diagnóstico Financeiro
+            </div>
+<span class="text-[11px] text-teal-200/60 font-semibold">Previsão 60 dias</span>
+</div>
+<h3 class="text-base font-bold text-white tracking-tight mt-2">Redução Preditiva de Inadimplência</h3>
+<p class="text-xs text-teal-100/75 mt-1.5 leading-relaxed">
+            Identificamos tendência de atraso em 4 cotas para o dia 15. Recomendamos disparo preventivo automático de Pix com desconto de pontualidade.
+          </p>
+<!-- Métricas Projetadas -->
+<div class="grid grid-cols-2 gap-3 mt-4">
+<div class="bg-black/25 rounded-2xl p-3 border border-white/5">
+<span class="text-[10px] font-medium text-teal-200/70 uppercase">Recuperação Estimada</span>
+<p class="text-lg font-extrabold text-white mt-0.5">R$ 14.280</p>
+<span class="text-[10px] text-emerald-400 font-semibold">+18% vs mês ant.</span>
+</div>
+<div class="bg-black/25 rounded-2xl p-3 border border-white/5">
+<span class="text-[10px] font-medium text-teal-200/70 uppercase">Economia Prevista</span>
+<p class="text-lg font-extrabold text-white mt-0.5">- 6.2%</p>
+<span class="text-[10px] text-teal-300 font-semibold">Conta de Energia</span>
+</div>
+</div>
+</div>
+<!-- Botão de Aprovação de Automação Síndico -->
+<div class="mt-5 pt-3 border-t border-teal-700/50 flex items-center justify-between">
+<span class="text-[11px] text-teal-200/70">Ação automatizada disponível</span>
+<button class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-pill text-xs shadow-md transition-all flex items-center gap-1.5">
+            Ativar régua inteligente
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+</button>
+</div>
+</section>
+<!-- BENTO CARD 5: Despesas & Contas a Pagar por Categoria (md:col-span-4) -->
+<section class="md:col-span-4 bg-white rounded-3xl p-6 shadow-bento border border-slate-100 flex flex-col justify-between group hover:shadow-bento-hover transition-all duration-300" data-purpose="expense-breakdown-card">
+<div>
+<div class="flex items-center justify-between mb-2">
+<div>
+<h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Despesas Operacionais</h3>
+<p class="text-xl font-extrabold text-slate-900 mt-0.5">R$ 132.840 <span class="text-xs font-normal text-slate-400">/ R$ 145k orçado</span></p>
+</div>
+<div class="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xs">
+              91%
+            </div>
+</div>
+<!-- Linhas de Distribuição de Despesas -->
+<div class="space-y-4 mt-5">
+<!-- Folha & Portaria -->
+<div>
+<div class="flex justify-between items-center text-xs font-semibold mb-1">
+<span class="text-slate-700 flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-slate-800"></span>
+                  Folha &amp; Portaria Remota
+                </span>
+<span class="text-slate-900 font-bold">R$ 78.400 <span class="text-slate-400 font-normal">(59%)</span></span>
+</div>
+<div class="w-full h-2 bg-slate-100 rounded-pill overflow-hidden">
+<div class="h-full bg-slate-800 rounded-pill" style="width: 59%"></div>
+</div>
+</div>
+<!-- Manutenção Predial Preventiva -->
+<div>
+<div class="flex justify-between items-center text-xs font-semibold mb-1">
+<span class="text-slate-700 flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-primary"></span>
+                  Manutenção &amp; Elevadores
+                </span>
+<span class="text-slate-900 font-bold">R$ 31.250 <span class="text-slate-400 font-normal">(23%)</span></span>
+</div>
+<div class="w-full h-2 bg-slate-100 rounded-pill overflow-hidden">
+<div class="h-full bg-emerald-primary rounded-pill" style="width: 23%"></div>
+</div>
+</div>
+<!-- Concessionárias (Água / Luz / Gás) -->
+<div>
+<div class="flex justify-between items-center text-xs font-semibold mb-1">
+<span class="text-slate-700 flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-teal-400"></span>
+                  Concessionárias (Água &amp; Luz)
+                </span>
+<span class="text-slate-900 font-bold">R$ 23.190 <span class="text-slate-400 font-normal">(18%)</span></span>
+</div>
+<div class="w-full h-2 bg-slate-100 rounded-pill overflow-hidden">
+<div class="h-full bg-teal-400 rounded-pill" style="width: 18%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Fornecedores Recentes com Avatares em Pílula -->
+<div class="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between">
+<div class="flex items-center -space-x-2">
+<span class="w-7 h-7 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-slate-700" title="Atlas Schindler Elevadores">AS</span>
+<span class="w-7 h-7 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-emerald-800" title="Sabesp">SB</span>
+<span class="w-7 h-7 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-blue-800" title="Enel Distribuição">EN</span>
+<span class="w-7 h-7 rounded-full bg-amber-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-amber-800" title="Segurança Protege">SP</span>
+</div>
+<a class="text-xs font-bold text-emerald-primary hover:underline" href="#">Ver todas (18)</a>
+</div>
+</section>
+<!-- BENTO CARD 6: Tabela Bento de Boletos e Cobranças Recentes (md:col-span-12) -->
+<section class="md:col-span-12 bg-white rounded-3xl p-6 lg:p-7 shadow-bento border border-slate-100 group hover:shadow-bento-hover transition-all duration-300" data-purpose="recent-invoices-bento-table">
+<!-- Header da Tabela com Filtros de Ação Rápida -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+<div>
+<div class="flex items-center gap-2">
+<h3 class="text-base font-bold text-slate-900 tracking-tight">Cobranças &amp; Boletos Recentes</h3>
+<span class="bg-slate-100 text-slate-600 text-xs px-2.5 py-0.5 rounded-pill font-bold">188 emissões</span>
+</div>
+<p class="text-xs font-medium text-slate-400 mt-0.5">Emissão via split bancário integrado com compensação instantânea via Pix QR Code</p>
+</div>
+<!-- Botões de Filtragem e Exportação -->
+<div class="flex items-center gap-2.5 flex-wrap">
+<button class="px-3.5 py-1.5 rounded-pill text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+              Filtrar por Bloco
+            </button>
+<button class="px-4 py-2 rounded-pill text-xs font-bold bg-emerald-primary text-white shadow-pill-active hover:bg-emerald-dark transition-all flex items-center gap-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+              Nova Cobrança Extra
+            </button>
+</div>
+</div>
+<!-- Tabela Estilo Linhas Flutuantes Ultra-Clean -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-separate border-spacing-y-2.5">
+<thead>
+<tr class="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+<th class="py-2 px-4">Unidade / Morador</th>
+<th class="py-2 px-4">Descrição da Cota</th>
+<th class="py-2 px-4">Vencimento</th>
+<th class="py-2 px-4">Valor</th>
+<th class="py-2 px-4 text-center">Status</th>
+<th class="py-2 px-4 text-center">Pix Instantâneo</th>
+<th class="py-2 px-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="text-xs">
+<!-- Linha 1: Liquidado -->
+<tr class="bg-slate-50/70 hover:bg-slate-100/80 transition-colors group/row">
+<td class="py-3 px-4 rounded-l-2xl">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center font-bold text-slate-800 text-xs shadow-sm">
+                      402
+                    </div>
+<div>
+<p class="font-bold text-slate-900 leading-tight">Apto 402 — Bloco A</p>
+<p class="text-[11px] text-slate-400">Carlos Eduardo Silva</p>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 font-semibold text-slate-700">Condomínio Ordinário + Água</td>
+<td class="py-3 px-4 text-slate-600 font-medium">10/Dez/2024</td>
+<td class="py-3 px-4 font-extrabold text-slate-900">R$ 1.150,00</td>
+<td class="py-3 px-4 text-center">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-emerald-100/80 text-emerald-800 font-bold text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                    Liquidado via Pix
+                  </span>
+</td>
+<td class="py-3 px-4 text-center">
+<button class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-white border border-slate-200 text-slate-600 hover:text-emerald-primary hover:border-emerald-primary text-[11px] font-semibold transition-all" title="Pix Copia e Cola">
+<svg class="w-3.5 h-3.5 text-emerald-primary" fill="currentColor" viewbox="0 0 24 24"><path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM19 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H19C20.1 23 21 22.1 21 21V7C21 5.9 20.1 5H19ZM19 21H8V7H19V21Z"></path></svg>
+                    Autenticado
+                  </button>
+</td>
+<td class="py-3 px-4 text-right rounded-r-2xl">
+<button class="p-1.5 rounded-xl hover:bg-white text-slate-400 hover:text-slate-800 transition-colors" title="Comprovante de Pagamento">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</td>
+</tr>
+<!-- Linha 2: A vencer -->
+<tr class="bg-slate-50/70 hover:bg-slate-100/80 transition-colors group/row">
+<td class="py-3 px-4 rounded-l-2xl">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center font-bold text-slate-800 text-xs shadow-sm">
+                      101
+                    </div>
+<div>
+<p class="font-bold text-slate-900 leading-tight">Apto 101 — Bloco B</p>
+<p class="text-[11px] text-slate-400">Mariana Albuquerque</p>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 font-semibold text-slate-700">Condomínio Ordinário</td>
+<td class="py-3 px-4 text-slate-600 font-medium">10/Dez/2024</td>
+<td class="py-3 px-4 font-extrabold text-slate-900">R$ 980,00</td>
+<td class="py-3 px-4 text-center">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-sky-100/80 text-sky-800 font-bold text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                    A Vencer Hoje
+                  </span>
+</td>
+<td class="py-3 px-4 text-center">
+<button class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-white border border-slate-200 text-slate-600 hover:text-emerald-primary hover:border-emerald-primary text-[11px] font-semibold transition-all" title="Copiar código Pix">
+<svg class="w-3.5 h-3.5 text-slate-400" fill="currentColor" viewbox="0 0 24 24"><path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM19 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H19C20.1 23 21 22.1 21 21V7C21 5.9 20.1 5H19ZM19 21H8V7H19V21Z"></path></svg>
+                    Copiar Pix
+                  </button>
+</td>
+<td class="py-3 px-4 text-right rounded-r-2xl">
+<button class="p-1.5 rounded-xl hover:bg-white text-slate-400 hover:text-slate-800 transition-colors" title="Enviar Notificação WhatsApp">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</td>
+</tr>
+<!-- Linha 3: Inadimplente / 2ª via enviada -->
+<tr class="bg-rose-50/40 hover:bg-rose-50/70 transition-colors group/row">
+<td class="py-3 px-4 rounded-l-2xl">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-white border border-rose-200 flex items-center justify-center font-bold text-rose-700 text-xs shadow-sm">
+                      305
+                    </div>
+<div>
+<p class="font-bold text-slate-900 leading-tight">Apto 305 — Cobertura C</p>
+<p class="text-[11px] text-slate-400">Rodrigo Santoro Mello</p>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 font-semibold text-slate-700">Taxa Ordinária + Fundo Reserva</td>
+<td class="py-3 px-4 text-rose-600 font-bold">10/Nov/2024 (-30d)</td>
+<td class="py-3 px-4 font-extrabold text-slate-900">R$ 1.840,50</td>
+<td class="py-3 px-4 text-center">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-rose-100 text-rose-800 font-bold text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                    Em Atraso — 2ª via enviada
+                  </span>
+</td>
+<td class="py-3 px-4 text-center">
+<button class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 text-[11px] font-semibold transition-all">
+<svg class="w-3.5 h-3.5 text-rose-600" fill="currentColor" viewbox="0 0 24 24"><path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM19 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H19C20.1 23 21 22.1 21 21V7C21 5.9 20.1 5H19ZM19 21H8V7H19V21Z"></path></svg>
+                    Pix Atualizado
+                  </button>
+</td>
+<td class="py-3 px-4 text-right rounded-r-2xl">
+<div class="flex items-center justify-end gap-1">
+<button class="px-2.5 py-1 rounded-pill bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shadow-sm transition-colors">
+                      Cobrar no WhatsApp
+                    </button>
+</div>
+</td>
+</tr>
+<!-- Linha 4: Liquidado com Desconto de Pontualidade -->
+<tr class="bg-slate-50/70 hover:bg-slate-100/80 transition-colors group/row">
+<td class="py-3 px-4 rounded-l-2xl">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-xl bg-white border border-slate-200/80 flex items-center justify-center font-bold text-slate-800 text-xs shadow-sm">
+                      214
+                    </div>
+<div>
+<p class="font-bold text-slate-900 leading-tight">Apto 214 — Bloco A</p>
+<p class="text-[11px] text-slate-400">Patrícia Lima Fontes</p>
+</div>
+</div>
+</td>
+<td class="py-3 px-4 font-semibold text-slate-700">Condomínio Ordinário</td>
+<td class="py-3 px-4 text-slate-600 font-medium">10/Dez/2024</td>
+<td class="py-3 px-4 font-extrabold text-slate-900">R$ 980,00</td>
+<td class="py-3 px-4 text-center">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-emerald-100/80 text-emerald-800 font-bold text-[11px]">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                    Liquidado Antecipado
+                  </span>
+</td>
+<td class="py-3 px-4 text-center">
+<button class="inline-flex items-center gap-1.5 px-3 py-1 rounded-pill bg-white border border-slate-200 text-slate-600 text-[11px] font-semibold">
+<svg class="w-3.5 h-3.5 text-emerald-primary" fill="currentColor" viewbox="0 0 24 24"><path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM19 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H19C20.1 23 21 22.1 21 21V7C21 5.9 20.1 5H19ZM19 21H8V7H19V21Z"></path></svg>
+                    Autenticado
+                  </button>
+</td>
+<td class="py-3 px-4 text-right rounded-r-2xl">
+<button class="p-1.5 rounded-xl hover:bg-white text-slate-400 hover:text-slate-800 transition-colors">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Paginação Bento Footer -->
+<div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-2 border-t border-slate-100 text-xs text-slate-500">
+<span>Mostrando <b>4</b> de <b>188</b> boletos gerados na competência atual</span>
+<div class="flex items-center gap-1">
+<button class="px-3 py-1.5 rounded-pill border border-slate-200 bg-white hover:bg-slate-50 font-semibold disabled:opacity-50">Anterior</button>
+<button class="w-8 h-8 rounded-pill bg-emerald-primary text-white font-bold flex items-center justify-center shadow-sm">1</button>
+<button class="w-8 h-8 rounded-pill hover:bg-slate-100 text-slate-700 font-semibold flex items-center justify-center">2</button>
+<button class="w-8 h-8 rounded-pill hover:bg-slate-100 text-slate-700 font-semibold flex items-center justify-center">3</button>
+<span class="px-1 text-slate-400">...</span>
+<button class="w-8 h-8 rounded-pill hover:bg-slate-100 text-slate-700 font-semibold flex items-center justify-center">19</button>
+<button class="px-3 py-1.5 rounded-pill border border-slate-200 bg-white hover:bg-slate-50 font-semibold">Próximo</button>
+</div>
+</div>
+</section>
+<!-- END: BentoCard6 -->
+</div>
+<!-- END: BentoGridContainer -->
+</main>
+<!-- END: MainContentArea -->
+</body></html>

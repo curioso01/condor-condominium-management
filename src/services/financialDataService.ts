@@ -1,46 +1,59 @@
-// src/services/financialDataService.ts
-// Centralized service for Condor Financial & Operational metrics with real reactivity and localStorage persistence
+import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
+import { auditService } from './auditService';
 
-export interface ReserveAporte {
+export interface ReserveFundTransaction {
   id: string;
-  amount: number;
-  description: string;
   date: string;
+  description: string;
+  type: 'aporte' | 'rendimento' | 'resgate';
+  amount: number;
   fromAccount: string;
 }
 
 export interface ReserveFundData {
   balance: number;
   monthlyYield: number;
-  cdiRate: string;
   bankName: string;
+  cdiRate: string;
   accountType: string;
+  yieldRateCdi: number;
+  institution: string;
   targetTitle: string;
   targetAmount: number;
-  aportes: ReserveAporte[];
+  history: ReserveFundTransaction[];
 }
 
 export interface OperationalExpense {
   id: string;
+  category: string;
   supplier: string;
-  category: 'Folha & Portaria' | 'Manutenção & Elevadores' | 'Concessionárias' | 'Outros';
+  description?: string;
   amount: number;
   dueDate: string;
-  status: 'Pago' | 'A Vencer';
+  status: 'Pago' | 'Pendente' | 'Agendado' | 'A Vencer';
 }
 
 export interface AiDiagnosisData {
   predictedRecoveryAmount: number;
-  energySavingsRate: number; // e.g. -6.2
+  energySavingsRate: number;
   trendDescription: string;
-  punctualityDiscount: number; // e.g. 5%
+  punctualityDiscount: number;
   smartRuleActive: boolean;
   channels: {
     whatsapp: boolean;
-    appPush: boolean;
-    sms: boolean;
     email: boolean;
+    push: boolean;
+    appPush?: boolean;
+    sms?: boolean;
   };
+  active?: boolean;
+  delinquencyDropPercent?: number;
+  projectedSavings?: number;
+  autoWhatsappD3?: boolean;
+  autoEmailD1?: boolean;
+  autoPixLockD15?: boolean;
+  customInsight?: string;
+  lastScanAt?: string;
 }
 
 export interface ChannelMetricsData {
@@ -50,6 +63,7 @@ export interface ChannelMetricsData {
   interfoneCount: number;
   resolutionRate24h: number;
   satisfactionScore: number;
+  npsScore?: number;
 }
 
 export interface AiEnergyData {
@@ -58,359 +72,731 @@ export interface AiEnergyData {
   monthlySavings: number;
   targetLocations: string;
   appliedToAllBlocks: boolean;
+  monthlySavingsBrl?: number;
+  efficiencyGainPercent?: number;
+  activeAutomationsCount?: number;
+  insightSummary?: string;
 }
 
 export interface CondominiumHealthData {
+  managementScore: number;
   monthlyRevenueTarget: number;
-  annualBudgetTotal: number;
   annualBudgetConsumed: number;
+  annualBudgetTotal: number;
   fixedExpensesPercent: number;
   worksPercent: number;
   availablePercent: number;
-  managementScore: number;
+  overallScore?: number;
+  structuralScore?: number;
+  financialScore?: number;
+  securityScore?: number;
 }
 
-const STORAGE_KEYS = {
-  RESERVE_FUND: 'condor_reserve_fund_v1',
-  OPERATIONAL_EXPENSES: 'condor_operational_expenses_v1',
-  AI_DIAGNOSIS: 'condor_ai_diagnosis_v1',
-  CHANNELS: 'condor_channel_metrics_v1',
-  AI_ENERGY: 'condor_ai_energy_v1',
-  HEALTH: 'condor_health_metrics_v1',
-};
+interface CondoFinancialBundle {
+  reserveFund: ReserveFundData;
+  expenses: OperationalExpense[];
+  monthlyBudget: number;
+  aiDiagnosis: AiDiagnosisData;
+  channels: ChannelMetricsData;
+  aiEnergy: AiEnergyData;
+  health: CondominiumHealthData;
+}
 
-// Initial rich demo defaults
-const DEFAULT_RESERVE_FUND: ReserveFundData = {
-  balance: 412300.84,
-  monthlyYield: 3840.20,
-  cdiRate: '104.5% do CDI (11.85% a.a.)',
-  bankName: 'Banco Itaú PJ',
-  accountType: 'Conta Aplicação Automática',
-  targetTitle: 'Meta para Reforma de Fachada',
-  targetAmount: 470000.00,
-  aportes: [
-    {
-      id: 'ap-1',
-      amount: 15000,
-      description: 'Aporte Ordinário Mensal (Fundo Reserva)',
-      date: '05/10/2026',
-      fromAccount: 'Conta Corrente Itaú PJ',
+// Cache em memória estritamente isolado por condominiumId (NUNCA compartilhado entre condomínios)
+const condoFinancialCache = new Map<string, CondoFinancialBundle>();
+
+const DEMO_FIN_KEY_PREFIX = 'condor_demo_financial_';
+
+function createCleanBundleForCondo(condominiumId: string): CondoFinancialBundle {
+  const isDemoImperial = isDemoSessionActive() && condominiumId === 'condo-imperial-001';
+
+  return {
+    reserveFund: {
+      balance: isDemoImperial ? 412300.84 : 0,
+      monthlyYield: isDemoImperial ? 4280.15 : 0,
+      bankName: 'Conta Reserva Condominial',
+      cdiRate: '100% do CDI',
+      accountType: 'Fundo Exclusivo Renda Fixa',
+      yieldRateCdi: 100,
+      institution: 'Conta Reserva Condominial',
+      targetTitle: 'Meta Anual de Reserva',
+      targetAmount: 100000,
+      history: [],
     },
-  ],
-};
-
-const DEFAULT_EXPENSES: OperationalExpense[] = [
-  { id: 'exp-1', supplier: 'Atlas Schindler', category: 'Manutenção & Elevadores', amount: 14500, dueDate: '15/10', status: 'A Vencer' },
-  { id: 'exp-2', supplier: 'Protege Segurança', category: 'Folha & Portaria', amount: 8200, dueDate: '10/10', status: 'Pago' },
-  { id: 'exp-3', supplier: 'Sabesp', category: 'Concessionárias', amount: 12450, dueDate: '18/10', status: 'A Vencer' },
-  { id: 'exp-4', supplier: 'Enel SP', category: 'Concessionárias', amount: 10740, dueDate: '12/10', status: 'A Vencer' },
-  { id: 'exp-5', supplier: 'Grupo Clean Portaria Remota', category: 'Folha & Portaria', amount: 70200, dueDate: '05/10', status: 'Pago' },
-  { id: 'exp-6', supplier: 'Porto Seguro Condomínio', category: 'Outros', amount: 3800, dueDate: '20/10', status: 'A Vencer' },
-  { id: 'exp-7', supplier: 'Sanitas Engenharia (Caixas d\'Água)', category: 'Manutenção & Elevadores', amount: 2400, dueDate: '22/10', status: 'A Vencer' },
-  { id: 'exp-8', supplier: 'Jardinagem Verde Nobre', category: 'Outros', amount: 1900, dueDate: '08/10', status: 'Pago' },
-  { id: 'exp-9', supplier: 'Dedetizadora Imuniza', category: 'Outros', amount: 1150, dueDate: '25/10', status: 'A Vencer' },
-  { id: 'exp-10', supplier: 'PPA Service Portões', category: 'Manutenção & Elevadores', amount: 950, dueDate: '14/10', status: 'A Vencer' },
-  { id: 'exp-11', supplier: 'Acquapura Piscinas', category: 'Manutenção & Elevadores', amount: 1650, dueDate: '07/10', status: 'Pago' },
-  { id: 'exp-12', supplier: 'Stemac Geradores Preventiva', category: 'Manutenção & Elevadores', amount: 1200, dueDate: '21/10', status: 'A Vencer' },
-  { id: 'exp-13', supplier: 'Inspeção Extintores FireShield', category: 'Manutenção & Elevadores', amount: 850, dueDate: '27/10', status: 'A Vencer' },
-  { id: 'exp-14', supplier: 'Assessoria Contábil Silva & Prado', category: 'Outros', amount: 2300, dueDate: '10/10', status: 'Pago' },
-  { id: 'exp-15', supplier: 'Tarifas Split & Cobrança Bancária', category: 'Outros', amount: 480, dueDate: '30/10', status: 'A Vencer' },
-  { id: 'exp-16', supplier: 'TechVision Manutenção CFTV', category: 'Manutenção & Elevadores', amount: 920, dueDate: '16/10', status: 'A Vencer' },
-  { id: 'exp-17', supplier: 'Almoxarifado & Limpeza Express', category: 'Outros', amount: 650, dueDate: '09/10', status: 'Pago' },
-  { id: 'exp-18', supplier: 'Reserva Contingência Elétrica', category: 'Outros', amount: 500, dueDate: '30/10', status: 'A Vencer' },
-];
-
-const DEFAULT_AI_DIAGNOSIS: AiDiagnosisData = {
-  predictedRecoveryAmount: 14280.00,
-  energySavingsRate: -6.2,
-  trendDescription: 'Identificamos tendência de atraso em 4 cotas para o dia 15. Recomendamos disparo preventivo automático de Pix com desconto de pontualidade.',
-  punctualityDiscount: 5.0,
-  smartRuleActive: false,
-  channels: {
-    whatsapp: true,
-    appPush: true,
-    sms: false,
-    email: true,
-  },
-};
-
-const DEFAULT_CHANNELS: ChannelMetricsData = {
-  appCount: 843,
-  totemCount: 437,
-  whatsappCount: 188,
-  interfoneCount: 94,
-  resolutionRate24h: 92,
-  satisfactionScore: 4.9,
-};
-
-const DEFAULT_AI_ENERGY: AiEnergyData = {
-  percentage: 27,
-  kwhPerDay: 18,
-  monthlySavings: 1450.00,
-  targetLocations: 'Pavimentos 4 ao 8 (Torres Sol & Mar)',
-  appliedToAllBlocks: false,
-};
-
-const DEFAULT_HEALTH: CondominiumHealthData = {
-  monthlyRevenueTarget: 145000.00,
-  annualBudgetTotal: 1700000.00,
-  annualBudgetConsumed: 1180000.00,
-  fixedExpensesPercent: 55,
-  worksPercent: 14,
-  availablePercent: 31,
-  managementScore: 96,
-};
-
-function getStorageItem<T>(key: string, defaultValue: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.warn(`[financialDataService] Erro ao ler ${key}:`, e);
-  }
-  return defaultValue;
+    expenses: [],
+    monthlyBudget: isDemoImperial ? 145000 : 0,
+    aiDiagnosis: {
+      predictedRecoveryAmount: isDemoImperial ? 18450 : 0,
+      energySavingsRate: isDemoImperial ? 14.2 : 0,
+      trendDescription: 'Acompanhamento financeiro isolado por condomínio ativo.',
+      punctualityDiscount: 5,
+      smartRuleActive: true,
+      channels: {
+        whatsapp: true,
+        email: true,
+        push: true,
+      },
+      active: true,
+      delinquencyDropPercent: 0,
+      projectedSavings: 0,
+      autoWhatsappD3: true,
+      autoEmailD1: true,
+      autoPixLockD15: false,
+      customInsight: 'Acompanhamento financeiro isolado por condomínio ativo.',
+      lastScanAt: 'Sincronizado',
+    },
+    channels: {
+      appCount: isDemoImperial ? 142 : 0,
+      totemCount: isDemoImperial ? 38 : 0,
+      whatsappCount: isDemoImperial ? 64 : 0,
+      interfoneCount: isDemoImperial ? 19 : 0,
+      resolutionRate24h: isDemoImperial ? 94 : 100,
+      satisfactionScore: isDemoImperial ? 4.8 : 5.0,
+      npsScore: 95,
+    },
+    aiEnergy: {
+      percentage: isDemoImperial ? 18 : 0,
+      kwhPerDay: isDemoImperial ? 142 : 0,
+      monthlySavings: isDemoImperial ? 3420 : 0,
+      targetLocations: 'Garagens G1/G2 e Halls Sociais',
+      appliedToAllBlocks: true,
+      monthlySavingsBrl: isDemoImperial ? 3420 : 0,
+      efficiencyGainPercent: isDemoImperial ? 18 : 0,
+      activeAutomationsCount: 4,
+      insightSummary: 'Monitoramento energético predial ativo para o condomínio selecionado.',
+    },
+    health: {
+      managementScore: 98,
+      monthlyRevenueTarget: isDemoImperial ? 145000 : 0,
+      annualBudgetConsumed: isDemoImperial ? 840000 : 0,
+      annualBudgetTotal: isDemoImperial ? 1740000 : 100000,
+      fixedExpensesPercent: 55,
+      worksPercent: 20,
+      availablePercent: 25,
+      overallScore: 98,
+      structuralScore: 98,
+      financialScore: 98,
+      securityScore: 99,
+    },
+  };
 }
 
-function setStorageItem<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn(`[financialDataService] Erro ao salvar ${key}:`, e);
+function getOrInitBundle(condominiumId: string = ''): CondoFinancialBundle {
+  if (!condominiumId) {
+    return createCleanBundleForCondo('');
+  }
+
+  if (isDemoSessionActive()) {
+    try {
+      const raw = localStorage.getItem(`${DEMO_FIN_KEY_PREFIX}${condominiumId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CondoFinancialBundle;
+        condoFinancialCache.set(condominiumId, parsed);
+        return parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const existing = condoFinancialCache.get(condominiumId);
+  if (existing) return existing;
+
+  const created = createCleanBundleForCondo(condominiumId);
+  condoFinancialCache.set(condominiumId, created);
+  return created;
+}
+
+function saveDemoBundle(condominiumId: string, bundle: CondoFinancialBundle): void {
+  if (!condominiumId) return;
+  condoFinancialCache.set(condominiumId, bundle);
+  if (isDemoSessionActive()) {
+    try {
+      localStorage.setItem(`${DEMO_FIN_KEY_PREFIX}${condominiumId}`, JSON.stringify(bundle));
+    } catch {
+      // ignore
+    }
   }
 }
 
 export const financialDataService = {
-  // 1. Fundo de Reserva
-  getReserveFund(): ReserveFundData {
-    return getStorageItem(STORAGE_KEYS.RESERVE_FUND, DEFAULT_RESERVE_FUND);
+  /**
+   * Carrega do Supabase os parâmetros de Fundo de Reserva e Despesas Operacionais
+   * exclusivos do condomínio informado.
+   */
+  async loadCondominiumFinancials(condominiumId: string): Promise<{
+    reserveFund: ReserveFundData;
+    expenses: OperationalExpense[];
+    monthlyBudget: number;
+    aiDiagnosis: AiDiagnosisData;
+    channels: ChannelMetricsData;
+    aiEnergy: AiEnergyData;
+    health: CondominiumHealthData;
+    error: { message: string } | null;
+  }> {
+    const clean = createCleanBundleForCondo(condominiumId);
+
+    if (!condominiumId) {
+      return { ...clean, error: null };
+    }
+
+    if (isDemoSessionActive()) {
+      const demo = getOrInitBundle(condominiumId);
+      return { ...demo, error: null };
+    }
+
+    if (!isSupabaseConfigured) {
+      return { ...clean, error: { message: 'Supabase não configurado.' } };
+    }
+
+    try {
+      const [configRes, expensesRes] = await Promise.all([
+        (supabase.from('condominium_financial_config') as any)
+          .select('*')
+          .eq('condominium_id', condominiumId)
+          .maybeSingle(),
+        (supabase.from('operational_expenses') as any)
+          .select('*')
+          .eq('condominium_id', condominiumId)
+          .order('due_date', { ascending: false }),
+      ]);
+
+      const cfg = configRes?.data;
+      const expRows: any[] = expensesRes?.data || [];
+
+      const balance = cfg ? Number(cfg.reserve_fund_balance ?? 0) : 0;
+      const yieldRateCdi = cfg ? Number(cfg.reserve_fund_yield_rate ?? 100) : 100;
+      const institution = cfg?.reserve_fund_institution || 'Conta Reserva Condominial';
+      const monthlyBudgetVal = cfg ? Number(cfg.monthly_budget ?? 50000) : 0;
+
+      const bundle: CondoFinancialBundle = {
+        reserveFund: cfg
+          ? {
+              balance,
+              monthlyYield: Number((balance * 0.0095 * (yieldRateCdi / 100)).toFixed(2)),
+              bankName: institution,
+              cdiRate: `${yieldRateCdi}% do CDI`,
+              accountType: 'Fundo Exclusivo Renda Fixa',
+              yieldRateCdi,
+              institution,
+              targetTitle: cfg.reserve_fund_target_title || 'Meta Anual de Reserva',
+              targetAmount: Number(cfg.reserve_fund_target_amount ?? 100000),
+              history: Array.isArray(cfg.reserve_fund_history) ? cfg.reserve_fund_history : [],
+            }
+          : clean.reserveFund,
+        expenses: expRows.map((row) => ({
+          id: row.id,
+          category: row.category,
+          supplier: row.supplier,
+          description: row.description || row.supplier,
+          amount: Number(row.amount),
+          dueDate: row.due_date
+            ? row.due_date.slice(0, 10).split('-').reverse().join('/')
+            : '—',
+          status: row.status || 'Pendente',
+        })),
+        monthlyBudget: monthlyBudgetVal,
+        aiDiagnosis:
+          cfg?.ai_diagnosis && typeof cfg.ai_diagnosis === 'object'
+            ? { ...clean.aiDiagnosis, ...(cfg.ai_diagnosis as Partial<AiDiagnosisData>) }
+            : clean.aiDiagnosis,
+        channels:
+          cfg?.channel_metrics && typeof cfg.channel_metrics === 'object'
+            ? { ...clean.channels, ...(cfg.channel_metrics as Partial<ChannelMetricsData>) }
+            : clean.channels,
+        aiEnergy:
+          cfg?.ai_energy && typeof cfg.ai_energy === 'object'
+            ? { ...clean.aiEnergy, ...(cfg.ai_energy as Partial<AiEnergyData>) }
+            : clean.aiEnergy,
+        health:
+          cfg?.health_metrics && typeof cfg.health_metrics === 'object'
+            ? {
+                ...clean.health,
+                monthlyRevenueTarget: monthlyBudgetVal,
+                ...(cfg.health_metrics as Partial<CondominiumHealthData>),
+              }
+            : {
+                ...clean.health,
+                monthlyRevenueTarget: monthlyBudgetVal,
+              },
+      };
+
+      condoFinancialCache.set(condominiumId, bundle);
+      return { ...bundle, error: null };
+    } catch (err: any) {
+      condoFinancialCache.set(condominiumId, clean);
+      return {
+        ...clean,
+        error: { message: err?.message || 'Erro ao carregar indicadores financeiros do condomínio.' },
+      };
+    }
   },
 
-  updateReserveFund(data: ReserveFundData): void {
-    setStorageItem(STORAGE_KEYS.RESERVE_FUND, data);
+  getReserveFund(condominiumId: string = ''): ReserveFundData {
+    return getOrInitBundle(condominiumId).reserveFund;
   },
 
-  addReserveAporte(aporte: Omit<ReserveAporte, 'id'>): ReserveFundData {
-    const current = this.getReserveFund();
-    const newAporte: ReserveAporte = {
-      ...aporte,
-      id: `ap-${Date.now()}`,
+  async updateReserveFund(
+    updated: ReserveFundData,
+    condominiumId: string = ''
+  ): Promise<{ data: ReserveFundData; error: { message: string } | null }> {
+    const normalized: ReserveFundData = {
+      ...updated,
+      institution: updated.bankName || updated.institution || 'Conta Reserva Condominial',
+      bankName: updated.bankName || updated.institution || 'Conta Reserva Condominial',
+    };
+    const bundle = { ...getOrInitBundle(condominiumId), reserveFund: normalized };
+    saveDemoBundle(condominiumId, bundle);
+
+    if (!isSupabaseConfigured || isDemoSessionActive() || !condominiumId) {
+      return { data: normalized, error: null };
+    }
+
+    const { error } = await (supabase.from('condominium_financial_config') as any).upsert(
+      {
+        condominium_id: condominiumId,
+        reserve_fund_balance: normalized.balance,
+        reserve_fund_yield_rate: normalized.yieldRateCdi || 100,
+        reserve_fund_institution: normalized.institution,
+        reserve_fund_target_title: normalized.targetTitle,
+        reserve_fund_target_amount: normalized.targetAmount,
+        reserve_fund_history: normalized.history,
+      },
+      { onConflict: 'condominium_id' }
+    );
+
+    if (error) {
+      return { data: normalized, error: { message: error.message } };
+    }
+
+    await auditService.log({
+      condominiumId,
+      action: 'RESERVE_FUND_UPDATED',
+      entityTable: 'condominium_financial_config',
+      metadata: { balance: normalized.balance, target_amount: normalized.targetAmount },
+    });
+
+    return { data: normalized, error: null };
+  },
+
+  async updateReserveFundAsync(
+    updated: ReserveFundData,
+    condominiumId: string = ''
+  ): Promise<{ data: ReserveFundData; error: string | null }> {
+    const res = await this.updateReserveFund(updated, condominiumId);
+    return { data: res.data, error: res.error?.message || null };
+  },
+
+  async addReserveAporte(
+    tx: Omit<ReserveFundTransaction, 'id' | 'type'>,
+    condominiumId: string = ''
+  ): Promise<{ data: ReserveFundData; error: { message: string } | null }> {
+    const current = this.getReserveFund(condominiumId);
+    const newTx: ReserveFundTransaction = {
+      ...tx,
+      id: `rf-${Date.now()}`,
+      type: 'aporte',
     };
     const updated: ReserveFundData = {
       ...current,
-      balance: current.balance + aporte.amount,
-      aportes: [newAporte, ...current.aportes],
+      balance: Number((current.balance + tx.amount).toFixed(2)),
+      history: [newTx, ...current.history],
     };
-    this.updateReserveFund(updated);
-    return updated;
+    return this.updateReserveFund(updated, condominiumId);
   },
 
-  // 2. Despesas Operacionais
-  getExpenses(): OperationalExpense[] {
-    return getStorageItem(STORAGE_KEYS.OPERATIONAL_EXPENSES, DEFAULT_EXPENSES);
+  async addReserveAporteAsync(
+    tx: Omit<ReserveFundTransaction, 'id' | 'type'>,
+    condominiumId: string = ''
+  ): Promise<{ data: ReserveFundData; error: string | null }> {
+    const res = await this.addReserveAporte(tx, condominiumId);
+    return { data: res.data, error: res.error?.message || null };
   },
 
-  updateExpenses(expenses: OperationalExpense[]): void {
-    setStorageItem(STORAGE_KEYS.OPERATIONAL_EXPENSES, expenses);
+  getExpenses(condominiumId: string = ''): OperationalExpense[] {
+    return getOrInitBundle(condominiumId).expenses;
   },
 
-  addExpense(expense: Omit<OperationalExpense, 'id'>): OperationalExpense[] {
-    const current = this.getExpenses();
-    const newExp: OperationalExpense = {
-      ...expense,
-      id: `exp-${Date.now()}`,
+  async addExpense(
+    exp: Omit<OperationalExpense, 'id'>,
+    condominiumId: string = ''
+  ): Promise<{ data: OperationalExpense[]; error: { message: string } | null }> {
+    const current = this.getExpenses(condominiumId);
+
+    if (isDemoSessionActive()) {
+      const newExp: OperationalExpense = { ...exp, id: `exp-${Date.now()}` };
+      const updated = [newExp, ...current];
+      saveDemoBundle(condominiumId, { ...getOrInitBundle(condominiumId), expenses: updated });
+      return { data: updated, error: null };
+    }
+
+    if (!isSupabaseConfigured || !condominiumId) {
+      return {
+        data: current,
+        error: { message: 'Cadastro de despesa bloqueado: Supabase não configurado.' },
+      };
+    }
+
+    let isoDate = exp.dueDate;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(exp.dueDate)) {
+      const [d, m, y] = exp.dueDate.split('/');
+      isoDate = `${y}-${m}-${d}`;
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(exp.dueDate)) {
+      isoDate = new Date().toISOString().slice(0, 10);
+    }
+
+    const dbStatus = exp.status === 'A Vencer' ? 'Pendente' : exp.status;
+
+    const { data, error } = await (supabase.from('operational_expenses') as any)
+      .insert({
+        condominium_id: condominiumId,
+        category: exp.category,
+        supplier: exp.supplier,
+        description: exp.description || exp.supplier,
+        amount: exp.amount,
+        due_date: isoDate,
+        status: dbStatus,
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      return {
+        data: current,
+        error: {
+          message: error?.message || 'Não foi possível salvar a despesa operacional no Supabase.',
+        },
+      };
+    }
+
+    const created: OperationalExpense = {
+      id: data.id,
+      category: data.category,
+      supplier: data.supplier,
+      description: data.description,
+      amount: Number(data.amount),
+      dueDate: exp.dueDate,
+      status: data.status,
     };
-    const updated = [newExp, ...current];
-    this.updateExpenses(updated);
-    return updated;
-  },
 
-  deleteExpense(id: string): OperationalExpense[] {
-    const current = this.getExpenses();
-    const updated = current.filter((e) => e.id !== id);
-    this.updateExpenses(updated);
-    return updated;
-  },
-
-  // 3. CONDOR AI Diagnóstico
-  getAiDiagnosis(): AiDiagnosisData {
-    return getStorageItem(STORAGE_KEYS.AI_DIAGNOSIS, DEFAULT_AI_DIAGNOSIS);
-  },
-
-  updateAiDiagnosis(data: AiDiagnosisData): void {
-    setStorageItem(STORAGE_KEYS.AI_DIAGNOSIS, data);
-  },
-
-  // 4. Canais de Abertura
-  getChannels(): ChannelMetricsData {
-    return getStorageItem(STORAGE_KEYS.CHANNELS, DEFAULT_CHANNELS);
-  },
-
-  updateChannels(data: ChannelMetricsData): void {
-    setStorageItem(STORAGE_KEYS.CHANNELS, data);
-  },
-
-  incrementChannel(channel: 'app' | 'totem' | 'whatsapp' | 'interfone'): ChannelMetricsData {
-    const current = this.getChannels();
-    const updated = { ...current };
-    if (channel === 'app') updated.appCount += 1;
-    if (channel === 'totem') updated.totemCount += 1;
-    if (channel === 'whatsapp') updated.whatsappCount += 1;
-    if (channel === 'interfone') updated.interfoneCount += 1;
-    this.updateChannels(updated);
-    return updated;
-  },
-
-  // 5. Economia de Energia IA
-  getAiEnergy(): AiEnergyData {
-    return getStorageItem(STORAGE_KEYS.AI_ENERGY, DEFAULT_AI_ENERGY);
-  },
-
-  updateAiEnergy(data: AiEnergyData): void {
-    setStorageItem(STORAGE_KEYS.AI_ENERGY, data);
-  },
-
-  // 6. Saúde Financeira & Auditoria
-  getHealth(): CondominiumHealthData {
-    return getStorageItem(STORAGE_KEYS.HEALTH, DEFAULT_HEALTH);
-  },
-
-  updateHealth(data: CondominiumHealthData): void {
-    setStorageItem(STORAGE_KEYS.HEALTH, data);
-  },
-
-  // 7. OFX Bank Statement Generator & Downloader
-  downloadOfxFile(reserve: ReserveFundData): void {
-    const today = new Date();
-    const dateFormatted = today.toISOString().slice(0, 10).replace(/-/g, '');
-    const timeFormatted = '120000[-03:EST]';
-
-    const transItems = reserve.aportes.map((ap, idx) => {
-      return `
-<STMTTRN>
-<TRNTYPE>CREDIT
-<DTPOSTED>${dateFormatted}
-<TRNAMT>${ap.amount.toFixed(2)}
-<FITID>APORTE-${idx + 1}-${dateFormatted}
-<CHECKNUM>${1000 + idx}
-<MEMO>${ap.description} (${ap.fromAccount})
-</STMTTRN>`;
-    }).join('');
-
-    const ofxContent = `OFXHEADER:100
-DATA:OFXSGML
-VERSION:102
-SECURITY:NONE
-ENCODING:USASCII
-CHARSET:1252
-COMPRESSION:NONE
-OLFILEHND:IN
-<OFX>
-<SIGNONMSGSRSV1>
-<SONRS>
-<STATUS>
-<CODE>0
-<SEVERITY>INFO
-</STATUS>
-<DTSERVER>${dateFormatted}${timeFormatted}
-<LANGUAGE>POR
-<FI>
-<ORG>BANCO ITAU SA
-<FID>341
-</FI>
-</SONRS>
-</SIGNONMSGSRSV1>
-<BANKMSGSRSV1>
-<STMTTRNRS>
-<TRNUID>1001
-<STATUS>
-<CODE>0
-<SEVERITY>INFO
-</STATUS>
-<STMTRS>
-<CURDEF>BRL
-<BANKACCTFROM>
-<BANKID>341
-<ACCTID>04928-1
-<ACCTTYPE>SAVINGS
-</BANKACCTFROM>
-<BANKTRANLIST>
-<DTSTART>${dateFormatted}
-<DTEND>${dateFormatted}
-${transItems}
-</BANKTRANLIST>
-<LEDGERBAL>
-<BALAMT>${reserve.balance.toFixed(2)}
-<DTASOF>${dateFormatted}
-</LEDGERBAL>
-</STMTRS>
-</STMTTRNRS>
-</BANKMSGSRSV1>
-</OFX>`;
-
-    const blob = new Blob([ofxContent], { type: 'application/x-ofx;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `extrato_reserva_condor_${dateFormatted}.ofx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  },
-
-  // 8. Balancete CSV Generator & Downloader
-  downloadBalanceteCsv(reserve: ReserveFundData, expenses: OperationalExpense[]): void {
-    const todayStr = new Date().toLocaleDateString('pt-BR');
-    const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-
-    let csv = `BALANCETE MENSAL - CONDOMÍNIO RESERVA IMPERIAL\n`;
-    csv += `Data de Emissão:;${todayStr}\n\n`;
-    csv += `FUNDO DE RESERVA & INVESTIMENTOS\n`;
-    csv += `Instituição:;${reserve.bankName}\n`;
-    csv += `Saldo Atual:;R$ ${reserve.balance.toFixed(2).replace('.', ',')}\n`;
-    csv += `Rendimento Líquido:;R$ ${reserve.monthlyYield.toFixed(2).replace('.', ',')}\n`;
-    csv += `Meta do Fundo (${reserve.targetTitle}):;R$ ${reserve.targetAmount.toFixed(2).replace('.', ',')}\n\n`;
-
-    csv += `DESPESAS OPERACIONAIS (${expenses.length} Fornecedores)\n`;
-    csv += `Fornecedor;Categoria;Valor (R$);Vencimento;Status\n`;
-    expenses.forEach((e) => {
-      csv += `${e.supplier};${e.category};${e.amount.toFixed(2).replace('.', ',')};${e.dueDate};${e.status}\n`;
+    const updated = [created, ...current];
+    condoFinancialCache.set(condominiumId, {
+      ...getOrInitBundle(condominiumId),
+      expenses: updated,
     });
-    csv += `TOTAL DESPESAS:;;R$ ${totalExpenses.toFixed(2).replace('.', ',')};;\n`;
 
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    await auditService.log({
+      condominiumId,
+      action: 'OPERATIONAL_EXPENSE_CREATED',
+      entityTable: 'operational_expenses',
+      entityId: created.id,
+      metadata: { supplier: created.supplier, amount: created.amount },
+    });
+
+    return { data: updated, error: null };
+  },
+
+  async addExpenseAsync(
+    exp: Omit<OperationalExpense, 'id'>,
+    condominiumId: string = ''
+  ): Promise<{ data: OperationalExpense[]; error: string | null }> {
+    const res = await this.addExpense(exp, condominiumId);
+    return { data: res.data, error: res.error?.message || null };
+  },
+
+  async deleteExpense(
+    id: string,
+    condominiumId: string = ''
+  ): Promise<{ data: OperationalExpense[]; error: { message: string } | null }> {
+    const current = this.getExpenses(condominiumId);
+
+    if (isDemoSessionActive()) {
+      const updated = current.filter((e) => e.id !== id);
+      saveDemoBundle(condominiumId, { ...getOrInitBundle(condominiumId), expenses: updated });
+      return { data: updated, error: null };
+    }
+
+    if (!isSupabaseConfigured || !condominiumId) {
+      return {
+        data: current,
+        error: { message: 'Exclusão de despesa bloqueada: Supabase não configurado.' },
+      };
+    }
+
+    const { error } = await (supabase.from('operational_expenses') as any)
+      .delete()
+      .eq('id', id)
+      .eq('condominium_id', condominiumId);
+
+    if (error) {
+      return { data: current, error: { message: error.message } };
+    }
+
+    const updated = current.filter((e) => e.id !== id);
+    condoFinancialCache.set(condominiumId, {
+      ...getOrInitBundle(condominiumId),
+      expenses: updated,
+    });
+    return { data: updated, error: null };
+  },
+
+  async deleteExpenseAsync(
+    id: string,
+    condominiumId: string = ''
+  ): Promise<{ data: OperationalExpense[]; error: string | null }> {
+    const res = await this.deleteExpense(id, condominiumId);
+    return { data: res.data, error: res.error?.message || null };
+  },
+
+  async toggleExpenseStatus(
+    id: string,
+    condominiumId: string = ''
+  ): Promise<{ data: OperationalExpense[]; error: { message: string } | null }> {
+    const current = this.getExpenses(condominiumId);
+    const target = current.find((e) => e.id === id);
+    if (!target) return { data: current, error: null };
+
+    const nextStatus: 'Pago' | 'Pendente' = target.status === 'Pago' ? 'Pendente' : 'Pago';
+
+    if (isDemoSessionActive()) {
+      const updated = current.map((e) => (e.id === id ? { ...e, status: nextStatus } : e));
+      saveDemoBundle(condominiumId, { ...getOrInitBundle(condominiumId), expenses: updated });
+      return { data: updated, error: null };
+    }
+
+    if (!isSupabaseConfigured || !condominiumId) {
+      return { data: current, error: { message: 'Supabase não configurado.' } };
+    }
+
+    const { error } = await (supabase.from('operational_expenses') as any)
+      .update({ status: nextStatus })
+      .eq('id', id)
+      .eq('condominium_id', condominiumId);
+
+    if (error) {
+      return { data: current, error: { message: error.message } };
+    }
+
+    const updated = current.map((e) => (e.id === id ? { ...e, status: nextStatus } : e));
+    condoFinancialCache.set(condominiumId, {
+      ...getOrInitBundle(condominiumId),
+      expenses: updated,
+    });
+    return { data: updated, error: null };
+  },
+
+  async updateMonthlyBudgetAsync(
+    newBudget: number,
+    condominiumId: string = ''
+  ): Promise<{ error: string | null }> {
+    const bundle = {
+      ...getOrInitBundle(condominiumId),
+      health: {
+        ...getOrInitBundle(condominiumId).health,
+        monthlyRevenueTarget: newBudget,
+      },
+    };
+    if (isDemoSessionActive()) {
+      saveDemoBundle(condominiumId, bundle);
+      return { error: null };
+    }
+    if (!isSupabaseConfigured || !condominiumId) {
+      return { error: 'Alteração de orçamento bloqueada: Supabase não configurado.' };
+    }
+    const { error } = await (supabase.from('condominium_financial_config') as any).upsert(
+      { condominium_id: condominiumId, monthly_budget: newBudget },
+      { onConflict: 'condominium_id' }
+    );
+    if (error) return { error: error.message };
+    condoFinancialCache.set(condominiumId, bundle);
+    return { error: null };
+  },
+
+  getAiDiagnosis(condominiumId: string = ''): AiDiagnosisData {
+    return getOrInitBundle(condominiumId).aiDiagnosis;
+  },
+
+  async updateAiDiagnosisAsync(
+    updated: AiDiagnosisData,
+    condominiumId: string = ''
+  ): Promise<{ data: AiDiagnosisData; error: string | null }> {
+    const bundle = { ...getOrInitBundle(condominiumId), aiDiagnosis: updated };
+    if (isDemoSessionActive()) {
+      saveDemoBundle(condominiumId, bundle);
+      return { data: updated, error: null };
+    }
+    if (!isSupabaseConfigured || !condominiumId) {
+      return { data: updated, error: 'Supabase não configurado.' };
+    }
+    const { error } = await (supabase.from('condominium_financial_config') as any).upsert(
+      { condominium_id: condominiumId, ai_diagnosis: updated },
+      { onConflict: 'condominium_id' }
+    );
+    if (error) return { data: updated, error: error.message };
+    condoFinancialCache.set(condominiumId, bundle);
+    return { data: updated, error: null };
+  },
+
+  updateAiDiagnosis(updated: AiDiagnosisData, condominiumId: string = ''): AiDiagnosisData {
+    void this.updateAiDiagnosisAsync(updated, condominiumId);
+    return updated;
+  },
+
+  getChannels(condominiumId: string = ''): ChannelMetricsData {
+    return getOrInitBundle(condominiumId).channels;
+  },
+
+  async updateChannelsAsync(
+    updated: ChannelMetricsData,
+    condominiumId: string = ''
+  ): Promise<{ data: ChannelMetricsData; error: string | null }> {
+    const bundle = { ...getOrInitBundle(condominiumId), channels: updated };
+    if (isDemoSessionActive()) {
+      saveDemoBundle(condominiumId, bundle);
+      return { data: updated, error: null };
+    }
+    if (!isSupabaseConfigured || !condominiumId) {
+      return { data: updated, error: 'Supabase não configurado.' };
+    }
+    const { error } = await (supabase.from('condominium_financial_config') as any).upsert(
+      { condominium_id: condominiumId, channel_metrics: updated },
+      { onConflict: 'condominium_id' }
+    );
+    if (error) return { data: updated, error: error.message };
+    condoFinancialCache.set(condominiumId, bundle);
+    return { data: updated, error: null };
+  },
+
+  updateChannels(updated: ChannelMetricsData, condominiumId: string = ''): ChannelMetricsData {
+    void this.updateChannelsAsync(updated, condominiumId);
+    return updated;
+  },
+
+  getAiEnergy(condominiumId: string = ''): AiEnergyData {
+    return getOrInitBundle(condominiumId).aiEnergy;
+  },
+
+  async updateAiEnergyAsync(
+    updated: AiEnergyData,
+    condominiumId: string = ''
+  ): Promise<{ data: AiEnergyData; error: string | null }> {
+    const bundle = { ...getOrInitBundle(condominiumId), aiEnergy: updated };
+    if (isDemoSessionActive()) {
+      saveDemoBundle(condominiumId, bundle);
+      return { data: updated, error: null };
+    }
+    if (!isSupabaseConfigured || !condominiumId) {
+      return { data: updated, error: 'Supabase não configurado.' };
+    }
+    const { error } = await (supabase.from('condominium_financial_config') as any).upsert(
+      { condominium_id: condominiumId, ai_energy: updated },
+      { onConflict: 'condominium_id' }
+    );
+    if (error) return { data: updated, error: error.message };
+    condoFinancialCache.set(condominiumId, bundle);
+    return { data: updated, error: null };
+  },
+
+  updateAiEnergy(updated: AiEnergyData, condominiumId: string = ''): AiEnergyData {
+    void this.updateAiEnergyAsync(updated, condominiumId);
+    return updated;
+  },
+
+  getHealth(condominiumId: string = ''): CondominiumHealthData {
+    return getOrInitBundle(condominiumId).health;
+  },
+
+  clearCache(): void {
+    condoFinancialCache.clear();
+  },
+
+  downloadOfxFile(reserve: ReserveFundData): void {
+    const txBlocks = (reserve.history || [])
+      .map(
+        (tx, idx) =>
+          `<STMTTRN><TRNTYPE>${tx.type === 'resgate' ? 'DEBIT' : 'CREDIT'}</TRNTYPE><TRNAMT>${(
+            tx.type === 'resgate' ? -Math.abs(tx.amount) : Math.abs(tx.amount)
+          ).toFixed(2)}</TRNAMT><FITID>${tx.id || idx}</FITID><MEMO>${tx.description}</MEMO></STMTTRN>`
+      )
+      .join('\n');
+    const ofx = `OFXHEADER:100\nDATA:OFXSGML\n<OFX>\n<BANKMSGSRSV1>\n<STMTTRNRS>\n<STMTRS>\n<BANKTRANLIST>\n${txBlocks}\n</BANKTRANLIST>\n<LEDGERBAL><BALAMT>${reserve.balance.toFixed(2)}</BALAMT></LEDGERBAL>\n</STMTRS>\n</STMTTRNRS>\n</BANKMSGSRSV1>\n</OFX>`;
+    const blob = new Blob([ofx], { type: 'application/x-ofx;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `balancete_financeiro_condor_${todayStr.replace(/\//g, '-')}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Extrato_Reserva_${new Date().toISOString().slice(0, 10)}.ofx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   },
 
-  // 9. Conciliação Bancária CSV Downloader
-  downloadConciliationCsv(): void {
-    const todayStr = new Date().toLocaleDateString('pt-BR');
-    let csv = `RELATÓRIO DE CONCILIAÇÃO BANCÁRIA OPEN FINANCE\n`;
-    csv += `Data:;${todayStr}\n`;
-    csv += `Conta Corrente Itaú PJ:;Ag 0492 C/C 19482-1\n`;
-    csv += `Status da Conciliação:;100% Conciliado (R$ 0,00 de divergência)\n\n`;
-    csv += `Data Lançamento;Descrição;Documento;Valor (R$);Status Conciliação\n`;
-    csv += `05/10/2026;Recebimento Cotas Condominiais Pix Lote A;PIX-84920;94280,00;Conciliado Automático\n`;
-    csv += `06/10/2026;Recebimento Cotas Condominiais Boleto Lote B;BOL-19283;48520,00;Conciliado Automático\n`;
-    csv += `07/10/2026;Pgto Grupo Clean Portaria Remota;TED-93021;-70200,00;Conciliado Automático\n`;
-    csv += `08/10/2026;Pgto Sabesp & Enel Água/Energia;DEB-48192;-23190,00;Conciliado Automático\n`;
-    csv += `09/10/2026;Rendimento Aplicação Fundo de Reserva;APL-00291;3840,20;Conciliado Automático\n`;
-
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  downloadConciliationCsv(
+    rows: Array<{ date: string; description: string; document: string; amount: number; status: string }> = [],
+    condominiumName: string = 'Condominio'
+  ): void {
+    const header = '\uFEFFCondominio;Data;Descricao;Documento;Valor (R$);Status\n';
+    const body = rows
+      .map(
+        (r) =>
+          `"${condominiumName}";"${r.date}";"${r.description}";"${r.document}";"${r.amount.toFixed(2)}";"${r.status}"`
+      )
+      .join('\n');
+    const csvContent = header + body;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `conciliacao_bancaria_condor_${todayStr.replace(/\//g, '-')}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Conciliacao_Condor_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+
+  downloadBalanceteCsv(reserve: ReserveFundData, expenses: OperationalExpense[]): void {
+    const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
+    const paidExpenses = expenses
+      .filter((e) => e.status === 'Pago')
+      .reduce((acc, e) => acc + e.amount, 0);
+
+    const rows = [
+      ['RELATORIO FINANCEIRO E BALANCETE MENSAL - CONDOR'],
+      ['Data de Emissao', new Date().toLocaleDateString('pt-BR')],
+      [],
+      ['RESUMO DO FUNDO DE RESERVA'],
+      ['Saldo Atual (R$)', reserve.balance.toFixed(2)],
+      ['Instituicao Custodiante', reserve.institution],
+      ['Rentabilidade (% CDI)', `${reserve.yieldRateCdi}%`],
+      ['Meta Atual', reserve.targetTitle],
+      ['Valor da Meta (R$)', reserve.targetAmount.toFixed(2)],
+      [],
+      ['DESPESAS OPERACIONAIS DO MES'],
+      ['ID', 'Categoria', 'Fornecedor', 'Descricao', 'Vencimento', 'Status', 'Valor (R$)'],
+      ...expenses.map((e) => [
+        e.id,
+        e.category,
+        e.supplier,
+        e.description || '',
+        e.dueDate,
+        e.status,
+        e.amount.toFixed(2),
+      ]),
+      [],
+      ['TOTAL DE DESPESAS LANCADAS (R$)', totalExpenses.toFixed(2)],
+      ['TOTAL DE DESPESAS PAGAS (R$)', paidExpenses.toFixed(2)],
+    ];
+
+    const csvContent =
+      '\uFEFF' + rows.map((r) => r.map((cell) => `"${cell ?? ''}"`).join(';')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Balancete_Condor_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   },
 };

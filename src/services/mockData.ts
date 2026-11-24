@@ -165,7 +165,7 @@ export const mockAccessEntries: AccessEntry[] = [
   {
     id: 'acc-1',
     personName: 'Camila Rezende',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDGUTyvDyXqUPOpkDhxqVkJFQj99TQzeZv73WSVJ-hGuwUqYJ8l5oMDZSteNPIoZUxt8Kdt74PWSB9R7Bwoh8gvcc01KXHtRkR30ExQyQ90VKyKjJbJsU15ND11eVWegiPEuUrPTDU1R-TpszLMJTfHmvQqHhdFdOoS6PE-xcq7RRnZoIDRyVmLsKtKBZogBOYvaIokriyHB8FxDRr2nxxYr7_DhzUJclLYlalgsRcruvOJLe3YXEzfdg',
+    photoUrl: '',
     timestamp: '18:42:15',
     accessPoint: 'Portaria Pedestres A',
     destination: 'Torre B — Apto 1204',
@@ -176,7 +176,7 @@ export const mockAccessEntries: AccessEntry[] = [
   {
     id: 'acc-2',
     personName: 'Lucas Barreto',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCb_tEK_i6jZJ9tt5kKwRmtrWMa4nsau7KFYbU-DV_kXmSMhvaKPwFz_PqH2eW2-HaULdN6Wvb9ExRwloyRErtBEZ93w_m0NU0lhtK86OPQAq8Hxf6aGu4AsDeP5CpXV6daJO-du_qGREijwsHHqy4vdPnoEaDfv-qRZJ5mZV95V1nZ5qKAQoyjN7BYR2t0SbpEHI4gl58FJ8e1xJKv2D0dJyL2LBULph6Ei6YEgDD6AkkW8SXo7GIA4Q',
+    photoUrl: '',
     timestamp: '18:38:02',
     accessPoint: 'Totem QR Portaria',
     destination: 'Torre A — Apto 501',
@@ -187,7 +187,7 @@ export const mockAccessEntries: AccessEntry[] = [
   {
     id: 'acc-3',
     personName: 'Carlos E. (iFood)',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBUfLszZ81nxeS6VgYfwDv3cT6xKnRmgkC6KPYM25ZK1NKgu_djRWrsMxBFDI1jdbjhD0i83rOzdaPw0HDP0rasTalCP3No5kfW-WjgZA49810DfOHIKkL5X7TtCQOm8zjWqZjz2NNbWeCvZtR6Y_fTB9Sk9LSYy3xdkhCF88uiyzNd0qkV6X6Yx_6Q0TIwEfXf814PayDelA_UgNrwlw85sqlPCGbufUnSJf-yQ8frpMiIY9ataP7SEQ',
+    photoUrl: '',
     timestamp: '18:31:40',
     accessPoint: 'Eclusa de Delivery',
     destination: 'Torre A — Apto 308',
