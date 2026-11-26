@@ -162,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className="hidden xl:flex w-20 bg-white dark:bg-[#111827] rounded-4xl py-4 2xl:py-6 px-2 flex-col items-center justify-between gap-2 shadow-floating-sidebar border border-slate-100/80 dark:border-slate-800 shrink-0 sticky top-4 h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden no-scrollbar z-30 transition-colors duration-200"
+      className="hidden xl:flex w-20 bg-white dark:bg-[#111827] rounded-4xl py-4 2xl:py-6 px-2 flex-col items-center justify-between gap-2 shadow-floating-sidebar border border-slate-100/80 dark:border-slate-800 shrink-0 sticky top-4 h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden no-scrollbar z-30"
       data-purpose="primary-sidebar"
     >
       {/* Brand Logo */}

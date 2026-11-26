@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { flushSync } from 'react-dom';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -14,46 +13,43 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'condor_theme_preference';
 
-const applyThemeToDom = (resolved: 'light' | 'dark') => {
-  const root = document.documentElement;
-  root.classList.toggle('dark', resolved === 'dark');
-  root.style.colorScheme = resolved;
-};
+let unlockTransitionsFrame: number | null = null;
 
-/**
- * Troca de tema instantânea e fluida:
- * - Desliga temporariamente as transições de cor de todos os elementos (evita o efeito "arrastado"
- *   de centenas de componentes animando em velocidades diferentes).
- * - Aplica a classe `dark` de forma síncrona no <html>, sem esperar o ciclo de render do React.
- * - Quando suportado, usa a View Transition API para um cross-fade curto (180ms) e uniforme.
- */
-const runThemeSwitch = (nextResolved: 'light' | 'dark', commit: () => void) => {
+function applyResolvedThemeToDom(resolved: 'light' | 'dark', instant = true) {
+  if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  const prefersReducedMotion =
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  const swap = () => {
+  if (instant) {
     root.classList.add('theme-switching');
-    applyThemeToDom(nextResolved);
-    flushSync(commit);
-    // Força o cálculo dos estilos finais antes de reativar as transições
-    void window.getComputedStyle(root).backgroundColor;
-    requestAnimationFrame(() => {
-      root.classList.remove('theme-switching');
-    });
-  };
-
-  const doc = document as Document & {
-    startViewTransition?: (cb: () => void) => unknown;
-  };
-
-  if (!prefersReducedMotion && typeof doc.startViewTransition === 'function') {
-    doc.startViewTransition(swap);
-  } else {
-    swap();
   }
-};
+
+  if (resolved === 'dark') {
+    root.classList.add('dark');
+    root.style.colorScheme = 'dark';
+  } else {
+    root.classList.remove('dark');
+    root.style.colorScheme = 'light';
+  }
+
+  if (instant) {
+    // Força aplicação síncrona do novo estilo em um único frame antes de reabilitar transições de hover
+    void window.getComputedStyle(root).backgroundColor;
+    if (unlockTransitionsFrame !== null) {
+      cancelAnimationFrame(unlockTransitionsFrame);
+    }
+    unlockTransitionsFrame = requestAnimationFrame(() => {
+      root.classList.remove('theme-switching');
+      unlockTransitionsFrame = null;
+    });
+  }
+}
+
+function getSystemDarkPreference(): boolean {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  return false;
+}
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -68,12 +64,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'light';
   });
 
-  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  });
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(getSystemDarkPreference);
 
   // Listen to OS system theme changes
   useEffect(() => {
@@ -82,11 +73,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (e: MediaQueryListEvent) => {
       setSystemIsDark(e.matches);
+      if (theme === 'system') {
+        applyResolvedThemeToDom(e.matches ? 'dark' : 'light', true);
+      }
     };
 
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);
-  }, []);
+  }, [theme]);
 
   // Compute resolvedTheme
   const resolvedTheme: 'light' | 'dark' = useMemo(() => {
@@ -96,33 +90,34 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return theme;
   }, [theme, systemIsDark]);
 
-  // Apply to document.documentElement (carga inicial e mudanças do tema do sistema)
+  // Garante sincronia inicial na montagem sem atrasar cliques subsequentes
   useEffect(() => {
-    applyThemeToDom(resolvedTheme);
+    applyResolvedThemeToDom(resolvedTheme, false);
   }, [resolvedTheme]);
 
-  const setTheme = (newTheme: Theme) => {
+  const setTheme = useCallback((newTheme: Theme) => {
+    const nextResolved: 'light' | 'dark' =
+      newTheme === 'system' ? (getSystemDarkPreference() ? 'dark' : 'light') : newTheme;
+
+    // Aplica no DOM imediatamente no clique (0ms de espera pelo ciclo do React)
+    applyResolvedThemeToDom(nextResolved, true);
+    setThemeState(newTheme);
+
     try {
       localStorage.setItem(THEME_STORAGE_KEY, newTheme);
     } catch {
       // ignore
     }
+  }, []);
 
-    const nextResolved: 'light' | 'dark' =
-      newTheme === 'system' ? (systemIsDark ? 'dark' : 'light') : newTheme;
-
-    if (nextResolved === resolvedTheme || typeof document === 'undefined') {
-      setThemeState(newTheme);
-      return;
-    }
-
-    runThemeSwitch(nextResolved, () => setThemeState(newTheme));
-  };
-
-  const toggleTheme = () => {
-    const nextTheme: Theme = resolvedTheme === 'dark' ? 'light' : 'dark';
+  const toggleTheme = useCallback(() => {
+    const isCurrentlyDark =
+      typeof document !== 'undefined'
+        ? document.documentElement.classList.contains('dark')
+        : resolvedTheme === 'dark';
+    const nextTheme: Theme = isCurrentlyDark ? 'light' : 'dark';
     setTheme(nextTheme);
-  };
+  }, [resolvedTheme, setTheme]);
 
   const value = useMemo(
     () => ({
@@ -131,7 +126,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setTheme,
       toggleTheme,
     }),
-    [theme, resolvedTheme]
+    [theme, resolvedTheme, setTheme, toggleTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

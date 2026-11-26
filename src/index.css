@@ -22,23 +22,15 @@
     -webkit-font-smoothing: antialiased;
     background-color: var(--bg-app);
     color: var(--text-app);
-    transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
-/* Troca de tema instantânea: desliga transições de cor durante a alternância claro/escuro */
-.theme-switching,
-.theme-switching *,
-.theme-switching *::before,
-.theme-switching *::after {
+/* Troca de tema instantânea e sincronizada em 1 frame (sem atraso ou repaints escalonados) */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
   transition: none !important;
-}
-
-/* Cross-fade curto e uniforme da troca de tema (View Transition API) */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 180ms;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Custom scrollbars matching Stitch */
