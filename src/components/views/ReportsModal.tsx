@@ -315,7 +315,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
     >
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-slate-50/70 dark:bg-slate-900">
+        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-slate-50/70 dark:bg-slate-900 shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
               <FileSpreadsheet className="w-5 h-5" />
@@ -356,7 +356,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
         )}
 
         {/* Filters */}
-        <div className="px-6 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 space-y-3">
+        <div className="px-6 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 space-y-3 shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-semibold">
               {(
@@ -444,7 +444,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {reportData.summary.map((s) => (
               <div
@@ -502,7 +502,7 @@ export const ReportsModal: React.FC<ReportsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex items-center justify-between gap-2 flex-wrap">
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex items-center justify-between gap-2 flex-wrap shrink-0">
           <span className="text-[11px] text-slate-400">
             Exibindo até 25 linhas na prévia • CSV exporta todos os {reportData.rows.length} registros
           </span>

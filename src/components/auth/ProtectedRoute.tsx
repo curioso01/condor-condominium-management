@@ -1,12 +1,17 @@
 import React from 'react';
-import { ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
+import { ShieldAlert, LogOut, RefreshCw, MessageCircle, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoginView } from './LoginView';
 import { Logo } from '../common/Logo';
+import {
+  OFFICIAL_SUPPORT_EMAIL,
+  OFFICIAL_SUPPORT_WHATSAPP_DISPLAY,
+  buildSupportWhatsAppUrl,
+} from '../../services/supportService';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'superadmin' | 'sindico' | 'porteiro' | 'morador';
+  requiredRole?: 'superadmin' | 'sindico' | 'subsindico' | 'porteiro' | 'morador';
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
@@ -89,6 +94,27 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
               <span>Sair da Conta</span>
             </button>
           </div>
+
+          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center gap-3 flex-wrap text-[11px] text-slate-400">
+            <span>Suporte Técnico:</span>
+            <a
+              href={buildSupportWhatsAppUrl(`Olá! Minha conta (${user.email}) aguarda vinculação no app CONDOR.`)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>{OFFICIAL_SUPPORT_WHATSAPP_DISPLAY}</span>
+            </a>
+            <span>•</span>
+            <a
+              href={`mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=${encodeURIComponent('Vinculação de Conta — App CONDOR')}`}
+              className="inline-flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300 hover:underline"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>{OFFICIAL_SUPPORT_EMAIL}</span>
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -97,8 +123,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
   // 4. Role-based authorization gate (if specific role is enforced on route)
   if (requiredRole) {
     const roleHierarchy: Record<string, number> = {
-      superadmin: 4,
-      sindico: 3,
+      superadmin: 5,
+      sindico: 4,
+      subsindico: 3,
       porteiro: 2,
       morador: 1,
     };

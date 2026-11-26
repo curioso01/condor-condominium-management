@@ -44,10 +44,6 @@ function saveDemoUnits(condominiumId: string, units: UIUnit[]): void {
 }
 
 export function mapDbUnitToUI(dbUnit: DbUnit, extra?: Partial<CreateUnitInput>): UIUnit {
-  const numHash = dbUnit.identifier
-    .split('')
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
   const ownerName =
     extra?.ownerName ||
     dbUnit.owner_name ||
@@ -68,7 +64,7 @@ export function mapDbUnitToUI(dbUnit: DbUnit, extra?: Partial<CreateUnitInput>):
   const parkingSpot =
     extra?.parkingSpot !== undefined
       ? extra.parkingSpot
-      : dbUnit.parking_spot || `G1 - ${dbUnit.identifier}`;
+      : dbUnit.parking_spot || 'Não informada';
 
   return {
     id: dbUnit.id,
@@ -81,14 +77,14 @@ export function mapDbUnitToUI(dbUnit: DbUnit, extra?: Partial<CreateUnitInput>):
       (dbUnit as any).contact_name ||
       `${ownerName.split(' ')[0]} • ${residentType}`,
     residentType,
-    avatarUrl: `https://images.unsplash.com/photo-${1500648767791 + (numHash % 5) * 1000}?w=150&auto=format&fit=crop&q=80`,
+    avatarUrl: '',
     bioSyncActive: true,
-    bioSyncCount: '1 Facial Ativa',
+    bioSyncCount: '1/1',
     financialStatus: 'Condomínio em Dia',
     parkingSpot,
     hasPet,
     status: 'Ativo',
-    squareMeters: extra?.squareMeters ?? Number(dbUnit.square_meters ?? 92),
+    squareMeters: extra?.squareMeters ?? Number(dbUnit.square_meters ?? 0),
     residentsCount: extra?.residentsCount ?? Number(dbUnit.residents_count ?? 1),
     vehicleModel:
       extra?.vehicleModel !== undefined
@@ -422,39 +418,6 @@ export const unitService = {
         data: null,
         error: { message: err?.message || 'Erro ao atualizar unidade no Supabase.' },
       };
-    }
-  },
-
-  /**
-   * Popula unidades de teste quando acionado explicitamente pelo administrador.
-   */
-  async seedInitialUnits(condominiumId: string): Promise<{
-    count: number;
-    error: { message: string } | null;
-  }> {
-    if (!isSupabaseConfigured || isDemoSessionActive()) {
-      return { count: 0, error: { message: 'Disponível apenas com Supabase conectado.' } };
-    }
-
-    const sampleUnits = [
-      { condominium_id: condominiumId, identifier: '101', block: 'Bloco A', floor: 1, owner_name: 'Morador Fictício 101', resident_type: 'Proprietário', has_pet: true },
-      { condominium_id: condominiumId, identifier: '102', block: 'Bloco A', floor: 1, owner_name: 'Morador Fictício 102', resident_type: 'Inquilino', has_pet: false },
-      { condominium_id: condominiumId, identifier: '201', block: 'Bloco B', floor: 2, owner_name: 'Morador Fictício 201', resident_type: 'Proprietário', has_pet: false },
-    ];
-
-    try {
-      const { data, error } = await (supabase.from('units') as any)
-        .upsert(sampleUnits, { onConflict: 'condominium_id,block,identifier', ignoreDuplicates: true })
-        .select('*');
-
-      if (error) {
-        return { count: 0, error: { message: error.message } };
-      }
-
-      window.dispatchEvent(new CustomEvent('condor:units-updated'));
-      return { count: data?.length || sampleUnits.length, error: null };
-    } catch (err: any) {
-      return { count: 0, error: { message: err?.message || 'Erro ao popular unidades.' } };
     }
   },
 

@@ -216,7 +216,7 @@ const memoryBankCache = new Map<string, CondominiumBankSettings>();
 export function buildDefaultBankSettingsForCondo(
   condominiumId: string = '',
   condominiumName: string = 'Condomínio',
-  condominiumCnpj: string = '00.000.000/0001-00'
+  condominiumCnpj: string = ''
 ): CondominiumBankSettings {
   const interest = 1.0;
   const fine = 2.0;
@@ -224,20 +224,20 @@ export function buildDefaultBankSettingsForCondo(
     condominiumId,
     bankCode: '341',
     bankName: 'Itaú Unibanco S.A.',
-    agency: '0001',
-    agencyDigit: '0',
-    accountNumber: '00000',
-    accountDigit: '0',
+    agency: '',
+    agencyDigit: '',
+    accountNumber: '',
+    accountDigit: '',
     walletCode: '109',
-    agreementCode: '000000',
+    agreementCode: '',
     documentVariety: 'DM (Duplicata Mercantil / Condominial)',
     beneficiaryName: condominiumName || 'Condomínio',
-    beneficiaryCnpj: condominiumCnpj || '00.000.000/0001-00',
-    beneficiaryAddress: 'Endereço Administrativo do Condomínio',
+    beneficiaryCnpj: condominiumCnpj || '',
+    beneficiaryAddress: '',
     pixKeyType: 'CNPJ',
-    pixKey: condominiumCnpj || '00.000.000/0001-00',
+    pixKey: condominiumCnpj || '',
     pixMerchantName: (condominiumName || 'CONDOMINIO').slice(0, 25).toUpperCase(),
-    pixMerchantCity: 'SAO PAULO',
+    pixMerchantCity: 'RIO DE JANEIRO',
     interestRateMonthly: interest,
     interestMonthlyPercent: interest,
     finePercent: fine,
@@ -247,7 +247,7 @@ export function buildDefaultBankSettingsForCondo(
     instructionsLine3: 'Em caso de dúvidas, contate a administração pelo aplicativo Condor.',
     activeIntegration: true,
     updatedAt: new Date().toISOString(),
-    updatedBy: 'Configuração Inicial do Condomínio',
+    updatedBy: 'Aguardando Configuração da Administração',
   };
 }
 

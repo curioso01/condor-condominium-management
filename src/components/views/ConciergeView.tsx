@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { isSupabaseConfigured } from '../../lib/supabase';
 import { conciergeService } from '../../services/conciergeService';
 import { packageService, type PackageRecord } from '../../services/packageService';
 import { unitService } from '../../services/unitService';
@@ -26,7 +25,7 @@ import { CreateVisitorPassModal, type VisitorPassData } from './CreateVisitorPas
 import { userService } from '../../services/userService';
 
 export const ConciergeView: React.FC = () => {
-  const { currentCondominium, currentRole, user, isDemoSession } = useAuth();
+  const { currentCondominium, currentRole, user } = useAuth();
   const canViewAccessLogs = userService.canAccessRealtimeLogs(
     user?.id,
     currentRole,
@@ -49,9 +48,6 @@ export const ConciergeView: React.FC = () => {
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [isVisitorModalOpen, setIsVisitorModalOpen] = useState(false);
 
-  const canRunDemoSimulator = !isSupabaseConfigured || isDemoSession;
-  const [isLiveLogActive, setIsLiveLogActive] = useState(() => canRunDemoSimulator);
-
   const loadConciergeData = useCallback(async () => {
     if (!currentCondominium?.id) return;
     setAccessLog([]);
@@ -73,37 +69,6 @@ export const ConciergeView: React.FC = () => {
   useEffect(() => {
     loadConciergeData();
   }, [loadConciergeData]);
-
-  // Simulador automático restrito exclusivamente ao modo demonstração explícito
-  useEffect(() => {
-    if (!isLiveLogActive || !canRunDemoSimulator) return;
-    const interval = setInterval(() => {
-      const sampleNames = ['Marina Alencar', 'Lucas Silveira', 'Henrique Viana', 'Beatriz Castilho'];
-      const sampleDest = ['Apto 602 • Bloco B', 'Apto 104 • Bloco A', 'Apto 1201 • Torre 1', 'Apto 304 • Bloco B'];
-      const randomIdx = Math.floor(Math.random() * sampleNames.length);
-      const timeStr = new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-
-      const newEntry: AccessEntry = {
-        id: `live-${Date.now()}`,
-        personName: sampleNames[randomIdx],
-        photoUrl: '',
-        authType: 'facial',
-        authDetail: 'Simulação Demo • Portaria',
-        timestamp: `${timeStr} (Demo)`,
-        accessPoint: 'Catraca Principal 01',
-        destination: sampleDest[randomIdx],
-        type: 'Morador Residente',
-      };
-
-      setAccessLog((prev) => [newEntry, ...prev.slice(0, 24)]);
-    }, 12000);
-
-    return () => clearInterval(interval);
-  }, [isLiveLogActive, canRunDemoSimulator]);
 
   const awaitingPackages = useMemo(
     () => packages.filter((p) => p.status === 'awaiting'),
@@ -534,15 +499,6 @@ export const ConciergeView: React.FC = () => {
                     <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
                       Log Auditado de Acessos
                     </h3>
-                    {canRunDemoSimulator && (
-                      <button
-                        type="button"
-                        onClick={() => setIsLiveLogActive((prev) => !prev)}
-                        className="text-[10px] font-bold text-slate-500 underline cursor-pointer"
-                      >
-                        {isLiveLogActive ? 'Pausar Demo' : 'Retomar Demo'}
-                      </button>
-                    )}
                   </div>
                   <p className="text-xs text-slate-400">
                     Histórico isolado por condomínio via Row Level Security

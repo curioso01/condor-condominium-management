@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supportService } from '../../services/supportService';
+import {
+  supportService,
+  OFFICIAL_SUPPORT_WHATSAPP_DISPLAY,
+  OFFICIAL_SUPPORT_EMAIL,
+  buildSupportWhatsAppUrl,
+} from '../../services/supportService';
 import {
   X,
   HelpCircle,
@@ -98,7 +103,8 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
   const [supportError, setSupportError] = useState<string | null>(null);
   const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
 
-  const isSindicoOrAdmin = currentRole === 'sindico' || currentRole === 'superadmin';
+  const isAdminOrSub =
+    currentRole === 'sindico' || currentRole === 'superadmin' || currentRole === 'subsindico';
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -268,8 +274,8 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
             )}
           </div>
 
-          {/* SECTION: EXCLUSIVE PLATFORM SUPPORT FOR ADMINS (Síndico & Super Admin) */}
-          {isSindicoOrAdmin ? (
+          {/* SECTION: SUPORTE OFICIAL CONDOR (WhatsApp + E-mail + Chamado Auditado) */}
+          {isAdminOrSub ? (
             <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/50 dark:from-emerald-950/40 dark:via-slate-900 dark:to-teal-950/20 border-2 border-emerald-500/30 dark:border-emerald-500/20 shadow-md space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -277,16 +283,16 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
                     <Headphones className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                        Suporte Dedicado Condor Enterprise
+                        Suporte Técnico Oficial CONDOR
                       </h4>
                       <span className="text-[9px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full uppercase">
-                        Admin VIP
+                        Atendimento Direto
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Canal exclusivo para Síndicos e Super Administradores com SLA emergencial de 15 min.
+                      Canal direto via WhatsApp, e-mail ou abertura de chamado técnico para a administração do condomínio.
                     </p>
                   </div>
                 </div>
@@ -295,7 +301,9 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
               {/* Direct Contacts Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <a
-                  href="https://wa.me/5511987654321?text=Ol%C3%A1%2C%20sou%20s%C3%ADndico(a)%20do%20condom%C3%ADnio%20e%20preciso%20de%20suporte%20no%20app%20Condor"
+                  href={buildSupportWhatsAppUrl(
+                    `Olá! Sou da administração do condomínio ${currentCondominium?.name || ''} e preciso de suporte no app CONDOR.`
+                  )}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:shadow-xs transition flex items-center gap-3 group cursor-pointer"
@@ -305,24 +313,30 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
                   </div>
                   <div>
                     <span className="font-bold text-slate-900 dark:text-slate-100 text-xs block group-hover:text-emerald-600">
-                      WhatsApp 24/7 de Plantão
+                      Suporte via WhatsApp
                     </span>
-                    <span className="text-[11px] text-slate-400 font-mono">+55 (11) 98765-4321</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono font-semibold">
+                      +55 {OFFICIAL_SUPPORT_WHATSAPP_DISPLAY}
+                    </span>
                   </div>
                 </a>
 
                 <a
-                  href="mailto:suporte.sindico@condor.com.br?subject=Chamado%20de%20Suporte%20Condor%20-%20Administra%C3%A7%C3%A3o"
+                  href={`mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=${encodeURIComponent(
+                    `Suporte CONDOR — ${currentCondominium?.name || 'Administração'}`
+                  )}`}
                   className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:shadow-xs transition flex items-center gap-3 group cursor-pointer"
                 >
                   <div className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 flex items-center justify-center shrink-0">
                     <Mail className="w-4 h-4" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-bold text-slate-900 dark:text-slate-100 text-xs block group-hover:text-sky-600">
-                      E-mail Técnico Prioritário
+                      E-mail de Suporte Técnico
                     </span>
-                    <span className="text-[11px] text-slate-400">suporte.sindico@condor.com.br</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate block">
+                      {OFFICIAL_SUPPORT_EMAIL}
+                    </span>
                   </div>
                 </a>
               </div>
@@ -330,7 +344,7 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
               {/* Direct Ticket Form */}
               <form onSubmit={handleSendSupportTicket} className="space-y-2 pt-2 border-t border-emerald-100 dark:border-slate-800">
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                  Enviar Mensagem Direta à Equipe Condor:
+                  Registrar Chamado Técnico no Sistema:
                 </label>
                 {supportError && (
                   <p role="alert" className="text-xs font-semibold text-rose-600 dark:text-rose-400">
@@ -342,7 +356,7 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
                     type="text"
                     value={supportMessage}
                     onChange={(e) => setSupportMessage(e.target.value)}
-                    placeholder="Descreva a solicitação ou incidente técnico..."
+                    placeholder="Descreva sua dúvida ou solicitação técnica..."
                     className="flex-1 px-3.5 py-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <button
@@ -357,30 +371,63 @@ export const HelpFaqModal: React.FC<HelpFaqModalProps> = ({ isOpen, onClose }) =
                 {supportSuccess && (
                   <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 pt-1 animate-fadeIn">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    Chamado registrado com sucesso! Um especialista responderá em instantes.
+                    Chamado registrado com sucesso! Retornaremos em breve.
                   </p>
                 )}
               </form>
             </div>
           ) : (
-            /* NON-ADMIN VIEW (Morador ou Porteiro): Contato da Administração Local */
-            <div className="p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
-                  <Building className="w-5 h-5" />
+            /* NON-ADMIN VIEW (Morador ou Porteiro): Administração Local + Suporte Técnico da Plataforma */
+            <div className="space-y-3">
+              <div className="p-4 sm:p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
+                    <Building className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                      Administração Predial — {currentCondominium?.name || 'Condomínio'}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Para assuntos sobre boletos, reservas, encomendas ou regimento interno, contate a portaria ou a síndica.
+                    </p>
+                  </div>
                 </div>
+                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
+                  Portaria / Síndica
+                </span>
+              </div>
+
+              <div className="p-4 rounded-3xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">
-                    Administração Predial do {currentCondominium?.name || 'Condomínio'}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Para dúvidas sobre boletos, regras de convivência ou ocorrências locais, contate a portaria ou a síndica.
-                  </p>
+                  <span className="font-bold text-slate-800 dark:text-slate-100 text-xs block">
+                    Dificuldade técnica com o aplicativo?
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Fale diretamente com o suporte técnico da plataforma CONDOR:
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a
+                    href={buildSupportWhatsAppUrl(
+                      `Olá! Sou usuário do condomínio ${currentCondominium?.name || ''} e preciso de ajuda técnica no app CONDOR.`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] inline-flex items-center gap-1.5 transition"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>WhatsApp {OFFICIAL_SUPPORT_WHATSAPP_DISPLAY}</span>
+                  </a>
+                  <a
+                    href={`mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=${encodeURIComponent('Suporte Técnico App CONDOR')}`}
+                    className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-500 font-bold text-[11px] inline-flex items-center gap-1.5 transition"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{OFFICIAL_SUPPORT_EMAIL}</span>
+                  </a>
                 </div>
               </div>
-              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
-                Guarita / Síndica
-              </span>
             </div>
           )}
         </div>

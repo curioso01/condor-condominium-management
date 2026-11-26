@@ -510,45 +510,6 @@ export const amenityService = {
   },
 
   /**
-   * Popula áreas comuns iniciais no Supabase quando solicitado explicitamente.
-   */
-  async seedInitialCommonAreas(condominiumId: string): Promise<{
-    count: number;
-    error: { message: string } | null;
-  }> {
-    if (!isSupabaseConfigured || isDemoSessionActive()) {
-      return { count: 0, error: { message: 'Disponível apenas com Supabase conectado.' } };
-    }
-
-    const defaultSpaces = Object.entries(SPACE_METADATA).map(([name, meta]) => ({
-      condominium_id: condominiumId,
-      name,
-      description: `Capacidade até ${meta.capacity} pessoas • Horário: ${meta.hours}`,
-      capacity: meta.capacity,
-      fee: meta.fee,
-      rules: `Capacidade até ${meta.capacity} pessoas • Horário: ${meta.hours}`,
-      requires_approval: false,
-      emoji: meta.emoji,
-      hours: meta.hours,
-      active: true,
-    }));
-
-    try {
-      const { data, error } = await (supabase.from('common_areas') as any)
-        .insert(defaultSpaces)
-        .select('*');
-
-      if (error) {
-        return { count: 0, error: { message: error.message } };
-      }
-
-      return { count: data?.length || defaultSpaces.length, error: null };
-    } catch (err: any) {
-      return { count: 0, error: { message: err?.message || 'Erro ao cadastrar áreas comuns.' } };
-    }
-  },
-
-  /**
    * Busca as reservas do condomínio no Supabase.
    * Quando conectado ao Supabase, retorna [] se o condomínio não tiver reservas (sem mockReservations).
    */

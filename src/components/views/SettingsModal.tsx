@@ -158,7 +158,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [copiedMigration, setCopiedMigration] = useState(false);
-  const [copiedSeedUsers, setCopiedSeedUsers] = useState(false);
 
   // Logged-in password change state
   const [newPassword, setNewPassword] = useState('');
@@ -568,17 +567,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleCopyMigrationScript = () => {
-    const sql = `-- Utilize EXCLUSIVAMENTE as migrations versionadas com RLS em supabase/migrations/:\n-- 1. supabase/DEPLOY_ALL_MIGRATIONS.sql\n-- 2. supabase/migrations/20261104000001_pilot_readiness_schema_and_rls.sql\n-- 3. supabase/migrations/20261123000001_security_lgpd_packages_and_rls.sql`;
+    const sql = `-- Utilize EXCLUSIVAMENTE as migrations versionadas com RLS em supabase/migrations/:\n-- 1. supabase/DEPLOY_ALL_MIGRATIONS.sql\n-- 2. supabase/migrations/20261104000001_pilot_readiness_schema_and_rls.sql\n-- 3. supabase/migrations/20261123000001_security_lgpd_packages_and_rls.sql\n-- 4. supabase/migrations/20261124000001_subsindico_blocks_rules_and_push.sql`;
     navigator.clipboard?.writeText(sql);
     setCopiedMigration(true);
     setTimeout(() => setCopiedMigration(false), 3000);
-  };
-
-  const handleCopySeedUsersScript = () => {
-    const sql = `-- Para homologação (STAGING), execute exclusivamente o seed em: supabase/seeds/staging_4_condos_seed.sql (NUNCA em Produção).`;
-    navigator.clipboard?.writeText(sql);
-    setCopiedSeedUsers(true);
-    setTimeout(() => setCopiedSeedUsers(false), 3000);
   };
 
   // Helper labels for privileges
@@ -2212,29 +2204,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-4 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3">
+              <div className="p-4 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       <h5 className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                        Script SQL: Usuários de Teste (Morador & Porteiro)
+                        Isolamento Multi-Condomínio &amp; Row Level Security (RLS)
                       </h5>
-                      <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                        Supabase Seed
-                      </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Referência de script SQL para criação dos vínculos multi-condomínio no ambiente de homologação (Staging)
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Todas as 18 tabelas operacionais operam com RLS ativo, isolando rigorosamente moradores, unidades, boletos, encomendas e trilha de auditoria por condomínio.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleCopySeedUsersScript}
-                    className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition shadow-sm shrink-0"
-                  >
-                    {copiedSeedUsers ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedSeedUsers ? 'Copiado!' : 'Copiar SQL Seed'}</span>
-                  </button>
+                  <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full font-bold shrink-0">
+                    100% Protegido
+                  </span>
                 </div>
               </div>
             </div>

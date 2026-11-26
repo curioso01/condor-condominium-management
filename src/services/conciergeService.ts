@@ -43,19 +43,12 @@ function formatLogTimestamp(isoString: string): string {
 }
 
 export function mapDbAccessLogToUI(row: any): AccessEntry {
-  const defaultPhotos = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
-  ];
-  const hash = (row.person_name || 'A').charCodeAt(0) % defaultPhotos.length;
-
   return {
     id: row.id,
     personName: row.person_name,
-    photoUrl: row.photo_url || defaultPhotos[hash],
+    photoUrl: row.photo_url || '',
     authType: (row.auth_type as AccessAuthType) || 'facial',
-    authDetail: row.auth_detail || 'BioSync Facial • Aprovado',
+    authDetail: row.auth_detail || 'Acesso Registrado',
     timestamp: formatLogTimestamp(row.created_at),
     accessPoint: row.access_point || 'Portaria Principal',
     destination: row.destination || 'Acesso Geral',

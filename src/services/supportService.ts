@@ -1,6 +1,17 @@
 import { supabase, isSupabaseConfigured, isDemoSessionActive } from '../lib/supabase';
 import { auditService } from './auditService';
 
+export const OFFICIAL_SUPPORT_WHATSAPP_RAW = '5521998176963';
+export const OFFICIAL_SUPPORT_WHATSAPP_DISPLAY = '(21) 99817-6963';
+export const OFFICIAL_SUPPORT_EMAIL = 'eddyrj33@gmail.com';
+
+export function buildSupportWhatsAppUrl(customMessage?: string): string {
+  const msg =
+    customMessage ||
+    'Olá! Preciso de suporte técnico na plataforma CONDOR de Gestão Condominial.';
+  return `https://wa.me/${OFFICIAL_SUPPORT_WHATSAPP_RAW}?text=${encodeURIComponent(msg)}`;
+}
+
 export interface CreateSupportTicketInput {
   condominiumId?: string | null;
   subject?: string;

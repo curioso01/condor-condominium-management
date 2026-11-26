@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Unit, ResidentMember } from '../../types/condominium';
+import type { Unit, ResidentMember, Invoice } from '../../types/condominium';
+import { invoiceService } from '../../services/invoiceService';
 import { Badge } from '../ui/Badge';
 import {
   X,
@@ -10,11 +11,10 @@ import {
   FileText,
   ShieldCheck,
   CheckCircle2,
-  Copy,
-  Check,
   Send,
   Plus,
   Key,
+  QrCode,
 } from 'lucide-react';
 import { BoletoModal, type BoletoInvoiceData } from './BoletoModal';
 import { PremiumSelect } from '../ui/PremiumSelect';
@@ -34,17 +34,41 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
   onUpdateUnit,
   onOpenVisitorPass,
 }) => {
-  const { canManageUsers } = useAuth();
+  const { canManageUsers, currentCondominium } = useAuth();
   const [activeTab, setActiveTab] = useState<'moradores' | 'veiculos' | 'pets' | 'financeiro'>('moradores');
-  const [copiedPix, setCopiedPix] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isAddingResident, setIsAddingResident] = useState(false);
   const [newResidentName, setNewResidentName] = useState('');
   const [newResidentRole, setNewResidentRole] = useState('Residente');
+  const [unitInvoices, setUnitInvoices] = useState<Invoice[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
 
   // Boleto modal state
   const [selectedInvoiceForBoleto, setSelectedInvoiceForBoleto] = useState<BoletoInvoiceData | null>(null);
   const [isBoletoModalOpen, setIsBoletoModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !unit || !currentCondominium?.id) {
+      setUnitInvoices([]);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingInvoices(true);
+    invoiceService.getInvoicesByCondominium(currentCondominium.id).then((res) => {
+      if (cancelled) return;
+      setIsLoadingInvoices(false);
+      const all = res.data || [];
+      const filtered = all.filter(
+        (inv) =>
+          (inv.unitId && inv.unitId === unit.id) ||
+          (inv.unitNumber === unit.number && (!inv.block || !unit.block || inv.block === unit.block))
+      );
+      setUnitInvoices(filtered);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, unit, currentCondominium?.id]);
 
   // Handle ESC key
   useEffect(() => {
@@ -59,13 +83,8 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
 
   if (!isOpen || !unit) return null;
 
-  const isOverdue = unit.financialStatus === 'Em Atraso';
-
-  const handleCopyPix = () => {
-    navigator.clipboard?.writeText('00020126580014br.gov.bcb.pix0136condor-reserva-imperial@condor.com520400005303986540840.005802BR5925Condominio Reserva Imperial6009Sao Paulo62070503***6304E8A2');
-    setCopiedPix(true);
-    setTimeout(() => setCopiedPix(false), 3000);
-  };
+  const isOverdue =
+    unit.financialStatus === 'Em Atraso' || unitInvoices.some((inv) => inv.status === 'overdue');
 
   const handleSendNotice = () => {
     setFeedback(`Notificação formal enviada com sucesso para ${unit.contactName} via e-mail e push WhatsApp!`);
@@ -124,7 +143,7 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
     >
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-4xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60">
+        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between bg-gradient-to-r from-slate-50/50 to-white dark:from-slate-900 dark:to-slate-800/60 shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold flex items-center justify-center text-lg shadow-sm">
               {unit.number}
@@ -138,11 +157,14 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
                   {unit.residentType}
                 </Badge>
                 <Badge variant={isOverdue ? 'amber' : 'emerald'} dot>
-                  {unit.financialStatus || 'Em Dia'}
+                  {isOverdue ? 'Em Atraso' : unit.financialStatus || 'Em Dia'}
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {unit.tower || 'Torre Principal'} • {unit.squareMeters || 85} m² de área privativa • {unit.residentsCount || 2} Moradores
+                {unit.tower || unit.block}
+                {unit.squareMeters ? ` • ${unit.squareMeters} m² de área privativa` : ''} •{' '}
+                {unit.residentsCount || unit.members?.length || 1}{' '}
+                {(unit.residentsCount || unit.members?.length || 1) === 1 ? 'Morador' : 'Moradores'}
               </p>
             </div>
           </div>
@@ -158,14 +180,14 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
 
         {/* Feedback Alert */}
         {feedback && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+          <div className="mx-6 mt-4 p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-fadeIn shrink-0">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{feedback}</span>
           </div>
         )}
 
         {/* Tabs Bar */}
-        <div className="flex items-center gap-1.5 px-6 pt-3 border-b border-slate-100 dark:border-slate-800 overflow-x-auto text-xs font-semibold">
+        <div className="flex items-center gap-1.5 px-6 pt-3 border-b border-slate-100 dark:border-slate-800 overflow-x-auto text-xs font-semibold shrink-0">
           <button
             onClick={() => setActiveTab('moradores')}
             className={`pb-2.5 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
@@ -213,7 +235,7 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
         </div>
 
         {/* Tab Body */}
-        <div className="p-6 overflow-y-auto space-y-4 text-xs">
+        <div className="flex-1 min-h-0 p-6 overflow-y-auto space-y-4 text-xs">
           {/* TAB 1: Moradores & BioSync */}
           {activeTab === 'moradores' && (
             <div className="space-y-4">
@@ -392,7 +414,9 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
                   </span>
                 </div>
                 <p className="text-slate-500 dark:text-slate-400 text-xs">
-                  Localização: {unit.parkingFloor || 'Subsolo 1 (G1)'} • Demarcação individual com sensor de presença e tag de RFID autorizada.
+                  {unit.parkingSpot && unit.parkingSpot !== 'Não informada'
+                    ? `Localização: ${unit.parkingFloor || 'Conforme convenção do condomínio'} • Vaga vinculada ao controle de acesso da portaria.`
+                    : 'Nenhuma vaga de garagem cadastrada para esta unidade até o momento.'}
                 </p>
               </div>
 
@@ -444,16 +468,18 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
 
               {unit.hasPet && (
                 <div className="p-4 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Descrição / Espécie</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Descrição / Registro</span>
                       <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">
-                        {unit.petDescription || '1 Golden Retriever (Thor) • Porte Grande'}
+                        {unit.petDescription || 'Animal de estimação registrado na unidade'}
                       </p>
                     </div>
                     <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Vacinação Antirrábica</span>
-                      <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">Em Dia (Outubro 2026)</p>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Situação Cadastral</span>
+                      <p className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                        Conforme regimento interno
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -464,112 +490,91 @@ export const UnitDetailsModal: React.FC<UnitDetailsModalProps> = ({
           {/* TAB 4: Financeiro & Boletos */}
           {activeTab === 'financeiro' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="p-4 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Status Financeiro Geral</span>
                   <h4 className="text-lg font-black text-slate-900 dark:text-slate-100 mt-0.5">
-                    {unit.financialStatus || 'Condomínio em Dia'}
+                    {isOverdue ? 'Cobrança em Atraso' : unit.financialStatus || 'Regular'}
                   </h4>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Cota Condominial Mensal</span>
-                  <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">R$ 840,00</p>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Última Cota Emitida</span>
+                  <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    {unitInvoices[0]
+                      ? unitInvoices[0].amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                      : 'Sem emissões'}
+                  </p>
                 </div>
               </div>
 
-              {/* Invoices list */}
+              {/* Real Invoices list */}
               <div className="space-y-2">
                 <h5 className="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">
-                  Boletos dos Últimos Meses
+                  Cobranças &amp; Boletos desta Unidade ({unitInvoices.length})
                 </h5>
-                <div className="p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-slate-100">Taxa Ordinária • Vencimento 10/10/2026</p>
-                    <p className="text-[11px] text-slate-400">Boleto Digital com Chave Pix automática</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 dark:text-slate-200">R$ 840,00</span>
-                    <Badge variant={isOverdue ? 'amber' : 'emerald'}>
-                      {isOverdue ? 'Pendente' : 'Liquidado'}
-                    </Badge>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedInvoiceForBoleto({
-                          id: `BOL-2026-${unit.number}-10`,
-                          unitNumber: unit.number,
-                          block: unit.block,
-                          residentName: unit.ownerName || unit.contactName || 'Morador Responsável',
-                          description: 'Taxa Condominial Ordinária (Ref. 10/2026)',
-                          dueDate: '10/10/2026',
-                          amount: 840.00,
-                        });
-                        setIsBoletoModalOpen(true);
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] flex items-center gap-1 transition cursor-pointer border border-emerald-200 dark:border-emerald-800"
-                      title="Visualizar boleto bancário"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Ver Boleto</span>
-                    </button>
-                  </div>
-                </div>
 
-                <div className="p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-slate-100">Taxa Ordinária • Vencimento 10/09/2026</p>
-                    <p className="text-[11px] text-slate-400">Pago via Pix em 08/09/2026</p>
+                {isLoadingInvoices ? (
+                  <div className="p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center text-xs text-slate-400">
+                    Consultando cobranças reais da unidade...
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 dark:text-slate-200">R$ 840,00</span>
-                    <Badge variant="emerald">Pago</Badge>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedInvoiceForBoleto({
-                          id: `BOL-2026-${unit.number}-09`,
-                          unitNumber: unit.number,
-                          block: unit.block,
-                          residentName: unit.ownerName || unit.contactName || 'Morador Responsável',
-                          description: 'Taxa Condominial Ordinária (Ref. 09/2026)',
-                          dueDate: '10/09/2026',
-                          amount: 840.00,
-                        });
-                        setIsBoletoModalOpen(true);
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
-                      title="Visualizar via original do boleto"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>2ª Via</span>
-                    </button>
+                ) : unitInvoices.length === 0 ? (
+                  <div className="p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center text-xs text-slate-500 dark:text-slate-400">
+                    Nenhuma cobrança emitida para esta unidade até o momento.
                   </div>
-                </div>
-              </div>
-
-              {/* Fast Pix copy */}
-              <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/60 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-xs text-emerald-900 dark:text-emerald-300 font-semibold">
-                    Linha Digitável / Copia e Cola Pix
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyPix}
-                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-bold text-[11px] flex items-center gap-1 cursor-pointer transition shadow-xs"
-                >
-                  {copiedPix ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedPix ? 'Copiado!' : 'Copiar Pix'}</span>
-                </button>
+                ) : (
+                  unitInvoices.map((inv) => {
+                    const isPaid = inv.status === 'liquidated' || inv.status === 'advance';
+                    return (
+                      <div
+                        key={inv.id}
+                        className="p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{inv.description}</p>
+                          <p className="text-[11px] text-slate-400 tabular-nums">
+                            Vencimento {inv.dueDate}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums">
+                            {inv.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                          <Badge variant={isPaid ? 'emerald' : inv.status === 'overdue' ? 'rose' : 'amber'}>
+                            {isPaid ? 'Pago' : inv.status === 'overdue' ? 'Em Atraso' : 'Em Aberto'}
+                          </Badge>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedInvoiceForBoleto({
+                                id: inv.id,
+                                unitNumber: inv.unitNumber || unit.number,
+                                block: inv.block || unit.block,
+                                residentName:
+                                  inv.residentName || unit.ownerName || unit.contactName || 'Morador Responsável',
+                                description: inv.description,
+                                dueDate: inv.dueDate,
+                                amount: inv.amount,
+                              });
+                              setIsBoletoModalOpen(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-[11px] flex items-center gap-1 transition cursor-pointer border border-emerald-200 dark:border-emerald-800"
+                            title="Visualizar boleto e QR Code Pix oficial"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>Boleto / Pix</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
