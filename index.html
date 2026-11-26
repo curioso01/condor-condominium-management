@@ -28,6 +28,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Aplica o tema salvo antes do primeiro paint (zero flash ou atraso) -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('condor_theme_preference');
+          var isDark = t === 'dark' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="min-h-screen bg-[#F4F6F9] dark:bg-[#0B132B] text-[#1E293B] dark:text-slate-100 antialiased selection:bg-emerald-100 selection:text-emerald-700">
     <div id="root"></div>

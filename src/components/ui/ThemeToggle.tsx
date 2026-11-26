@@ -30,7 +30,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ variant = 'icon', clas
               key={opt.value}
               type="button"
               onClick={() => setTheme(opt.value)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-transform duration-100 active:scale-95 flex items-center gap-1.5 cursor-pointer ${
                 isActive
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -54,16 +54,16 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ variant = 'icon', clas
       onClick={toggleTheme}
       aria-label={isDark ? 'Ativar tema claro' : 'Ativar tema escuro'}
       title={isDark ? 'Alternar para tema claro' : 'Alternar para tema escuro'}
-      className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer border shadow-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+      className={`w-11 h-11 rounded-full flex items-center justify-center transition-transform duration-100 active:scale-95 cursor-pointer border shadow-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
         isDark
           ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300 hover:text-amber-200 hover:scale-105'
           : 'bg-white hover:bg-slate-50 border-slate-200/80 text-slate-600 hover:text-slate-900 hover:scale-105'
       } ${className}`}
     >
       {isDark ? (
-        <Sun className="w-5 h-5 transition-transform duration-300 hover:rotate-45" />
+        <Sun className="w-5 h-5 transition-transform duration-150 hover:rotate-45" />
       ) : (
-        <Moon className="w-5 h-5 transition-transform duration-300 hover:-rotate-12" />
+        <Moon className="w-5 h-5 transition-transform duration-150 hover:-rotate-12" />
       )}
     </button>
   );

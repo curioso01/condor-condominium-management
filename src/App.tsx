@@ -274,7 +274,7 @@ const CondorAppShell: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] dark:bg-[#0B0F17] text-[#1E293B] dark:text-[#F8FAFC] p-3 sm:p-5 lg:p-6 pt-[max(env(safe-area-inset-top),0.75rem)] sm:pt-[max(env(safe-area-inset-top),1.25rem)] pb-28 xl:pb-6 overflow-x-hidden transition-colors duration-200 selection:bg-emerald-100 dark:selection:bg-emerald-950 selection:text-emerald-700 dark:selection:text-emerald-300">
+    <div className="min-h-screen bg-[#F4F6F9] dark:bg-[#0B0F17] text-[#1E293B] dark:text-[#F8FAFC] p-3 sm:p-5 lg:p-6 pt-[max(env(safe-area-inset-top),0.75rem)] sm:pt-[max(env(safe-area-inset-top),1.25rem)] pb-28 xl:pb-6 overflow-x-hidden selection:bg-emerald-100 dark:selection:bg-emerald-950 selection:text-emerald-700 dark:selection:text-emerald-300">
       {/* Identificação Visual Permanente de MODO DEMONSTRAÇÃO */}
       {isDemoSession && (
         <div
