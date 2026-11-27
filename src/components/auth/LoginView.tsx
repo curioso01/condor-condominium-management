@@ -8,13 +8,18 @@ import {
   ArrowLeft, 
   CheckCircle2, 
   AlertCircle, 
-  Building2, 
   ShieldCheck,
   KeyRound,
-  ArrowRight
+  ArrowRight,
+  MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Logo } from '../common/Logo';
+import {
+  OFFICIAL_SUPPORT_EMAIL,
+  OFFICIAL_SUPPORT_WHATSAPP_DISPLAY,
+  buildSupportWhatsAppUrl,
+} from '../../services/supportService';
 
 // Zod Validation Schemas per forms-and-validation skill
 const loginSchema = z.object({
@@ -37,7 +42,7 @@ const resetPasswordSchema = z.object({
 type AuthViewMode = 'login' | 'forgot_password' | 'reset_password';
 
 export const LoginView: React.FC = () => {
-  const { signIn, enterDemoMode, resetPasswordForEmail, updatePassword, isDemoModeEnabled } = useAuth();
+  const { signIn, resetPasswordForEmail, updatePassword } = useAuth();
 
   const [mode, setMode] = useState<AuthViewMode>('login');
   const [email, setEmail] = useState('');
@@ -80,15 +85,7 @@ export const LoginView: React.FC = () => {
     setIsSubmitting(false);
 
     if (error) {
-      const msg = (error.message || '').toLowerCase();
-      if (msg.includes('database error querying schema') || msg.includes('unexpected_failure')) {
-        setFormError(
-          'Erro interno ao validar esta conta no Supabase Auth (tokens de conta criada via SQL antigo ausentes). Reaplique o seed atualizado de staging ou redefina o usuário pelo painel Authentication do Supabase.'
-        );
-      } else {
-        // Security-conscious generic error: avoid leaking which part was invalid
-        setFormError('E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.');
-      }
+      setFormError('E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.');
     }
   };
 
@@ -141,16 +138,6 @@ export const LoginView: React.FC = () => {
         setSuccessNotice(null);
         window.location.hash = '';
       }, 2500);
-    }
-  };
-
-  // Explicit Demo Mode entry (only when VITE_ENABLE_DEMO_MODE=true)
-  const selectDemoPersona = async (personaEmail: string) => {
-    setFormError(null);
-    setFieldErrors({});
-    const { error } = await enterDemoMode(personaEmail);
-    if (error) {
-      setFormError(error.message);
     }
   };
 
@@ -324,55 +311,6 @@ export const LoginView: React.FC = () => {
                   )}
                 </button>
               </form>
-
-              {/* Explicit Demo Switcher (Visible ONLY when VITE_ENABLE_DEMO_MODE=true) */}
-              {isDemoModeEnabled && (
-                <div className="mt-8 pt-6 border-t border-amber-200 bg-amber-50/40 -mx-2 px-3 py-3 rounded-2xl">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                      Modo Demonstração (Simulado)
-                    </span>
-                    <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold border border-amber-300">
-                      VITE_ENABLE_DEMO_MODE=true
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => selectDemoPersona('sindico@condor.com.br')}
-                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
-                    >
-                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Síndica (4 Condos)</span>
-                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => selectDemoPersona('porteiro@condor.com.br')}
-                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
-                    >
-                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Portaria & Acessos</span>
-                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => selectDemoPersona('morador@condor.com.br')}
-                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
-                    >
-                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Morador</span>
-                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => selectDemoPersona('admin@condor.com.br')}
-                      className="p-2.5 rounded-xl border border-amber-200 bg-white hover:border-amber-500 hover:bg-amber-50/60 text-left transition-colors flex flex-col group"
-                    >
-                      <span className="font-bold text-slate-800 group-hover:text-amber-800">Super Admin</span>
-                      <span className="text-[10px] text-slate-400">Sessão Simulada</span>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -546,10 +484,32 @@ export const LoginView: React.FC = () => {
           )}
         </div>
 
-        {/* Security Footer Notice */}
-        <div className="mt-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Ambiente protegido por criptografia de ponta a ponta e autenticação avançada.</span>
+        {/* Security & Support Footer */}
+        <div className="mt-6 space-y-2.5 text-center text-xs text-slate-500">
+          <div className="flex items-center justify-center gap-2 text-slate-400">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Ambiente protegido por criptografia e isolamento RLS por condomínio.</span>
+          </div>
+          <div className="flex items-center justify-center gap-3 flex-wrap text-[11px]">
+            <span className="text-slate-400 font-medium">Suporte Técnico:</span>
+            <a
+              href={buildSupportWhatsAppUrl('Olá! Preciso de suporte para acessar a plataforma CONDOR.')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>WhatsApp {OFFICIAL_SUPPORT_WHATSAPP_DISPLAY}</span>
+            </a>
+            <span className="text-slate-300">•</span>
+            <a
+              href={`mailto:${OFFICIAL_SUPPORT_EMAIL}?subject=${encodeURIComponent('Suporte de Acesso — Plataforma CONDOR')}`}
+              className="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-slate-900 hover:underline"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>{OFFICIAL_SUPPORT_EMAIL}</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>

@@ -20,9 +20,9 @@ export const ReserveFundModal: React.FC<ReserveFundModalProps> = ({
   const [activeTab, setActiveTab] = useState<'aporte' | 'params'>('aporte');
 
   // Aporte Form
-  const [aporteAmount, setAporteAmount] = useState<string>('50000');
-  const [aporteDescription, setAporteDescription] = useState('Aporte Extraordinário para Fundo de Obras');
-  const [aporteAccount, setAporteAccount] = useState('Conta Corrente Itaú PJ (Ag 0492 C/C 19482-1)');
+  const [aporteAmount, setAporteAmount] = useState<string>('');
+  const [aporteDescription, setAporteDescription] = useState('');
+  const [aporteAccount, setAporteAccount] = useState('');
   const [aporteSuccess, setAporteSuccess] = useState(false);
 
   // Params Form
@@ -155,7 +155,7 @@ export const ReserveFundModal: React.FC<ReserveFundModalProps> = ({
                   value={aporteAmount}
                   onChange={(e) => setAporteAmount(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="50000"
+                  placeholder="Ex: 5000"
                 />
               </div>
               <div className="flex gap-2 mt-2">
@@ -180,6 +180,7 @@ export const ReserveFundModal: React.FC<ReserveFundModalProps> = ({
                 type="text"
                 value={aporteAccount}
                 onChange={(e) => setAporteAccount(e.target.value)}
+                placeholder="Ex: Conta Corrente Principal do Condomínio"
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -192,6 +193,7 @@ export const ReserveFundModal: React.FC<ReserveFundModalProps> = ({
                 type="text"
                 value={aporteDescription}
                 onChange={(e) => setAporteDescription(e.target.value)}
+                placeholder="Ex: Transferência mensal para o Fundo de Reserva"
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>

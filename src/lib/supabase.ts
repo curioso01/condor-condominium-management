@@ -12,10 +12,10 @@ export const isSupabaseConfigured = Boolean(
 );
 
 /**
- * O modo demonstração somente pode funcionar quando explicitamente habilitado
- * por VITE_ENABLE_DEMO_MODE=true.
+ * O modo demonstração fica estritamente desativado em produção.
  */
 export const isDemoModeEnabled =
+  Boolean(import.meta.env.DEV) &&
   String(import.meta.env.VITE_ENABLE_DEMO_MODE || '')
     .trim()
     .toLowerCase() === 'true';

@@ -107,36 +107,34 @@ const condoFinancialCache = new Map<string, CondoFinancialBundle>();
 
 const DEMO_FIN_KEY_PREFIX = 'condor_demo_financial_';
 
-function createCleanBundleForCondo(condominiumId: string): CondoFinancialBundle {
-  const isDemoImperial = isDemoSessionActive() && condominiumId === 'condo-imperial-001';
-
+function createCleanBundleForCondo(_condominiumId: string): CondoFinancialBundle {
   return {
     reserveFund: {
-      balance: isDemoImperial ? 412300.84 : 0,
-      monthlyYield: isDemoImperial ? 4280.15 : 0,
+      balance: 0,
+      monthlyYield: 0,
       bankName: 'Conta Reserva Condominial',
       cdiRate: '100% do CDI',
-      accountType: 'Fundo Exclusivo Renda Fixa',
+      accountType: 'Fundo de Reserva',
       yieldRateCdi: 100,
       institution: 'Conta Reserva Condominial',
-      targetTitle: 'Meta Anual de Reserva',
-      targetAmount: 100000,
+      targetTitle: 'Meta do Fundo de Reserva',
+      targetAmount: 0,
       history: [],
     },
     expenses: [],
-    monthlyBudget: isDemoImperial ? 145000 : 0,
+    monthlyBudget: 0,
     aiDiagnosis: {
-      predictedRecoveryAmount: isDemoImperial ? 18450 : 0,
-      energySavingsRate: isDemoImperial ? 14.2 : 0,
-      trendDescription: 'Acompanhamento financeiro isolado por condomínio ativo.',
-      punctualityDiscount: 5,
-      smartRuleActive: true,
+      predictedRecoveryAmount: 0,
+      energySavingsRate: 0,
+      trendDescription: 'Configure os parâmetros de cobrança preventiva e metas financeiras do condomínio.',
+      punctualityDiscount: 0,
+      smartRuleActive: false,
       channels: {
         whatsapp: true,
         email: true,
         push: true,
       },
-      active: true,
+      active: false,
       delinquencyDropPercent: 0,
       projectedSavings: 0,
       autoWhatsappD3: true,
@@ -146,37 +144,37 @@ function createCleanBundleForCondo(condominiumId: string): CondoFinancialBundle 
       lastScanAt: 'Sincronizado',
     },
     channels: {
-      appCount: isDemoImperial ? 142 : 0,
-      totemCount: isDemoImperial ? 38 : 0,
-      whatsappCount: isDemoImperial ? 64 : 0,
-      interfoneCount: isDemoImperial ? 19 : 0,
-      resolutionRate24h: isDemoImperial ? 94 : 100,
-      satisfactionScore: isDemoImperial ? 4.8 : 5.0,
-      npsScore: 95,
+      appCount: 0,
+      totemCount: 0,
+      whatsappCount: 0,
+      interfoneCount: 0,
+      resolutionRate24h: 0,
+      satisfactionScore: 0,
+      npsScore: 0,
     },
     aiEnergy: {
-      percentage: isDemoImperial ? 18 : 0,
-      kwhPerDay: isDemoImperial ? 142 : 0,
-      monthlySavings: isDemoImperial ? 3420 : 0,
-      targetLocations: 'Garagens G1/G2 e Halls Sociais',
+      percentage: 0,
+      kwhPerDay: 0,
+      monthlySavings: 0,
+      targetLocations: 'Áreas Comuns do Condomínio',
       appliedToAllBlocks: true,
-      monthlySavingsBrl: isDemoImperial ? 3420 : 0,
-      efficiencyGainPercent: isDemoImperial ? 18 : 0,
-      activeAutomationsCount: 4,
+      monthlySavingsBrl: 0,
+      efficiencyGainPercent: 0,
+      activeAutomationsCount: 0,
       insightSummary: 'Monitoramento energético predial ativo para o condomínio selecionado.',
     },
     health: {
-      managementScore: 98,
-      monthlyRevenueTarget: isDemoImperial ? 145000 : 0,
-      annualBudgetConsumed: isDemoImperial ? 840000 : 0,
-      annualBudgetTotal: isDemoImperial ? 1740000 : 100000,
-      fixedExpensesPercent: 55,
-      worksPercent: 20,
-      availablePercent: 25,
-      overallScore: 98,
-      structuralScore: 98,
-      financialScore: 98,
-      securityScore: 99,
+      managementScore: 0,
+      monthlyRevenueTarget: 0,
+      annualBudgetConsumed: 0,
+      annualBudgetTotal: 0,
+      fixedExpensesPercent: 0,
+      worksPercent: 0,
+      availablePercent: 0,
+      overallScore: 0,
+      structuralScore: 0,
+      financialScore: 0,
+      securityScore: 0,
     },
   };
 }
@@ -267,7 +265,7 @@ export const financialDataService = {
       const balance = cfg ? Number(cfg.reserve_fund_balance ?? 0) : 0;
       const yieldRateCdi = cfg ? Number(cfg.reserve_fund_yield_rate ?? 100) : 100;
       const institution = cfg?.reserve_fund_institution || 'Conta Reserva Condominial';
-      const monthlyBudgetVal = cfg ? Number(cfg.monthly_budget ?? 50000) : 0;
+      const monthlyBudgetVal = cfg ? Number(cfg.monthly_budget ?? 0) : 0;
 
       const bundle: CondoFinancialBundle = {
         reserveFund: cfg
@@ -276,11 +274,11 @@ export const financialDataService = {
               monthlyYield: Number((balance * 0.0095 * (yieldRateCdi / 100)).toFixed(2)),
               bankName: institution,
               cdiRate: `${yieldRateCdi}% do CDI`,
-              accountType: 'Fundo Exclusivo Renda Fixa',
+              accountType: 'Fundo de Reserva',
               yieldRateCdi,
               institution,
-              targetTitle: cfg.reserve_fund_target_title || 'Meta Anual de Reserva',
-              targetAmount: Number(cfg.reserve_fund_target_amount ?? 100000),
+              targetTitle: cfg.reserve_fund_target_title || 'Meta do Fundo de Reserva',
+              targetAmount: Number(cfg.reserve_fund_target_amount ?? 0),
               history: Array.isArray(cfg.reserve_fund_history) ? cfg.reserve_fund_history : [],
             }
           : clean.reserveFund,

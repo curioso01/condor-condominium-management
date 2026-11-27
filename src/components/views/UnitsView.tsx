@@ -9,8 +9,6 @@ import { CreateUnitModal } from './CreateUnitModal';
 import { UnitDetailsModal } from './UnitDetailsModal';
 import { 
   Plus, 
-  Sparkles, 
-  RefreshCw, 
   AlertCircle, 
   CheckCircle2, 
   Layers, 
@@ -23,6 +21,7 @@ import {
   Trash2,
   X,
   Building2,
+  RefreshCw,
 } from 'lucide-react';
 import { PremiumSelect } from '../ui/PremiumSelect';
 
@@ -39,7 +38,6 @@ export const UnitsView: React.FC = () => {
   const [filter, setFilter] = useState<string>('Todos');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
 
   // Gestão de Blocos / Torres
   const [savedBlocks, setSavedBlocks] = useState<string[]>([]);
@@ -113,32 +111,6 @@ export const UnitsView: React.FC = () => {
     }
 
     return { success: false, error: 'Erro desconhecido ao salvar' };
-  };
-
-  // Seed sample units
-  const handleSeedUnits = async () => {
-    if (!currentCondominium?.id) return;
-    if (!canManageUsers) {
-      setNotification({ type: 'error', message: 'Apenas o Síndico e o Super Administrador podem popular unidades.' });
-      setTimeout(() => setNotification(null), 5000);
-      return;
-    }
-
-    setIsSeeding(true);
-    const { count, error } = await unitService.seedInitialUnits(currentCondominium.id);
-    setIsSeeding(false);
-
-    if (error) {
-      setNotification({ type: 'error', message: `Erro ao popular unidades: ${error.message}` });
-      setTimeout(() => setNotification(null), 5000);
-    } else {
-      await loadUnits();
-      setNotification({
-        type: 'success',
-        message: `${count} unidades iniciais criadas com sucesso no condomínio ${currentCondominium.name}!`,
-      });
-      setTimeout(() => setNotification(null), 5000);
-    }
   };
 
   // Blocos reais presentes no condomínio (salvos no condomínio + existentes nas unidades)
@@ -313,18 +285,6 @@ export const UnitsView: React.FC = () => {
 
         {canEditBlocksAndUnits && (
           <div className="flex items-center gap-2">
-            {units.length === 0 && !isLoading && (
-              <button
-                onClick={handleSeedUnits}
-                disabled={isSeeding}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
-                title="Inserir unidades de demonstração no banco"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>{isSeeding ? 'Criando...' : 'Popular Unidades'}</span>
-              </button>
-            )}
-
             <button
               onClick={() => setIsModalOpen(true)}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold shadow-pill transition-all flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
@@ -663,14 +623,10 @@ export const UnitsView: React.FC = () => {
           {/* FIRST-USE EMPTY STATE (No units in current condominium) */}
           {!isLoading && !errorMessage && units.length === 0 && (
             <EmptyState
-              title={`Nenhuma unidade cadastrada no ${currentCondominium?.name || 'Condomínio'}`}
-              description={
-                isSuperAdmin
-                  ? 'Você ainda não possui unidades registradas neste condomínio no Supabase. Cadastre a primeira unidade ou use o preenchimento automático inicial.'
-                  : 'Você ainda não possui unidades registradas neste condomínio. Cadastre a primeira unidade ou use o preenchimento automático inicial.'
-              }
-              actionLabel="+ Cadastrar Primeira Unidade"
-              onAction={() => setIsModalOpen(true)}
+              title={`Nenhuma unidade cadastrada em ${currentCondominium?.name || 'seu condomínio'}`}
+              description="Cadastre a primeira unidade e morador para iniciar o controle de acessos, encomendas e cobranças deste condomínio."
+              actionLabel={canEditBlocksAndUnits ? '+ Cadastrar Primeira Unidade' : undefined}
+              onAction={canEditBlocksAndUnits ? () => setIsModalOpen(true) : undefined}
               className="my-4 py-8"
             />
           )}

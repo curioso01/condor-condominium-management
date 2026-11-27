@@ -54,7 +54,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
   const [expenses, setExpenses] = useState<OperationalExpense[]>(() =>
     financialDataService.getExpenses(currentCondominium?.id)
   );
-  const [monthlyBudget, setMonthlyBudget] = useState(145000);
+  const [monthlyBudget, setMonthlyBudget] = useState(0);
   const [aiDiagnosis, setAiDiagnosis] = useState<AiDiagnosisData>(() =>
     financialDataService.getAiDiagnosis(currentCondominium?.id)
   );
@@ -93,7 +93,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
     setReserveFund(financialsRes.reserveFund);
     setExpenses(financialsRes.expenses);
     setAiDiagnosis(financialsRes.aiDiagnosis);
-    setMonthlyBudget(financialsRes.health.monthlyRevenueTarget || 145000);
+    setMonthlyBudget(financialsRes.monthlyBudget || 0);
 
     if (invoicesRes.error) {
       if (invoicesRes.error.tableMissing) {
@@ -776,7 +776,9 @@ export const FinancialView: React.FC<FinancialViewProps> = ({ onOpenSettings }) 
                 <p className="text-lg font-extrabold text-white mt-0.5 tabular-nums">
                   {aiDiagnosis.predictedRecoveryAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </p>
-                <span className="text-[10px] text-emerald-200 dark:text-emerald-400 font-semibold">+18% vs mês ant.</span>
+                <span className="text-[10px] text-emerald-200 dark:text-emerald-400 font-semibold">
+                  {aiDiagnosis.predictedRecoveryAmount > 0 ? 'Meta configurada' : 'Configure nos parâmetros'}
+                </span>
               </div>
               <div className="bg-white/15 dark:bg-black/30 rounded-2xl p-3 border border-white/20 dark:border-white/5 backdrop-blur-md dark:backdrop-blur-none">
                 <span className="text-[10px] font-medium text-teal-100 dark:text-teal-200/70 uppercase">Economia Prevista</span>
