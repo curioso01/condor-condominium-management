@@ -55,9 +55,9 @@ SET
   city = 'Rio de Janeiro',
   state = 'RJ',
   blocks = '["Bloco A"]'::jsonb,
-  enforce_reservation_hours = false,
-  reservation_start_hour = '08:00',
-  reservation_end_hour = '22:00',
+  default_reservation_time_limit = false,
+  default_reservation_start_time = '08:00',
+  default_reservation_end_time = '22:00',
   updated_at = NOW()
 WHERE id = '5a8d7ae3-dadc-46bd-8f53-62d97631f69c';
 
