@@ -226,6 +226,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [newUserCpf, setNewUserCpf] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserInitialPassword, setNewUserInitialPassword] = useState('Condor@2026');
   const [newUserApartment, setNewUserApartment] = useState('');
   const [newUserBlock, setNewUserBlock] = useState('Bloco A');
   const [newUserResidentType, setNewUserResidentType] = useState<'Proprietário' | 'Inquilino'>('Proprietário');
@@ -643,12 +644,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
+      if (newUserInitialPassword.trim().length > 0 && newUserInitialPassword.trim().length < 8) {
+      setFeedback('A senha provisória de 1º acesso deve conter no mínimo 8 caracteres.');
+      return;
+    }
+
     setIsSubmittingUser(true);
 
     const condoId = currentCondominium.id;
     const formattedUnit = newUserApartment.trim()
       ? `${newUserApartment.trim()} (${newUserBlock})`
       : '';
+    const passwordUsed = newUserInitialPassword.trim() || 'Condor@2026';
 
     const res = await userService.createUser(
       {
@@ -663,6 +670,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         has_pet: newUserHasPet,
         role: newUserRole,
         permissions: newUserRole === 'subsindico' ? newUserPermissions : undefined,
+        initial_password: passwordUsed,
       },
       currentRole
     );
@@ -690,12 +698,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     setIsSubmittingUser(false);
 
-    setFeedback(`Usuário ${newUserFullName} cadastrado com sucesso com privilégio de ${getRoleLabel(newUserRole)} e sincronizado ao censo!`);
+    setFeedback(
+      `Usuário ${newUserFullName} cadastrado com sucesso como ${getRoleLabel(newUserRole)}! Para o 1º acesso, informe o e-mail ${newUserEmail.trim().toLowerCase()} e a senha provisória "${passwordUsed}".`
+    );
     setIsAddingUser(false);
     setNewUserFullName('');
     setNewUserCpf('');
     setNewUserEmail('');
     setNewUserPhone('');
+    setNewUserInitialPassword('Condor@2026');
     setNewUserApartment('');
     setNewUserBlock(availableBlocks[0] || 'Bloco A');
     setNewUserResidentType('Proprietário');
@@ -1693,9 +1704,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 type="text"
                                 value={newUserPhone}
                                 onChange={(e) => setNewUserPhone(e.target.value)}
-                                placeholder="(11) 98765-4321"
+                                placeholder="(21) 99999-0000"
                                 className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                               />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                                Senha Provisória de 1º Acesso (mín. 8 caracteres) *
+                              </label>
+                              <input
+                                type="text"
+                                minLength={8}
+                                value={newUserInitialPassword}
+                                onChange={(e) => setNewUserInitialPassword(e.target.value)}
+                                placeholder="Ex: Condor@2026"
+                                className="w-full h-11 px-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                required
+                              />
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                Informe esta senha provisória ao usuário para o 1º login (ele poderá alterá-la em Configurações → Perfil &amp; Foto). Se o e-mail já possuir conta, a senha atual dele é mantida.
+                              </p>
                             </div>
                             <div>
                               <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">

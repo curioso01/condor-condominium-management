@@ -56,6 +56,7 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [initialPassword, setInitialPassword] = useState('Condor@2026');
   const [apartment, setApartment] = useState('');
   const [block, setBlock] = useState(blockOptions[0] || 'Bloco A');
   const [residentType, setResidentType] = useState<'Proprietário' | 'Inquilino'>('Proprietário');
@@ -94,6 +95,7 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
       setCpf('');
       setEmail('');
       setPhone('');
+      setInitialPassword('Condor@2026');
       setApartment('');
       setBlock(blockOptions[0] || 'Bloco A');
       setResidentType('Proprietário');
@@ -159,14 +161,20 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
       return;
     }
 
+    if (initialPassword.trim().length > 0 && initialPassword.trim().length < 8) {
+      setFormError('A senha provisória de 1º acesso deve ter no mínimo 8 caracteres.');
+      return;
+    }
+
     setIsSubmitting(true);
     setFormError(null);
 
-    const condoId = condominiumId || 'condo-imperial-001';
+    const condoId = condominiumId;
     const formattedUnit = `${apartment.trim()} (${block})`;
+    const passwordUsed = initialPassword.trim() || 'Condor@2026';
 
-    // 1. Cadastrar usuário no controle RBAC de usuários (quando quem chama tem permissão de gestão de usuários)
-    if (canManageUsers) {
+    // 1. Cadastrar usuário e provisionar 1º acesso (Síndico, Superadmin ou Sub-Síndico autorizado para Morador)
+    if (canManageUsers || (canManageUnits && role === 'morador')) {
       const resUser = await userService.createUser(
         {
           condominium_id: condoId,
@@ -180,6 +188,7 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
           has_pet: hasPet,
           role: role,
           permissions: role === 'subsindico' ? subPermissions : undefined,
+          initial_password: passwordUsed,
         },
         currentRole
       );
@@ -347,9 +356,28 @@ export const CreateUnitModal: React.FC<CreateUnitModalProps> = ({
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="(11) 98765-4321"
+                  placeholder="(21) 99999-0000"
                   className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+              </div>
+
+              {/* Senha Provisória de 1º Acesso */}
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Senha Provisória de 1º Acesso (mín. 8 caracteres) *
+                </label>
+                <input
+                  type="text"
+                  minLength={8}
+                  value={initialPassword}
+                  onChange={(e) => setInitialPassword(e.target.value)}
+                  placeholder="Ex: Condor@2026"
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Envie o e-mail e esta senha provisória ao morador/equipe para o 1º login (poderá ser alterada em Configurações → Perfil &amp; Foto).
+                </p>
               </div>
 
               {/* Apartamento / Unidade */}

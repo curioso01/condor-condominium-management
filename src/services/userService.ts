@@ -39,6 +39,7 @@ export interface CreateCondominiumUserInput {
   has_pet?: boolean;
   role: CondominiumRole;
   permissions?: SubSindicoPermissions;
+  initial_password?: string;
 }
 
 // Cache em memória por condomínio (apenas durante a sessão ativa; limpo no logout)
@@ -189,12 +190,14 @@ export const userService = {
     data: CondominiumUser | null;
     error: { message: string } | null;
   }> {
-    if (!this.canUserManageRoles(callerRole)) {
+    const canAuthorizedSubCreateResident =
+      callerRole === 'subsindico' && input.role === 'morador';
+    if (!this.canUserManageRoles(callerRole) && !canAuthorizedSubCreateResident) {
       return {
         data: null,
         error: {
           message:
-            'Acesso negado: apenas o Síndico e o Super Administrador possuem permissão para cadastrar usuários e conceder privilégios.',
+            'Acesso negado: apenas o Síndico, o Super Administrador ou Sub-Síndico autorizado possuem permissão para cadastrar usuários.',
         },
       };
     }
@@ -283,13 +286,33 @@ export const userService = {
       }
 
       if (!UUID_REGEX.test(targetUserId)) {
-        return {
-          data: null,
-          error: {
-            message:
-              'Usuário não encontrado no Supabase Auth com este e-mail. A conta precisa existir no Supabase Auth antes de ser vinculada ao condomínio (não é permitido criar vínculo sem UUID real).',
-          },
-        };
+        // 3. Provisiona automaticamente a conta de 1º acesso via Edge Function segura (sem deslogar quem cadastra)
+        const { data: provisionData, error: provisionErr } = await supabase.functions.invoke(
+          'provision-condo-user',
+          {
+            body: {
+              condominium_id: input.condominium_id,
+              email: normalizedEmail,
+              full_name: input.full_name.trim(),
+              phone: input.phone?.trim() || null,
+              role: input.role,
+              initial_password: input.initial_password?.trim() || 'Condor@2026',
+            },
+          }
+        );
+
+        if (!provisionErr && provisionData?.user_id && UUID_REGEX.test(provisionData.user_id)) {
+          targetUserId = provisionData.user_id;
+        } else {
+          const errDetail =
+            provisionData?.error ||
+            provisionErr?.message ||
+            'Não foi possível criar a conta de 1º acesso para este e-mail.';
+          return {
+            data: null,
+            error: { message: errDetail },
+          };
+        }
       }
 
       const resolvedPermissions: SubSindicoPermissions =
